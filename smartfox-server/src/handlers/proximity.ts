@@ -1,55 +1,26 @@
-// SFS2X's MMORoom proximity/AOI mechanism, player side - `c=0,a=30`
-// (RequestType.SetUserPosition), the "p"/"m" fields. Confirmed against the
-// real decompiled SFS2X SDK (Sfs2X.Requests.MMO/SetUserPositionRequest.cs,
-// Sfs2X.Controllers/SystemController.cs's FnSetUserPosition dispatch entry
-// for action 30), not the historical Java reference (that's only used
-// elsewhere to confirm the mechanism/cadence exists, never as a wire-shape
-// source). This is the *only* thing that spawns another player's avatar
-// client-side - ClubPenguinClient never subscribes to the plain SFS2X
-// USER_ENTER_ROOM/USER_EXIT_ROOM/USER_COUNT_CHANGE events at all (confirmed
-// via its one event-registration site, SmartFoxGameServerClientSFSThread.
-// AddListeners), only SFSEvent.PROXIMITY_LIST_UPDATE, itself only ever
-// dispatched from this same action-30 packet.
+// Player presence via SFS2X's MMORoom proximity updates (controller 0,
+// action 30, SetUserPosition). This is the only way the CPI client spawns
+// or removes other players' avatars: it never listens for the plain
+// USER_ENTER_ROOM / USER_EXIT_ROOM events, only PROXIMITY_LIST_UPDATE.
+//   "p" = users added, "m" = user ids removed.
+// world-objects.ts uses the same packet's "q" field for MMO items.
 //
-// Sibling to ../world-objects.ts, which already implements action 30's "q"
-// (item) side for Scheduled World Objects - same wire message, same room-id
-// constant convention (a local `ROOM_ID = 1`, matching login.ts's
-// buildRoomArray and world-objects.ts's own copy: this server has always
-// used a single literal room id for whichever room a session is in, not one
-// id per distinct room name). Deliberately kept as a separate module rather
-// than merged into world-objects.ts - that file's whole structure (per-room
-// def tables, scheduling/timers) is about server-driven scheduled items,
-// which has nothing in common with player presence being driven by
-// login/movement/disconnect events instead.
-//
-// AOI model: unconditional "whole room is in range," not real 3D distance
-// gating. Every room this server sends (buildRoomArray) hardcodes
-// DefaultAOI=[900,900,900], and nothing found so far indicates any CPI room
-// exceeds that footprint - so distance math would only add O(n^2) per-room
-// comparisons and boundary-popping edge cases for a case that doesn't
-// appear to exist. If that changes, only getByRoomExcluding (session-
-// registry.ts) needs to learn distance filtering - nothing in this file or
-// its callers would need to change.
+// Area of interest: the whole room counts as in range. Every room declares
+// a 900x900x900 AOI, which covers every CPI room. If that ever changes,
+// distance filtering belongs in session-registry.ts's getByRoomExcluding.
 
 import { SFSObjectWriter, SFSArrayWriter, encodePacket } from "../sfs-wire.ts";
 import { getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import { buildUserVariablesArray } from "../user-variables.ts";
 import type { Session } from "../session.ts";
 
-// Matches login.ts's buildRoomArray(...) and world-objects.ts's own ROOM_ID
-// - all three independently hold the same literal because this server has
-// never modeled more than one numeric room id. Not unified into a shared
-// export: each file already carries this as a one-line, well-commented
-// constant, and introducing a shared import here would touch two other
-// already-working, already-tested files for no behavioral change.
+// Same single room id as login.ts and world-objects.ts.
 const ROOM_ID = 1;
 
-// [id:int, name:utf, privilegeId:short, playerId:short, variables:SFSArray,
-// AOIEntryPoint?:FloatArray] - SFSUser.FromSFSArray's real 5/6-element
-// shape (Sfs2X.Entities/SFSUser.cs). `position` omitted -> 5-element form
-// (used for JoinRoom's "ul", which never carries an AOIEntryPoint);
-// provided -> 6-element form (used for every actual proximity-add packet,
-// so the client's SnapToPosition has something real to snap to).
+// SFSUser wire shape: [id, name, privilegeId, playerId, variables,
+// AOIEntryPoint?]. Without `position` this is the 5-element form used in
+// JoinRoom's user list; with it, the 6-element form proximity updates need
+// so the client knows where to place the avatar.
 export function buildProximityUserEntry(session: Session, position: number[] | undefined): SFSArrayWriter {
   const entry = new SFSArrayWriter()
     .putInt(session.userId)
@@ -61,14 +32,8 @@ export function buildProximityUserEntry(session: Session, position: number[] | u
   return entry;
 }
 
-// Sends `target` a snapshot of everyone already in the room, so their
-// client actually spawns those avatars (onProximityListUpdate's
-// addedUsers branch). Deliberately sends nothing at all - not even an
-// empty "p" - when the room has no other occupants: this project already
-// shipped a spurious action-30 payload once (09-sfs2x-server-open-
-// questions.md's 21st/22nd pass) that hung the client, so a solo login
-// must produce exactly zero new wire traffic, matching everything tested
-// so far.
+// Sends a new arrival everyone already in the room. Sends nothing when the
+// room is empty: an empty action-30 packet hangs the client.
 export function sendExistingOccupantsToJoiner(target: RegisteredSession, roomName: string): void {
   const others = getByRoomExcluding(roomName, target.session.userId);
   if (others.length === 0) return;
@@ -94,11 +59,8 @@ export function broadcastNewJoinerToRoom(roomName: string, joined: Session): voi
   );
 }
 
-// Tells everyone remaining in the room that `left` is gone, so their
-// client fires ROOM_USER_REMOVED instead of leaving a permanent ghost
-// avatar. Uses "m" (minus-user-list, a real INT_ARRAY - see sfs-wire.ts's
-// putIntArray) rather than the SFSArray-of-tuples shape "p" uses; the two
-// fields are independently typed on the same SetUserPositionRequest.
+// Tells the rest of the room that a player left, so their avatar is removed
+// instead of lingering. Uses "m" (an INT_ARRAY of user ids).
 export function broadcastUserLeftRoom(roomName: string, left: Session): void {
   const remaining = getByRoomExcluding(roomName, left.userId);
   if (remaining.length === 0) return;

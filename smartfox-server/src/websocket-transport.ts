@@ -1,38 +1,16 @@
-// Minimal RFC 6455 WebSocket transport - just enough to let SFS2X's own
-// WebSocket-Binary mode (Sfs2X.Util.UseWebSocket.WS_BIN/WSS_BIN) work over
-// the same TCP port this server already speaks raw BitSwarm framing on.
-//
-// Why this exists: OpenCPI's client build (decompiled
-// SmartFoxGameServerClientShared.cs:516) unconditionally constructs
-// `new SmartFox(UseWebSocket.WS_BIN, ...)` - no raw-TCP fallback on any
-// platform - and connects to `ws://<host>:<port>/BlueBox/websocket`
-// (Sfs2X.Core.Sockets.WebSocketLayer.cs:118), the exact same host/port as
-// the raw `tcpPort` field. Confirmed live: our raw `net.createServer`
-// listener never even completes a TCP-level handshake with it because
-// the client is speaking HTTP (the WS upgrade request) at a socket that
-// only understands BitSwarm's own binary framing.
-//
-// The payload carried inside each WS binary frame is the *same* BitSwarm/
-// SFSObject packet bytes this server already builds and parses - WS_BIN
-// only changes the outer transport, not the protocol - so this module is
-// deliberately just a thin wrap/unwrap layer, not a second protocol
-// implementation. Only what SFS2X's own client-side WebSocketHelper
-// actually needs is implemented: a single HTTP upgrade handshake, then
-// single (non-fragmented) masked binary data frames from the client and
-// unmasked binary data frames back - no ping/pong, no close frames, no
-// fragmentation. Extend if a live capture ever shows the client using any
-// of those.
+// Minimal WebSocket (RFC 6455) layer for SFS2X's WebSocket-Binary mode. The
+// OpenCPI client always connects with WS_BIN to ws://host:port/BlueBox/websocket
+// on the same port as raw TCP. Each frame carries the same BitSwarm packets,
+// so this only wraps and unwraps. Implemented: the upgrade handshake,
+// single-frame masked binary frames in and unmasked binary frames out. Not
+// implemented: ping/pong, close frames, fragmentation.
 
 import crypto from "node:crypto";
 
 const WEBSOCKET_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-// Raw BitSwarm packets always start with the binary flag (PacketHeader's
-// 0x80 bit, sfs-wire.ts's own encodePacket sets it unconditionally) - a
-// byte value >= 0x80 can never be the first byte of a printable-ASCII HTTP
-// request line ("GET ", "POST ", etc., all < 0x80). Cheap and reliable
-// enough to distinguish the two on the same port without needing to peek
-// further.
+// Raw BitSwarm packets start with a byte >= 0x80 (the binary flag); an HTTP
+// request line starts with ASCII. One byte tells them apart.
 export function looksLikeHttpRequest(buf: Buffer): boolean {
   return buf.length > 0 && buf[0]! < 0x80;
 }
@@ -59,8 +37,7 @@ export function tryHandleWebSocketHandshake(buf: Buffer): { response: string; co
   return { response, consumed: headerEnd + 4 };
 }
 
-// RFC 6455 frame decode - single-frame binary messages only (see module
-// note above). Returns null if the frame hasn't fully arrived yet.
+// Returns null until the whole frame has arrived.
 export function tryReadWebSocketFrame(buf: Buffer): { payload: Buffer; consumed: number } | null {
   if (buf.length < 2) return null;
   const masked = (buf[1]! & 0x80) !== 0;
@@ -91,8 +68,7 @@ export function tryReadWebSocketFrame(buf: Buffer): { payload: Buffer; consumed:
   return { payload, consumed: offset + payloadLen };
 }
 
-// RFC 6455 frame encode - a single unfragmented binary frame, unmasked
-// (server-to-client frames must never be masked, per spec).
+// Server-to-client frames are never masked.
 export function encodeWebSocketFrame(payload: Buffer): Buffer {
   const opcodeByte = 0x82; // FIN=1, opcode=2 (binary)
   let header: Buffer;

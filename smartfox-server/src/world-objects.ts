@@ -1,85 +1,39 @@
-// Scheduled World Objects (geysers, blinking lights, air vents, etc.) -
-// SFS2X's built-in MMO Room Items API, NOT a CallExtension command. This is
-// the mechanism traced from a real byte-level capture against actual
-// retail SFS2X running a `cpi` extension:
+// Scheduled world objects: geysers, blinking lights, air vents. These use
+// SFS2X's MMO Items API, not extension commands.
 //
-// - `c=0,a=30` ("Action 30") is SFS2X's own proximity-list-update push,
-//   reusing the same wire shape as the client's outgoing SetUserPositionRequest
-//   (SmartFox2X.decompiled.cs:3396 FnSetUserPosition, confirmed against
-//   SetUserPositionRequest's own KEY_ROOM="r"/KEY_PLUS_ITEM_LIST="q" wire
-//   keys). It fires whenever an MMO item enters a user's area of interest -
-//   in the real capture this happened ~450ms after JoinRoom, tied to
-//   Alpine:Town's two blinking lights being created (`setMMOItemPosition`
-//   is itself what triggers "item entered AOI"), never synchronously as
-//   part of login. A room with zero scheduled objects gets zero action-30
-//   packets, ever.
-// - `c=0,a=1007` (`SetMMOItemVariables`, SmartFox2X.decompiled.cs:3479/13980)
-//   is the incremental per-item update used for every state change after
-//   creation - `r`=room id, `i`=item id, `v`=SFSArray of changed variable
-//   tuples. Matches Java's `ScheduledWorldObjectManager.setObjectState`/
-//   `performStateTransition`, which only ever touch two variables per
-//   transition (`scheduledworldobjectstate`, `statetimestamp`).
-// - Item variable tuples are `[name:string, declaredType:byte, value]`,
-//   THREE elements - confirmed via `MMOItemVariable.FromSFSArray`
-//   (SmartFox2X.decompiled.cs:9355: `GetUtfString(0)`, `GetByte(1)`,
-//   `GetElementAt(2)`). No trailing "isPrivate" bool - that's a
-//   `RoomVariable`-only field (`SFSUserVariable`/`SFSRoomVariable`), and
-//   `MMOItemVariable` only implements the plain `Variable` interface. The
-//   declared-type byte is the same `VariableType` enum (INT=2/STRING=4)
-//   `handlers/sfs2x/login.ts`'s `intVar`/`stringVar` already use for user
-//   variables, not the wire-level `SFSDataType` byte (that's a separate,
-//   self-describing prefix already baked into the value at index 2).
-// - Item categories/variable keys/state enum are all decompiled-confirmed
-//   client-side (`ClubPenguin.Net.Client.Smartfox.Item.ItemCategory`,
-//   `SocketItemVars` w/ `[SocketItemVars(key, type)]` attributes,
-//   `ScheduledWorldObjectState`, `StatefulWorldObject`'s constructor -
-//   ClubPenguinClient.decompiled.cs:7813-9874) and match a working Java
-//   SFS2X extension's constants byte-for-byte.
+// - c=0, a=30 (proximity update): "q" lists items entering the player's
+//   area of interest as [itemId, variables, position]. A room with no
+//   scheduled objects never gets one.
+// - c=0, a=1007 (SetMMOItemVariables): per-item state changes. r = room,
+//   i = item id, v = changed variables. Each transition changes only
+//   scheduledworldobjectstate and statetimestamp.
+// - Item variables are 3-element tuples [name, VariableType byte, value].
+//   Unlike user variables there's no isPrivate flag.
 //
-// What's NOT decompiled-confirmed: WHICH rooms have WHICH objects at what
-// positions/timings. That part is carried over from the recovered Java
-// extension's own `ScheduledWorldObjectManager.createDefaultObjectsForRoom`
-// (my.test.world.ScheduledWorldObjectManager.java) - real, CDN-sourced data
-// for Beacon Boardwalk/AquaFunHut's 8 geyser locations (that file's own
-// comment cites `OpenCPI-CDN/.../ServerData/b9ead7...json`, not
-// independently re-verified here - the CDN dump isn't part of this repo),
-// best-guess placeholder positions/
-// timings for everything else (Mt. Blizzard geysers, underwater air vents,
-// town lights - marked as such in the Java source's own comments, not
-// presented as more certain than that here either). Room-name matching is
-// substring-based exactly like the Java version (`roomName.includes(...)`),
-// which is also how "Alpine:Town" - the one room this project has an actual
-// real capture for (two blinking lights) - falls under the "Town" case
-// below without needing its own special-cased entry.
+// The wire format, categories, variable keys and state values come from the
+// client. Which rooms have which objects, and where, comes from a Java SFS2X
+// extension's ScheduledWorldObjectManager: the Beacon Boardwalk geyser
+// positions are from game data, the rest are placeholders. Rooms are
+// matched by substring, so "Alpine:Town" falls under "Town".
 //
-// Deliberately NOT a singleton the way the recovered Java's
-// `ScheduledWorldObjectManager.getInstance()` was (a real limitation in
-// that old code: `init()` no-ops for every room after the first one ever
-// seen, server-process-wide). This server supports multiple concurrent
-// rooms, so it's a real per-room registry instead - a fidelity improvement
-// over the old code's bug, not a wire-protocol change.
+// State is tracked per room, so several rooms can run at once.
 
 import { SFSObjectWriter, SFSArrayWriter, encodePacket } from "./sfs-wire.ts";
 import { getByRoom } from "./session-registry.ts";
 import type { HandlerContext } from "./handlers/context.ts";
 
-// ClubPenguin.Net.Client.Smartfox.Item.ItemCategory (ClubPenguinClient.
-// decompiled.cs:8030) - only the one category this module produces.
+// Client ItemCategory value used for these objects.
 const ITEM_CATEGORY_SCHEDULED_ROOM_OBJECT = 2;
 
-// ScheduledWorldObjectState (ClubPenguinClient.decompiled.cs:9848).
+// Client ScheduledWorldObjectState values.
 const STATE_INACTIVE = 0;
 const STATE_ACTIVE = 1;
 
-// Sfs2X.Entities.Variables.VariableType (NULL=0/BOOL=1/INT=2/DOUBLE=3/
-// STRING=4/OBJECT=5/ARRAY=6) - same enum handlers/sfs2x/login.ts's
-// intVar/stringVar use, see this file's header comment.
+// SFS2X VariableType: NULL=0, BOOL=1, INT=2, DOUBLE=3, STRING=4, OBJECT=5, ARRAY=6.
 const VARIABLE_TYPE_INT = 2;
 const VARIABLE_TYPE_STRING = 4;
 
-// This server always sends room id=1 for whatever room a session is in
-// (handlers/sfs2x/login.ts's buildRoomArray hardcodes it too) - single
-// numeric room id, not one per distinct room name.
+// Same single room id as login.ts.
 const ROOM_ID = 1;
 
 type SelectionBehaviour = "ordered" | "random" | "nonRepeatingRandom";
@@ -124,9 +78,6 @@ const rooms = new Map<string, RoomState>();
 let nextItemId = 1;
 
 // ==================== Room -> default object defs ====================
-// Ported from a Java SFS2X extension's ScheduledWorldObjectManager
-// createDefaultObjectsForRoom - see this
-// file's header comment for what's real vs. best-guess.
 
 function individualDefsForRoom(roomName: string): WorldObjectDef[] {
   const defs: WorldObjectDef[] = [];
@@ -142,11 +93,7 @@ function individualDefsForRoom(roomName: string): WorldObjectDef[] {
     defs.push({ path: "AirVent3", position: [-8, -6, -5], activeSeconds: 3, inactiveSeconds: 5, startActive: true });
   }
   if (roomName.includes("Town")) {
-    // Matches "Alpine:Town" - the one room this project has a real capture
-    // for (two blinking lights). Exact real
-    // paths/positions weren't captured in writable form, only the count and
-    // wire shape - names/positions below are the recovered Java's own
-    // placeholders, not decompiled fact.
+    // Placeholder names and positions. A real capture shows two blinking lights here.
     defs.push({ path: "TownLight1", position: [5, 3, 0], activeSeconds: 2, inactiveSeconds: 2, startActive: true });
     defs.push({ path: "TownLight2", position: [-5, 3, 0], activeSeconds: 2, inactiveSeconds: 2, startActive: false });
   }
@@ -156,11 +103,8 @@ function individualDefsForRoom(roomName: string): WorldObjectDef[] {
 function groupDefsForRoom(roomName: string): GroupDef[] {
   const groups: GroupDef[] = [];
   if (roomName.includes("Boardwalk") || roomName.includes("AquaFunHut")) {
-    // Real CDN-sourced positions per the recovered Java source's own
-    // comment (OpenCPI-CDN ServerData - not independently re-verified in
-    // this repo, see this file's header). cycleTimeSeconds=17,
-    // NonRepeatingRandom selection, activeDuration=30s (20s attract + 10s
-    // eruption per the client's own animation timing).
+    // Positions from game data. 17s cycle, random non-repeating pick, active
+    // for 30s (20s build-up + 10s eruption).
     groups.push({
       groupId: "AquaFunHutGeysers",
       cycleTimeSeconds: 17,
@@ -182,8 +126,7 @@ function groupDefsForRoom(roomName: string): GroupDef[] {
 
 // ==================== Wire encoding ====================
 
-// Item variable tuple - see this file's header comment for why this is a
-// 3-element array (no trailing isPrivate bool, unlike user/room variables).
+// [name, type, value] - no isPrivate flag on item variables.
 function itemIntVar(name: string, value: number): SFSArrayWriter {
   return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_INT).putInt(value);
 }
@@ -191,10 +134,7 @@ function itemStringVar(name: string, value: string): SFSArrayWriter {
   return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_STRING).putUtfString(value);
 }
 
-// Full variable set a StatefulWorldObject needs (ClubPenguinClient.
-// decompiled.cs:9868's constructor reads path/statetimestamp/
-// scheduledworldobjectstate; category/creator are read generically by
-// ItemFactory.Create for every category).
+// Variables the client's StatefulWorldObject reads.
 function encodeItemVariables(item: LiveItem): SFSArrayWriter {
   return new SFSArrayWriter()
     .putSFSArray(itemIntVar("category", ITEM_CATEGORY_SCHEDULED_ROOM_OBJECT))
@@ -204,16 +144,12 @@ function encodeItemVariables(item: LiveItem): SFSArrayWriter {
     .putSFSArray(itemIntVar("scheduledworldobjectstate", item.state));
 }
 
-// [itemId:int, variables:SFSArray, position:FloatArray] - MMOItem.
-// FromSFSArray's exact tuple shape (SmartFox2X.decompiled.cs:5487).
+// MMOItem wire shape: [itemId, variables, position].
 function encodeItemTuple(item: LiveItem): SFSArrayWriter {
   return new SFSArrayWriter().putInt(item.itemId).putSFSArray(encodeItemVariables(item)).putFloatArray(item.position);
 }
 
-// c=0,a=30 - full items-in-AOI snapshot, sent once per session (their own
-// "an item just entered my AOI" event) rather than broadcast, since every
-// other session in the room already got their own snapshot at their own
-// join time.
+// Sends a joining player every object in the room (c=0, a=30).
 export function sendWorldObjectsSnapshot(ctx: HandlerContext, roomName: string): void {
   const state = ensureRoomWorldObjects(roomName);
   if (state.items.size === 0) return;
@@ -226,9 +162,7 @@ export function sendWorldObjectsSnapshot(ctx: HandlerContext, roomName: string):
   );
 }
 
-// c=0,a=1007 (SetMMOItemVariables) - broadcast to every session currently
-// registered in the room, since a state change is visible to everyone, not
-// just whoever triggered it (nobody triggers it - it's timer-driven).
+// Broadcasts a timer-driven state change to the whole room (c=0, a=1007).
 function broadcastItemStateChange(roomName: string, item: LiveItem): void {
   const varList = new SFSArrayWriter()
     .putSFSArray(itemIntVar("scheduledworldobjectstate", item.state))
@@ -331,8 +265,7 @@ function createGroup(roomName: string, state: RoomState, group: GroupDef): void 
   cycleNext();
 }
 
-// Idempotent per room name - real objects/timers are created exactly once,
-// on whichever session joins that room first.
+// Creates a room's objects and timers once, when the first player joins.
 export function ensureRoomWorldObjects(roomName: string): RoomState {
   const existing = rooms.get(roomName);
   if (existing) return existing;

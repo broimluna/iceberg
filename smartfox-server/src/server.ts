@@ -24,22 +24,16 @@ import { register, unregister } from "./session-registry.ts";
 import { startNotifyListener } from "./notify-listener.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 
-// Per-connection setup: transport detection (raw BitSwarm vs WebSocket),
-// packet framing/buffering, and dispatch into the c=0 system handlers or
-// the c=1/a=13 extension command registry. Behavior here is unchanged
-// from this project's original single-file version - only the per-command
-// bodies moved out to handlers/.
+// Per connection: detect the transport (raw BitSwarm or WebSocket), frame
+// packets, and dispatch them to system handlers (controller 0) or to
+// extension commands (controller 1, action 13).
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
   let buffered = Buffer.alloc(0);
-  // Dual transport support - see websocket-transport.ts's module comment
-  // for why: the retail client speaks raw BitSwarm TCP
-  // directly, OpenCPI's client unconditionally speaks WebSocket-Binary
-  // instead (same host/port, different outer framing). `transportMode`
-  // starts undetermined and gets pinned to whichever one the first bytes
-  // of the connection look like.
+  // The retail client speaks raw BitSwarm TCP; the OpenCPI client speaks
+  // WebSocket on the same port. The first bytes decide which.
   let transportMode: "unknown" | "raw" | "websocket" = "unknown";
   let handshakeBuffer = Buffer.alloc(0);
   let wsBuffered = Buffer.alloc(0);
@@ -78,10 +72,7 @@ const connectionHandler = (socket: net.Socket) => {
         handleHandshake(ctx);
       } else if (controllerId === 0 && actionId === 1) {
         handleLogin(params, ctx, socket);
-        // Session registry (room registry + reward integrity pass,
-        // 2026-09-17 plan) - registered right after Login populates
-        // session.userName/swid/roomName, not at connection-open, since
-        // those fields don't exist yet before this point.
+        // Registered after login, once name, swid and room are known.
         register({ session, peer, send });
       } else if (controllerId === 0 && actionId === 29) {
         handlePingPong(ctx);
@@ -114,9 +105,6 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("data", (chunk: Buffer) => {
     if (transportMode === "unknown") {
-      // Undetermined until the first bytes arrive - see websocket-transport.ts's
-      // module comment for why both are real, live-confirmed possibilities on
-      // this exact port (retail raw BitSwarm vs OpenCPI's WebSocket-Binary).
       handshakeBuffer = Buffer.concat([handshakeBuffer, chunk]);
       if (!looksLikeHttpRequest(handshakeBuffer)) {
         transportMode = "raw";
@@ -158,11 +146,7 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("close", (hadError) => {
     unregister(session);
-    // Companion to handlers/proximity.ts's join notifications - without
-    // this, once join/movement visibility works, a disconnected player
-    // leaves a permanent ghost avatar for everyone else in the room
-    // (nothing else ever sends action-30's "m" field). No-op for a session
-    // that never joined a room or was alone in it.
+    // Remove the avatar for everyone else in the room.
     broadcastUserLeftRoom(session.roomName, session);
     console.log(`[${new Date().toISOString()}] ${peer} closed (error=${hadError})`);
   });
@@ -172,29 +156,15 @@ const connectionHandler = (socket: net.Socket) => {
   });
 };
 
-// Listens on two ports with the identical connection handler (transport
-// detection already happens per-connection, so nothing else here needs to
-// know which port a given socket arrived on). PORT (9933) is the real,
-// decompiled-and-confirmed tcpPort value every client so far actually
-// sends in its own JoinRoomData (retail, OpenCPI). 8080 is added
-// specifically to work around a confirmed bug in OpenCPI's own compiled
-// client: `SmartFoxGameServerClientShared.cs:649` unconditionally
-// overwrites the correct `serverTcpPort` with `configData.HttpPort`
-// (default 8080, never otherwise set) whenever the target host is
-// recognized as local (`UseEncryption` false) - so OpenCPI's client will
-// always try to connect to *that* port instead of the real one for any
-// unencrypted local server. Not something fixable from our side short of
-// also listening where its bug sends it.
+// Listens on PORT (9933, the port clients are told to use) and on 8080. The
+// OpenCPI client has a bug: for local, unencrypted servers it connects to
+// its HttpPort setting (default 8080) instead of the real port.
 export function startServer(): void {
   for (const port of [PORT, 8080]) {
     const server = net.createServer(connectionHandler);
     server.on("error", (err) => {
-      // Only PORT (9933, the real protocol port) failing to bind is fatal -
-      // 8080 is just the OpenCPI-bug workaround (see comment above); if
-      // something else already holds it (e.g. a real SFS2X install's own
-      // Tomcat/AdminTool service, encountered live 2026-09-17 while
-      // diagnosing a login hang), that shouldn't take down the whole
-      // server, just mean OpenCPI clients specifically can't connect.
+      // Only PORT failing is fatal; something else (e.g. a real SFS2X
+      // install's admin tool) may already hold 8080.
       console.error(`listener error on port ${port}: ${err.message}`);
       if (port === PORT) process.exit(1);
     });

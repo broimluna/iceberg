@@ -3,37 +3,15 @@ import { getPossiblyEncryptedUtfString } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
 import type { HandlerContext } from "./context.ts";
 
-// SmartfoxCommand.CHAT ("chat.msg", SMARTFOX_PACKETS_DOCUMENTATION.md's
-// Chat section, sourced from SendChatMessage/ChatMessage/
-// ReceivedChatMessage - real field-level shapes, not guessed). OUT (what
-// the client just sent us): "msg" = JSON string of
-// SignedResponse<ChatMessage> ({goodUntil, swid, data: {senderSessionId,
-// message, emotion, moderated, questId, objective}, signature} -
-// ChatMessage.cs). IN (what we send back): "msg" = JSON string of a
-// *different*, unwrapped struct, ReceivedChatMessage.cs ({senderSessionId,
-// message, emotion} - only 3 fields, no SignedResponse wrapper - confirmed
-// asymmetric from the client's own onExtensionResponse dispatch,
-// SmartFoxGameServerClientSFSThread.cs:381:
-// `mt.JsonService.Deserialize<ReceivedChatMessage>(iSFSObject.GetUtfString
-// ("msg"))`). `senderSessionId` is a real `long` field (the client's own
-// huge fabricated joinRoomData.data.sessionId, same identity space as
-// reward.add's dict key and the "sess" user variable - NOT the small
-// SFS2X room-local int id) - built via string interpolation rather than
-// JSON.stringify(playerSessionId) since it exceeds
-// Number.MAX_SAFE_INTEGER, so it's kept as a string end to end. Also
-// confirmed from the same onExtensionResponse method (line 359-362):
-// "senderId" is read as an int from *inside* the nested "p" object itself
-// (`iSFSObject.GetInt("senderId")`, then resolved to the real sessionId
-// via `getSessionId(userId)`) - not a sibling of "c" at the envelope's
-// top level.
-// Real client-side encryption applies here specifically once a key's
-// established (SmartFoxEncryptor.EncryptParameter is only ever called on
-// "msg" here, ClubPenguinClient.decompiled.cs:1384) - see
-// getPossiblyEncryptedUtfString's own comment (wire-helpers.ts) for why
-// this matters: without it, every chat.msg sent after the client's
-// automatic post-time.get encryption.get handshake would silently decode
-// to an empty message (JSON.parse on raw ciphertext, swallowed by the
-// catch below).
+// "chat.msg"
+// Client -> server: "msg" = JSON SignedResponse<ChatMessage>, encrypted once
+// an encryption.get key exists.
+// Server -> room: "msg" = JSON ReceivedChatMessage {senderSessionId,
+// message, emotion} (no SignedResponse wrapper), plus "senderId" (room-local
+// user id) inside "p".
+// senderSessionId is a 64-bit id beyond Number.MAX_SAFE_INTEGER, so it's
+// spliced into the JSON as a string instead of going through
+// JSON.stringify.
 export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const outMsgJson = getPossiblyEncryptedUtfString(innerParams, "msg", ctx.session);
   let messageText = "";
@@ -57,12 +35,8 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
   console.log(`[${new Date().toISOString()}] ${ctx.peer} <- chat.msg echo (message=${JSON.stringify(messageText)}, emotion=${emotion})`);
 }
 
-// SmartfoxCommand.CHAT_ACTIVITY / CHAT_ACTIVITY_CANCEL - bare
-// typing-indicator start/stop pings, no payload either direction per
-// SMARTFOX_PACKETS_DOCUMENTATION.md's Chat section - the client resolves
-// who's typing purely from "senderId" inside "p" (same lookup-by-room-
-// local-id-then-"sess"-variable pattern as chat.msg above), so the
-// response just needs that one field.
+// "chat.activity" / "chat.activity_cancel" - typing indicator start/stop.
+// Receivers only need "senderId".
 export function handleChatActivity(cmd: "chat.activity" | "chat.activity_cancel", ctx: HandlerContext): void {
   const packet = encodePacket(
     1,

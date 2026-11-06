@@ -1,15 +1,9 @@
 import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
 import type { HandlerContext } from "./context.ts";
 
-// SmartfoxCommand.GET_SERVER_TIME ("time.get") - confirmed root cause of
-// the room-join hang via a byte-level capture of the real client hitting
-// our own server: the client
-// sends this immediately after JoinRoom, completely unconditionally, and
-// its own bootstrap sequence blocks waiting for a response before ever
-// sending anything else (`encryption.get`, movement, etc.) - since this
-// project never had a handler for it, the client just hung forever with
-// no visible error. Response: echoes the client's own "ct" value
-// back verbatim (both LONG) and adds "st" (server time in ms, also LONG).
+// "time.get" - the client sends this right after joining a room and waits
+// for the reply before sending anything else; without it the room join
+// hangs. Echo the client's "ct" back and add "st" (server time, ms).
 export function handleTimeGet(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const ct = innerParams["ct"];
   const clientTime = ct?.type === SFSDataType.LONG ? ct.value : 0n;

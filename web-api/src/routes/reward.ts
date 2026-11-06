@@ -745,10 +745,6 @@ router.get('/reward/v1/calculateexchangeall', (req, res) => {
     });
 });
 
-// Exposed for server.ts's /api/internal/grant-reward - lets the SFS2X
-// game server grant a reward directly (server-to-server) when its own
-// game logic decides one is earned, instead of relying solely on the
-// client to relay a reward.add push into PUT /reward/v1 above (which has
-// no validation at all - a modified client can grant itself anything).
+// applyRewards is also used by server.ts's /api/internal/grant-reward.
 export default router;
 export { applyRewards };

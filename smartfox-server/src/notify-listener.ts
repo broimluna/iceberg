@@ -3,20 +3,10 @@ import { SFSObjectWriter, encodePacket } from "./sfs-wire.ts";
 import { getByUsername } from "./session-registry.ts";
 import { NOTIFY_PORT, INTERNAL_API_SECRET } from "./config.ts";
 
-// Receiving end of a contract the WebAPI already calls
-// (web-api/src/smartfoxNotifier.ts's sendNotification, POSTing to
-// localhost:9339/notify from routes/catalog.ts and routes/player.ts) -
-// nothing to design here, this server just never had anything listening
-// on the other end until now. Lets the WebAPI push real-time updates to a
-// connected player (e.g. a daily task advancing via a web-only action)
-// without the game client having to poll for it.
-//
-// `TASK_COUNT` ("task.c") is the one push with a decompiled-confirmed
-// wire shape (SMARTFOX_PACKETS_DOCUMENTATION.md's Tasks section: `t` =
-// task ID string, `c` = counter int, native SFSObject fields, not
-// JSON-wrapped like most of this protocol) - COINS_UPDATE/ASSET_ADDED
-// have no confirmed client-facing push shape yet, so they're logged, not
-// guessed into a wire packet.
+// Receives pushes from the WebAPI (web-api/src/smartfoxNotifier.ts →
+// POST /notify) and forwards them to the connected player. Only
+// DAILY_TASK_UPDATE has a known client-side packet ("task.c": t = task id,
+// c = counter); other notification types are logged.
 function handleNotification(payload: Record<string, unknown>): void {
   const type = typeof payload.type === "string" ? payload.type : undefined;
   const username = typeof payload.username === "string" ? payload.username : undefined;
@@ -44,10 +34,7 @@ export function startNotifyListener(): void {
       res.writeHead(404).end();
       return;
     }
-    // Localhost-only by design - see config.ts's own comment. Same
-    // posture as web-api/src/server.ts's /api/internal/add-coins
-    // ("no authentication required"), matched rather than tightened
-    // unilaterally on this side alone.
+    // Localhost only, plus the optional shared secret.
     const remote = req.socket.remoteAddress ?? "";
     if (remote !== "127.0.0.1" && remote !== "::1" && remote !== "::ffff:127.0.0.1") {
       res.writeHead(403).end();

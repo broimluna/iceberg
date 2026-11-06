@@ -382,29 +382,18 @@ router.post('/quest/v1/:questId', (req, res) => {
 });
 
 /**
- * Grant the reward attached to a single quest objective, keyed off the
- * player's currently-active quest (SFS2X's quest.c_obj only carries the
- * bare objective name, e.g. "Obj0" - shared across many quest
- * definitions - never a questId, so the active quest is the only way to
- * disambiguate which definition to look the objective up in). Idempotent
- * the same way /quest/v1/progress's own newObjectives/recoveryObjectives
- * split is: an objective already in completedObjectives is a no-op, not
- * a re-grant, so a resent quest.c_obj (reconnect, retry) can't duplicate
- * the reward. Returns the granted reward (real generated equipmentId
- * etc., same shape grantRewards always returns) or null if there's no
- * active quest, the objective's already recorded, or it has no reward.
+ * Grant the reward for one quest objective. quest.c_obj carries only the
+ * objective name (e.g. "Obj0", reused across quests), so the quest is
+ * found by which in-progress quest defines that objective. Idempotent: an
+ * objective that's already recorded grants nothing. Returns the granted
+ * reward, or null if there's nothing to grant.
  */
 function grantQuestObjectiveReward(username, objectiveId) {
     const quests = db.getQuests(username);
 
-    // Real captures show this quest's status bouncing ACTIVE<->SUSPENDED
-    // on essentially every quest.set the client sends mid-quest (not just
-    // at quest start/switch) - SUSPENDED here reads as "not the pinned
-    // quest-tracker slot", not "not being played", so a SUSPENDED quest
-    // is just as eligible to receive an objective's reward as an ACTIVE
-    // one. Matched by which quest definition actually declares this
-    // objective key (collides across quests, e.g. "Obj0"), preferring an
-    // ACTIVE match over a SUSPENDED one if somehow both qualify.
+    // The client flips quests between ACTIVE and SUSPENDED constantly
+    // mid-quest (SUSPENDED only means "not the tracked quest"), so both
+    // count. Prefer ACTIVE if both match.
     const candidates = quests
         .filter(q => (q.status === QuestStatus.ACTIVE || q.status === QuestStatus.SUSPENDED) && !q.completedObjectives.includes(objectiveId))
         .filter(q => config.questDefinitions[q.questId]?.objectives?.[objectiveId])

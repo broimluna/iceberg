@@ -1,25 +1,11 @@
 import { WEBAPI_INTERNAL_URL, INTERNAL_API_SECRET } from "./config.ts";
 
-// Server-to-server reward granting - POSTs straight to the WebAPI's own
-// internal endpoints (like /api/internal/add-coins), bypassing the client
-// entirely, instead of the vulnerable pattern found auditing the WebAPI:
-// `PUT /reward/v1` (web-api/src/routes/reward.ts) trusts whatever
-// reward blob the client PUTs, with zero validation - a modified client
-// can grant itself anything with no SFS2X round-trip at all. Calling this
-// directly from wherever this server's own game logic decides a reward is
-// earned (quest completion today; target hits/party games later) means
-// the client's cooperation is never required for the grant to be real.
-//
-// Shape matches routes/reward.js's own `applyRewards(username, reward)` -
-// same `reward` fields (coins/mascotXP/equipmentTemplates/decals/fabrics/
-// durables/tubes/emotePacks/colourPacks/sizzleClips/collectibleCurrencies),
-// not reinvented here.
-// [dateTimeCreated, definitionId, parts, equipmentId] - CustomEquipment's
-// real wire shape (ClubPenguin.Net.Domain/CustomEquipment.cs), the same
-// field set quests.json's own equipmentInstances reward entries already
-// use - confirmed this is what a reward.add push's "equipmentInstances"
-// key deserializes into client-side (AbstractListReward<CustomEquipment>.
-// FromJson -> LitJson JsonMapper.ToObject<List<CustomEquipment>>).
+// Server-to-server reward grants. The game server decides what was earned
+// and tells the WebAPI directly, rather than trusting the client to relay
+// it through PUT /reward/v1, which accepts anything a modified client sends.
+// RewardGrant mirrors the `reward` argument of applyRewards in
+// web-api/src/routes/reward.ts.
+// Client-side CustomEquipment, as used by reward.add's "equipmentInstances".
 export interface EquipmentInstanceGrant {
   equipmentId: number;
   dateTimeCreated: number;
@@ -60,21 +46,15 @@ export async function grantReward(username: string, reward: RewardGrant): Promis
     console.log(`[${new Date().toISOString()}] webapi-client: granted reward to ${username}: ${JSON.stringify(reward)}`);
     return true;
   } catch (err) {
-    // WebAPI being offline shouldn't crash the game server - same
-    // tolerance smartfoxNotifier.js already has for its own direction
-    // (ECONNREFUSED is expected during development, not fatal).
+    // A down WebAPI must not take the game server with it.
     console.log(`[${new Date().toISOString()}] webapi-client: grant-reward request failed: ${(err as Error).message}`);
     return false;
   }
 }
 
-// Resolves+persists whatever reward quests.json attaches to this
-// objective, keyed off the player's active quest server-side (quest.c_obj
-// only ever carries the bare objective name - see handlers/quest.ts's
-// handleQuestCompleteObjective). Returns null on no active quest, an
-// already-recorded objective, an objective with no reward, or any
-// request failure - all "nothing to push back to the client" cases,
-// deliberately not distinguished further here.
+// Records a completed quest objective and returns its reward from
+// quests.json. Returns null if there's nothing to grant: no active quest,
+// objective already recorded, no reward, or the request failed.
 export async function grantQuestObjective(username: string, objective: string): Promise<RewardGrant | null> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/quest-objective`, {

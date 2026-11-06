@@ -15,26 +15,11 @@ import { handleConsumableSet } from "./consumables.ts";
 
 export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext) => void;
 
-// RequestType.CallExtension = 13, controller 1 (ExtensionRequest's real
-// key names, SmartFox2X.decompiled.cs:11567: c=cmd, p=params, r=room).
-// Same command-name -> handler shape a Java SFS2X extension uses
-// (`addRequestHandler(SmartfoxCommand.X.toString(), X.class)`), one
-// function per command instead of one class. Full source-of-truth
-// command list (all 39, with confirmed wire shapes and IN/OUT direction)
-// is docs/SMARTFOX_PACKETS_DOCUMENTATION.md. Commands genuinely not reachable yet - real per-room
-// broadcast to other connected players (con.use/con.reuse,
-// room.igloo_updated, PROTOTYPE, party games) - now CAN use the
-// cross-connection room registry added for the reward-integrity pass
-// (session-registry.ts's getByRoom), just not wired up yet; everything
-// else still missing (daily-challenge tasks, island targets) is deferred
-// for being large and partly-guessed in the old source, not for any
-// architectural blocker. Scheduled world objects (geysers, blinking
-// lights) are NOT a CallExtension command at all - they're SFS2X's
-// built-in MMO Room Items API (controller 0, actions 30/1007), now
-// implemented in world-objects.ts and hooked in at room join
-// (handlers/sfs2x/login.ts), independent of this registry. Unregistered
-// commands fall through to the "no handler for extension cmd" log in
-// server.ts.
+// Extension commands (controller 1, action 13; envelope c=cmd, p=params,
+// r=room), mapped by command name. The full command list with wire shapes
+// is in docs/SMARTFOX_PACKETS_DOCUMENTATION.md. Unregistered commands are
+// logged by server.ts. Scheduled world objects aren't extension commands;
+// see world-objects.ts.
 export const extensionHandlers: Record<string, ExtensionHandler> = {
   "quest.set": (_p, ctx) => handleQuestSet(ctx),
   "chat.msg": handleChatMsg,

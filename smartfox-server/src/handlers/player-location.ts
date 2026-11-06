@@ -3,23 +3,11 @@ import { getUtfString } from "../wire-helpers.ts";
 import { getBySwid } from "../session-registry.ts";
 import type { HandlerContext } from "./context.ts";
 
-// SmartfoxCommand.GET_PLAYER_LOCATION ("zone.player_location",
-// SMARTFOX_PACKETS_DOCUMENTATION.md's Room/igloo/zone section) - BOTH:
-// OUT `swid` = target player's SWID (a lookup, not a broadcast); IN
-// `pos` = a Vec3 float array on success, or the separate, payload-less
-// SmartfoxCommand.PLAYER_NOT_FOUND ("zone.player_notfound") on miss -
-// confirmed as two distinct commands, not an error flag inside the same
-// response (ClubPenguinClient.decompiled.cs:2177-2183).
-//
-// Now backed by the real cross-connection registry (session-registry.ts,
-// room registry + reward integrity pass, 2026-09-17 plan) instead of
-// always replying not-found - see that plan for why this was previously
-// unreachable (no shared state existed to look anyone up in).
-// session.lastPosition is only ever set by the target's own l.a traffic
-// (handlers/locomotion.ts); if they haven't moved yet this session,
-// there's nothing real to report, so this still falls back to
-// player_notfound rather than fabricating a (0,0,0) that isn't actually
-// where they are.
+// "zone.player_location" - looks up another player by `swid`.
+// Found: reply with `pos` (Vec3 float array).
+// Not found: reply with the separate "zone.player_notfound" command.
+// Position comes from the target's own movement (l.a), so a player who
+// hasn't moved yet counts as not found.
 export function handlePlayerLocation(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const targetSwid = getUtfString(innerParams, "swid");
   const target = targetSwid ? getBySwid(targetSwid) : undefined;

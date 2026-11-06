@@ -1,22 +1,10 @@
-// SFS2X BitSwarm wire codec - the real framing, verified byte-for-byte
-// against the decompiled client (not guessed/assumed):
-//   - Sfs2X.Bitswarm.PacketHeader.FromBinary/Encode (header flag bits)
-//   - Sfs2X.Bitswarm.BitSwarmClient's header/length handling (2 vs 4 byte
-//     length depending on the bigSized flag)
-//   - Sfs2X.Core.SFSProtocolCodec (c/a/p outer envelope)
-//   - Sfs2X.Entities.Data.SFSDataType (type byte values)
-// Verified against captured packets from the real client.
+// SFS2X BitSwarm wire codec: packet header, the c/a/p envelope, and the
+// SFSObject/SFSArray binary format. Matches the client's PacketHeader,
+// SFSProtocolCodec and DefaultSFSDataSerializer, and was checked against
+// captured traffic.
 //
-// Only the value types actually seen/needed so far are implemented
-// (NULL, BOOL, BYTE, SHORT, INT, LONG, UTF_STRING, SFS_OBJECT, SFS_ARRAY,
-// FLOAT_ARRAY, INT_ARRAY, TEXT). Extend as real captures need more - don't
-// guess encodings for types we haven't observed. (INT_ARRAY's own encoding
-// is the one exception verified from decompiled source rather than a live
-// capture - BinEncode_INT_ARRAY/BinDecode_INT_ARRAY, SmartFox2X.decompiled.
-// cs:10394/10579, structurally identical to FLOAT_ARRAY, whose shape *is*
-// capture-verified, and enum ordinal 12 cross-checked against that same
-// FLOAT_ARRAY=14 - needed for SetUserPosition's "m"/"n" fields, which
-// don't yet have a real capture to confirm against either.)
+// Supported types: NULL, BOOL, BYTE, SHORT, INT, LONG, UTF_STRING, TEXT,
+// SFS_OBJECT, SFS_ARRAY, FLOAT_ARRAY, INT_ARRAY. Add others as needed.
 
 export const enum SFSDataType {
   NULL = 0,
@@ -57,9 +45,8 @@ export interface DecodedPacket {
   totalLength: number; // headerLength + bodyLength
 }
 
-// PacketHeader.FromBinary: (headerByte & 0x40)=encrypted, 0x20=compressed,
-// 0x10=blueBoxed, 0x08=bigSized. (0x80=binary, always set for this codec,
-// not tracked separately here since we only speak binary.)
+// Header flag bits: 0x80 binary (always set), 0x40 encrypted, 0x20 compressed,
+// 0x10 blueBoxed, 0x08 bigSized (4-byte length instead of 2).
 export function tryReadHeader(buf: Buffer): DecodedPacket | null {
   if (buf.length < 1) return null;
   const flagByte = buf[0]!;
@@ -127,10 +114,8 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
       const s = buf.toString("utf8", pos, pos + len);
       return { value: { type, value: s }, next: pos + len };
     }
-    // TEXT (4-byte BE length, for strings too long for UTF_STRING's 2-byte
-    // cap - ByteArray.WriteText/ReadText). The real client's own
-    // BinDecode_TEXT folds this back into a plain UTF_STRING value once
-    // read, so we do the same rather than inventing a separate shape.
+    // TEXT: like UTF_STRING with a 4-byte length; decoded as a plain string,
+    // the same as the client does.
     case SFSDataType.TEXT: {
       const len = buf.readUInt32BE(pos);
       pos += 4;
@@ -141,13 +126,7 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
       const nested = decodeSFSObject(buf, pos - 1);
       return { value: { type, value: nested.value }, next: nested.next };
     }
-    // FLOAT_ARRAY: type(1) + count(2,BE) + count*float(4,BE), a primitive
-    // array with no per-element type tags (BinEncode_FLOAT_ARRAY,
-    // SmartFox2X.decompiled.cs:10603) - encoder support existed since the
-    // MMORoom room-array fix (putFloatArray), decoder never did, so nothing
-    // that sends a FLOAT_ARRAY (room array's AOI/map-limit fields, the new
-    // SetUserPosition per-user position field) could self-round-trip-verify
-    // until now.
+    // FLOAT_ARRAY: count(2,BE) + count * float(4,BE), no per-element type tags.
     case SFSDataType.FLOAT_ARRAY: {
       const count = buf.readUInt16BE(pos);
       pos += 2;
@@ -158,14 +137,7 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
       }
       return { value: { type, value: values }, next: pos };
     }
-    // INT_ARRAY: type(1) + count(2,BE) + count*int(4,BE) - identical
-    // primitive-array shape to FLOAT_ARRAY (BinEncode_INT_ARRAY/
-    // BinDecode_INT_ARRAY, SmartFox2X.decompiled.cs:10394/10579), enum
-    // ordinal 12 confirmed against the same decompiled SFSDataType
-    // definition FLOAT_ARRAY=14 was already verified from. Needed for
-    // SetUserPosition's "m"/"n" (minus-user-list/minus-item-list) fields -
-    // Sfs2X.Requests.MMO/SetUserPositionRequest.cs declares both as plain
-    // C# int[].
+    // INT_ARRAY: count(2,BE) + count * int(4,BE), same layout as FLOAT_ARRAY.
     case SFSDataType.INT_ARRAY: {
       const count = buf.readUInt16BE(pos);
       pos += 2;
@@ -176,8 +148,7 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
       }
       return { value: { type, value: values }, next: pos };
     }
-    // SFS_ARRAY: count(2,BE) + count * [type(1) + value] - elements have
-    // no key prefix, unlike SFSObject entries (Array2Binary/Arr2bin).
+    // SFS_ARRAY: count(2,BE) + count * [type(1) + value], no keys.
     case SFSDataType.SFS_ARRAY: {
       const count = buf.readUInt16BE(pos);
       pos += 2;
@@ -196,12 +167,8 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
 
 // --- Encoding (server -> client) ---
 
-// Re-serializes an already-decoded SFSValue (e.g. straight from an incoming
-// packet) back to wire bytes, unchanged. Needed for things like echoing a
-// SetUserVariables request back to the client verbatim (SmartFox2X.
-// decompiled.cs:2757's FnSetUserVariables reads the same "vl" shape the
-// client itself sent - a UserVariable's value can be any SFS type, so
-// there's no fixed shape we could otherwise re-build with typed putters).
+// Re-encodes a decoded value unchanged, e.g. to echo a client's
+// SetUserVariables list, whose values can be any type.
 export function encodeSFSValue(v: SFSValue): Buffer {
   switch (v.type) {
     case SFSDataType.NULL:
@@ -336,11 +303,6 @@ export class SFSObjectWriter {
     return this;
   }
 
-  // BinEncode_FLOAT_ARRAY (SmartFox2X.decompiled.cs:10603) - see
-  // SFSArrayWriter's own putFloatArray for the byte layout. Needed as an
-  // SFSObject *value* (not just an SFSArray element) for `l.a`'s "p"/"d"/
-  // "v" fields (LOCOMOTION_ACTION, SMARTFOX_PACKETS_DOCUMENTATION.md's
-  // Movement section).
   putFloatArray(key: string, values: number[]): this {
     this.entries.push({
       key,
@@ -355,9 +317,6 @@ export class SFSObjectWriter {
     return this;
   }
 
-  // BinEncode_INT_ARRAY (SmartFox2X.decompiled.cs:10579) - see
-  // SFSArrayWriter's own putIntArray for the byte layout. Needed as an
-  // SFSObject *value* for SetUserPosition's "m"/"n" fields.
   putIntArray(key: string, values: number[]): this {
     this.entries.push({
       key,
@@ -394,8 +353,7 @@ export class SFSObjectWriter {
     return this;
   }
 
-  // The full value including its own leading type(1)+count(2) header -
-  // used both for top-level packets and nested objects.
+  // Encoded with its leading type(1) + count(2) header.
   encodeBody(): Buffer {
     const parts: Buffer[] = [];
     for (const { key, encode } of this.entries) {
@@ -411,9 +369,7 @@ export class SFSObjectWriter {
   }
 }
 
-// Mirrors SFSObjectWriter but elements have no key (SFS_ARRAY's real
-// wire shape: count(2,BE) + count * [type(1)+value], per Array2Binary/
-// Arr2bin in the decompiled codec).
+// Like SFSObjectWriter, but elements have no keys.
 export class SFSArrayWriter {
   private elements: (() => Buffer)[] = [];
 
@@ -475,11 +431,7 @@ export class SFSArrayWriter {
     return this;
   }
 
-  // BinEncode_FLOAT_ARRAY (SmartFox2X.decompiled.cs:10603): type(1) +
-  // count(2,BE) + count * float(4,BE) - a primitive array, no per-element
-  // type tags (unlike SFS_ARRAY). Needed for MMORoom's DefaultAOI/
-  // LowerMapLimit/HigherMapLimit Vec3D fields - see the 14-vs-9-element
-  // room array finding in 09-sfs2x-server-open-questions.md.
+  // Layout: type(1) + count(2,BE) + count * float(4,BE).
   putFloatArray(values: number[]): this {
     this.elements.push(() => {
       const b = Buffer.alloc(3 + values.length * 4);
@@ -491,10 +443,7 @@ export class SFSArrayWriter {
     return this;
   }
 
-  // BinEncode_INT_ARRAY (SmartFox2X.decompiled.cs:10579): identical shape
-  // to putFloatArray above, 4-byte ints instead of floats. Needed for
-  // SetUserPosition's "m"/"n" (minus-user-list/minus-item-list) fields -
-  // see handlers/proximity.ts.
+  // Same layout as putFloatArray, with 4-byte ints.
   putIntArray(values: number[]): this {
     this.elements.push(() => {
       const b = Buffer.alloc(3 + values.length * 4);
@@ -515,9 +464,8 @@ export class SFSArrayWriter {
   }
 }
 
-// Wraps a params SFSObject in the standard {c,a,p} envelope and adds the
-// BitSwarm packet header (binary, uncompressed, unencrypted, non-blueboxed,
-// non-bigSized - fine for the small control packets this server sends).
+// Wraps params in the {c, a, p} envelope and adds the packet header (binary
+// flag only: uncompressed, unencrypted, 2-byte length).
 export function encodePacket(controllerId: number, actionId: number, params: SFSObjectWriter): Buffer {
   const envelope = new SFSObjectWriter()
     .putByte("c", controllerId)

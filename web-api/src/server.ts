@@ -65,13 +65,8 @@ app.use(encryptionMiddleware);
 // Routes
 // =============================================================================
 
-// Internal API endpoints - server-to-server only (the SFS2X game server
-// calling this WebAPI directly, never the game client). Not part of the
-// normal Basic-Auth `authenticate` middleware chain above (these run
-// before it, same as before) - restricted instead to localhost callers,
-// plus an optional shared-secret header if config.internalApiSecret is
-// set. add-coins previously had neither check at all ("no authentication
-// required" was true in the most literal sense).
+// Internal endpoints, called only by the game server. Restricted to
+// localhost, plus the shared secret if one is configured.
 function isInternalCaller(req: express.Request): boolean {
     const remote = req.socket.remoteAddress;
     if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false;
@@ -97,12 +92,9 @@ app.post('/api/internal/add-coins', express.json(), (req, res) => {
 
 /**
  * POST /api/internal/grant-reward
- * Server-to-server reward grant - called by the SFS2X game server when
- * its own game logic (quest completion, target hits, etc.) decides a
- * reward is earned, instead of relying on the client to relay a
- * reward.add push into PUT /reward/v1 (routes/reward.ts) faithfully.
- * Reuses that same route's applyRewards(username, reward) - identical
- * reward shape, not reinvented here.
+ * Called by the game server when its own logic decides a reward is earned,
+ * so grants don't depend on the client relaying them. Same reward shape as
+ * PUT /reward/v1.
  */
 app.post('/api/internal/grant-reward', express.json(), (req, res) => {
     if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
@@ -122,14 +114,8 @@ app.post('/api/internal/grant-reward', express.json(), (req, res) => {
 
 /**
  * POST /api/internal/quest-objective
- * Server-to-server quest objective grant - called by the SFS2X game
- * server when it receives quest.c_obj (SmartfoxCommand.COMPLETE_OBJECTIVE),
- * so the reward attached to that objective in quests.json (e.g. an
- * equipmentInstances entry) actually gets persisted, instead of the
- * quest.s_obj ack alone (which just acknowledges the objective to the
- * client's own FSM and grants nothing). Resolves questId from the
- * player's current active quest, since quest.c_obj's wire payload only
- * ever carries the bare objective name.
+ * Called by the game server on quest.c_obj. Records the objective and
+ * grants its reward from quests.json.
  */
 app.post('/api/internal/quest-objective', express.json(), (req, res) => {
     if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });

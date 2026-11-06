@@ -2,24 +2,10 @@ import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData } from "
 import { getByRoomExcluding } from "../../session-registry.ts";
 import type { HandlerContext } from "../context.ts";
 
-// RequestType.SetUserVariables = 12 (SmartFox2X.decompiled.cs:12610). Real
-// SFS2X broadcasts a client's own SetUserVariables request back out
-// (KEY_USER="u" + KEY_VAR_LIST="vl", SetUserVariablesRequest.KEY_USER/
-// KEY_VAR_LIST, SmartFox2X.decompiled.cs:13048-13050) to every relevant
-// user in the room, INCLUDING the sender - that echo is what actually
-// applies the variable to the client's own local User object
-// (FnSetUserVariables looks the user up by the "u" id and calls
-// SetVariable per entry, SmartFox2X.decompiled.cs:2757-2781 - the client's
-// own outgoing request never touches its local state directly). The
-// request itself only carries "vl", not "u" - confirmed live, first seen
-// as "no handler for c=0 a=12" the very first time this project connected
-// a real client. Broadcasting to every OTHER occupant of the room (not
-// just echoing to the sender) is what makes this actually a broadcast -
-// same room-registry pattern as handlers/locomotion.ts's "l.a" and
-// handlers/chat.ts's chat.msg; this was the one remaining spot still doing
-// the old single-connection echo, which is why a live outfit/colour/tube
-// change (My Penguin) never reached anyone else already standing in the
-// room with the sender.
+// RequestType.SetUserVariables = 12. The request carries only "vl"; the
+// server broadcasts {u, vl} to everyone in the room, including the sender.
+// The client only applies the variables to its own user when that echo
+// arrives, so the sender needs it too.
 export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContext): void {
   const vl = params["vl"];
   if (vl?.type === SFSDataType.SFS_ARRAY) {

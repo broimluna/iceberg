@@ -118,14 +118,8 @@ function purchaseConsumable(req, res) {
     });
 }
 
-// Purchase always carries a count segment in the real client
-// (PurchaseConsumableOperation's path template is literally
-// "/consumable/v1/{type}/{count}") - required here, not optional, so a
-// count-less request can't fall through to this handler. The client this
-// server actually talks to sends POST for both purchase and use (never
-// the real client's PUT/DELETE), disambiguated only by whether a count
-// segment is present - see useConsumable below for the count-less half
-// of that split.
+// Purchase is /{type}/{count}; use is /{type} with no count. The client
+// sends POST for both, so the count segment is what tells them apart.
 router.put('/consumable/v1/:type/:count', purchaseConsumable);
 router.post('/consumable/v1/:type/:count', purchaseConsumable);
 
