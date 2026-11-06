@@ -1,0 +1,15 @@
+{
+  "name": "smartfox-server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CPI's realtime multiplayer backend recreation (SFS2X wire protocol, from scratch).",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/handshake-server.ts",
+    "diagnostic": "bun run src/diagnostic-listener.ts"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "license": "AGPL-3.0-only"
+}

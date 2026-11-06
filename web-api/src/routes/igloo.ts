@@ -1,0 +1,550 @@
+/**
+ * Igloo Routes
+ * 
+ * Handles igloo management, layouts, decorations, and igloo discovery.
+ * 
+ * Endpoints:
+ * - PUT    /igloo/v1                                         - Update igloo data (UpdateIglooDataOperation)
+ * - POST   /igloo/v1/layout                                  - Create igloo layout (CreateIglooLayoutOperation)
+ * - GET    /igloo/v1/layout/:sceneLayoutId                   - Get specific layout (GetIglooLayoutOperation)
+ * - PUT    /igloo/v1/layout/:sceneLayoutId                   - Update layout (UpdateIglooLayoutOperation)
+ * - DELETE /igloo/v1/layout/:sceneLayoutId                   - Delete layout (DeleteIglooLayoutOperation)
+ * - POST   /igloo/v1/iglooId/layout/active                   - Get active igloo layout (GetActiveIglooLayoutOperation)
+ * - GET    /igloo/v1/decorations                             - Get decorations (GetDecorationsOperation)
+ * - POST   /igloo/v1/decorations/:type/:definitionId         - Create decoration (CreateDecorationOperation)
+ * - POST   /igloo/v1/decorations/:decorationId/increment/:count - Purchase decoration (PurchaseDecorationOperation)
+ * - DELETE /igloo/v1/decorations/:decorationId               - Delete decoration (DeleteDecorationOperation)
+ * - GET    /igloo/v1/igloos/friends                          - Get friends' igloos (GetFriendsIgloosOperation)
+ * - GET    /igloo/v1/igloos/popular                          - Get popular igloos (GetPopularIgloosOperation)
+ * - POST   /igloo/v1/igloos/populations/zoneIds              - Get igloo populations (GetIglooPopulationsByZoneIdsOperation)
+ */
+
+import express from "express";
+const router = express.Router();
+import * as db from "../database.ts";
+import config from "../config.ts";
+
+/**
+ * Wrap response in SignedResponse format
+ */
+function signedResponse(data, swid) {
+    return {
+        goodUntil: Date.now() + 3600000,
+        swid: swid || '',
+        data: data,
+        signature: 'server_signature'
+    };
+}
+
+/**
+ * Generate a unique layout ID (64-bit long)
+ */
+function generateLayoutId() {
+    // Generate a random 64-bit integer (as JavaScript number)
+    return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+}
+
+/**
+ * Parse decoration ID string format: "definitionId:type[:customId]"
+ */
+function parseDecorationId(decorationIdStr) {
+    const parts = decorationIdStr.split(':');
+    return {
+        definitionId: parseInt(parts[0]),
+        type: parseInt(parts[1]),
+        customId: parts.length > 2 ? parseInt(parts[2]) : null
+    };
+}
+
+/**
+ * Format decoration ID to string
+ */
+function formatDecorationId(decorationId) {
+    let str = `${decorationId.definitionId}:${decorationId.type}`;
+    if (decorationId.customId !== null && decorationId.customId !== undefined) {
+        str += `:${decorationId.customId}`;
+    }
+    return str;
+}
+
+// =============================================================================
+// Igloo Data Endpoints
+// =============================================================================
+
+/**
+ * PUT /igloo/v1
+ * POST /igloo/v1
+ * Update igloo data (visibility, active layout)
+ * 
+ * Request: MutableIglooData { visibility?, activeLayoutId? }
+ * Response: SignedResponse<IglooData>
+ */
+function handleUpdateIglooData(req, res) {
+    const { swid, username } = req.player;
+    const update = req.body;
+    
+    console.log(`[IGLOO] ${username} updating igloo data:`, update);
+    
+    // Get current igloo data
+    let iglooData = db.getIglooData ? db.getIglooData(username) : {
+        visibility: 1, // Public by default
+        activeLayoutId: null,
+        activeLayout: null,
+        maxIglooLayouts: 3
+    };
+    
+    // Apply updates
+    if (update.visibility !== undefined && update.visibility !== null) {
+        iglooData.visibility = update.visibility;
+    }
+    
+    if (update.activeLayoutId !== undefined && update.activeLayoutId !== null) {
+        iglooData.activeLayoutId = update.activeLayoutId;
+        // Fetch the active layout
+        const layout = db.getIglooLayout ? db.getIglooLayout(username, update.activeLayoutId) : null;
+        if (layout) {
+            iglooData.activeLayout = layout;
+        }
+    }
+    
+    // Save updated igloo data
+    if (db.saveIglooData) {
+        db.saveIglooData(username, iglooData);
+    }
+    
+    // Response: SignedResponse<IglooData>
+    res.json(signedResponse(iglooData, swid));
+}
+
+router.put('/igloo/v1', handleUpdateIglooData);
+router.post('/igloo/v1', handleUpdateIglooData);
+
+// =============================================================================
+// Layout Endpoints
+// =============================================================================
+
+/**
+ * POST /igloo/v1/layout
+ * Create a new igloo layout
+ * 
+ * Request: MutableSceneLayout { name, zoneId, lightingId, musicId, extraInfo, decorationsLayout }
+ * Response: SavedSceneLayout
+ */
+router.post('/igloo/v1/layout', (req, res) => {
+    const { swid, username } = req.player;
+    const layoutData = req.body;
+    
+    console.log(`[IGLOO] ${username} creating new layout: ${layoutData.name}`);
+    
+    const now = Date.now();
+    const layoutId = generateLayoutId();
+    
+    // Create SavedSceneLayout
+    const savedLayout = {
+        layoutId: layoutId,
+        name: layoutData.name || 'My Igloo',
+        zoneId: layoutData.zoneId || 'DefaultIgloo',
+        lightingId: layoutData.lightingId || 0,
+        musicId: layoutData.musicId || 0,
+        extraInfo: layoutData.extraInfo || {},
+        decorationsLayout: layoutData.decorationsLayout || [],
+        createdDate: now,
+        lastModifiedDate: now,
+        memberOnly: true
+    };
+    
+    // Save layout
+    if (db.saveIglooLayout) {
+        db.saveIglooLayout(username, savedLayout);
+    }
+    
+    // If this is the first layout, set it as active
+    const layouts = db.getIglooLayouts ? db.getIglooLayouts(username) : [];
+    if (layouts.length === 0) {
+        const iglooData = db.getIglooData ? db.getIglooData(username) : {};
+        iglooData.activeLayoutId = layoutId;
+        iglooData.activeLayout = savedLayout;
+        if (db.saveIglooData) {
+            db.saveIglooData(username, iglooData);
+        }
+    }
+    
+    // Response: SavedSceneLayout (not wrapped)
+    res.json(savedLayout);
+});
+
+/**
+ * GET /igloo/v1/layout/:sceneLayoutId
+ * Get a specific igloo layout
+ * 
+ * Response: SavedSceneLayout
+ */
+router.get('/igloo/v1/layout/:sceneLayoutId', (req, res) => {
+    const { swid, username } = req.player;
+    const layoutId = parseInt(req.params.sceneLayoutId);
+    
+    console.log(`[IGLOO] ${username} fetching layout: ${layoutId}`);
+    
+    const layout = db.getIglooLayout ? db.getIglooLayout(username, layoutId) : null;
+    
+    if (!layout) {
+        // Return a default layout if not found
+        res.json({
+            layoutId: layoutId,
+            name: 'My Igloo',
+            zoneId: 'DefaultIgloo',
+            lightingId: 0,
+            musicId: 0,
+            extraInfo: {},
+            decorationsLayout: [],
+            createdDate: Date.now(),
+            lastModifiedDate: Date.now(),
+            memberOnly: true
+        });
+        return;
+    }
+    
+    res.json(layout);
+});
+
+/**
+ * PUT /igloo/v1/layout/:sceneLayoutId
+ * POST /igloo/v1/layout/:sceneLayoutId
+ * Update an existing igloo layout
+ * 
+ * Request: MutableSceneLayout
+ * Response: SavedSceneLayout
+ */
+function handleUpdateLayout(req, res) {
+    const { swid, username } = req.player;
+    const layoutId = parseInt(req.params.sceneLayoutId);
+    const update = req.body;
+    
+    console.log(`[IGLOO] ${username} updating layout: ${layoutId}`);
+    
+    // Get existing layout or create default
+    let layout = db.getIglooLayout ? db.getIglooLayout(username, layoutId) : null;
+    
+    if (!layout) {
+        layout = {
+            layoutId: layoutId,
+            name: 'My Igloo',
+            zoneId: 'DefaultIgloo',
+            lightingId: 0,
+            musicId: 0,
+            extraInfo: {},
+            decorationsLayout: [],
+            createdDate: Date.now(),
+            memberOnly: true
+        };
+    }
+    
+    // Apply updates
+    layout.lastModifiedDate = Date.now();
+    
+    if (update.zoneId !== undefined && update.zoneId !== null) {
+        layout.zoneId = update.zoneId;
+    }
+    if (update.name !== undefined && update.name !== null) {
+        layout.name = update.name;
+    }
+    if (update.lightingId !== undefined) {
+        layout.lightingId = update.lightingId;
+    }
+    if (update.musicId !== undefined) {
+        layout.musicId = update.musicId;
+    }
+    if (update.decorationsLayout !== undefined && update.decorationsLayout !== null) {
+        layout.decorationsLayout = update.decorationsLayout;
+    }
+    if (update.extraInfo !== undefined && update.extraInfo !== null) {
+        layout.extraInfo = update.extraInfo;
+    }
+    
+    // Save updated layout
+    if (db.saveIglooLayout) {
+        db.saveIglooLayout(username, layout);
+    }
+    
+    // Response: SavedSceneLayout
+    res.json(layout);
+}
+
+router.put('/igloo/v1/layout/:sceneLayoutId', handleUpdateLayout);
+router.post('/igloo/v1/layout/:sceneLayoutId', handleUpdateLayout);
+
+/**
+ * DELETE /igloo/v1/layout/:sceneLayoutId
+ * Delete an igloo layout
+ * 
+ * Response: 200 OK (empty)
+ */
+router.delete('/igloo/v1/layout/:sceneLayoutId', (req, res) => {
+    const { swid, username } = req.player;
+    const layoutId = parseInt(req.params.sceneLayoutId);
+    
+    console.log(`[IGLOO] ${username} deleting layout: ${layoutId}`);
+    
+    if (db.deleteIglooLayout) {
+        db.deleteIglooLayout(username, layoutId);
+    }
+    
+    res.status(200).send();
+});
+
+/**
+ * POST /igloo/v1/iglooId/layout/active
+ * Get the active igloo layout for a player (by igloo ID)
+ * 
+ * Request: iglooId as plain text
+ * Response: SceneLayout
+ */
+router.post('/igloo/v1/iglooId/layout/active', (req, res) => {
+    const { swid, username } = req.player;
+    // The igloo ID is sent as plain text body
+    const iglooId = req.body;
+    
+    console.log(`[IGLOO] ${username} fetching active layout for igloo: ${iglooId}`);
+    
+    // For now, get the player's own active layout
+    // In a full implementation, this would look up by igloo owner's SWID
+    const iglooData = db.getIglooData ? db.getIglooData(username) : null;
+    
+    if (iglooData && iglooData.activeLayout) {
+        res.json(iglooData.activeLayout);
+    } else {
+        // Return a default layout
+        res.json({
+            name: 'My Igloo',
+            zoneId: 'DefaultIgloo',
+            lightingId: 0,
+            musicId: 0,
+            extraInfo: {},
+            decorationsLayout: [],
+            createdDate: Date.now(),
+            lastModifiedDate: Date.now(),
+            memberOnly: true
+        });
+    }
+});
+
+// =============================================================================
+// Decoration Endpoints
+// =============================================================================
+
+/**
+ * GET /igloo/v1/decorations
+ * Get player's decoration inventory
+ * 
+ * Response: DecorationInventory { items: DecorationInventoryItem[] }
+ */
+router.get('/igloo/v1/decorations', (req, res) => {
+    const { swid, username } = req.player;
+    
+    console.log(`[IGLOO] ${username} fetching decorations`);
+    
+    const inventory = db.getDecorationInventory ? db.getDecorationInventory(username) : { items: [] };
+    
+    // Response: DecorationInventory
+    res.json(inventory);
+});
+
+/**
+ * POST /igloo/v1/decorations/:type/:definitionId
+ * Create (purchase) a new decoration
+ * 
+ * Query: count (number of items to purchase)
+ * Response: CreateDecorationResponse { decorationId, assets }
+ */
+router.post('/igloo/v1/decorations/:type/:definitionId', (req, res) => {
+    const { swid, username } = req.player;
+    const type = parseInt(req.params.type);
+    const definitionId = parseInt(req.params.definitionId);
+    const count = parseInt(req.query.count) || 1;
+    
+    console.log(`[IGLOO] ${username} creating decoration: type=${type}, defId=${definitionId}, count=${count}`);
+    
+    const decorationId = {
+        definitionId: definitionId,
+        type: type,
+        customId: null
+    };
+    
+    // Add decoration to inventory
+    if (db.addDecoration) {
+        db.addDecoration(username, decorationId, count);
+    }
+    
+    // Deduct coins (get price from config if available)
+    const price = config.decorationPrices ? (config.decorationPrices[`${type}:${definitionId}`] || 10) : 10;
+    db.addPlayerCoins(username, -(price * count));
+    
+    // Get updated assets
+    const assets = db.getPlayerAssets(username);
+    
+    // Response: CreateDecorationResponse
+    res.json({
+        decorationId: decorationId,
+        assets: assets
+    });
+});
+
+/**
+ * POST /igloo/v1/decorations/:decorationId/increment/:count
+ * Purchase additional count of an existing decoration
+ * 
+ * Response: UpdateDecorationResponse { decorationId, assets }
+ */
+router.post('/igloo/v1/decorations/:decorationId/increment/:count', (req, res) => {
+    const { swid, username } = req.player;
+    const decorationIdStr = req.params.decorationId;
+    const count = parseInt(req.params.count) || 1;
+    
+    console.log(`[IGLOO] ${username} purchasing decoration: ${decorationIdStr}, count=${count}`);
+    
+    const decorationId = parseDecorationId(decorationIdStr);
+    
+    // Add decoration to inventory
+    if (db.addDecoration) {
+        db.addDecoration(username, decorationId, count);
+    }
+    
+    // Deduct coins
+    const price = config.decorationPrices ? (config.decorationPrices[decorationIdStr] || 10) : 10;
+    db.addPlayerCoins(username, -(price * count));
+    
+    // Get updated assets
+    const assets = db.getPlayerAssets(username);
+    
+    // Response: UpdateDecorationResponse
+    res.json({
+        decorationId: decorationId,
+        assets: assets
+    });
+});
+
+/**
+ * DELETE /igloo/v1/decorations/:decorationId
+ * Delete a decoration from inventory
+ * 
+ * Response: 200 OK (empty)
+ */
+router.delete('/igloo/v1/decorations/:decorationId', (req, res) => {
+    const { swid, username } = req.player;
+    const decorationIdStr = req.params.decorationId;
+    
+    console.log(`[IGLOO] ${username} deleting decoration: ${decorationIdStr}`);
+    
+    if (db.deleteDecoration) {
+        db.deleteDecoration(username, decorationIdStr);
+    }
+    
+    res.status(200).send();
+});
+
+// =============================================================================
+// Igloo Discovery Endpoints
+// =============================================================================
+
+/**
+ * GET /igloo/v1/igloos/friends
+ * Get list of friends' igloos
+ * 
+ * Query: language
+ * Response: List<IglooListItem>
+ */
+router.get('/igloo/v1/igloos/friends', (req, res) => {
+    const { swid, username } = req.player;
+    const language = req.query.language || 'en';
+    
+    console.log(`[IGLOO] ${username} fetching friends' igloos (lang=${language})`);
+    
+    // In a full implementation, this would query friends' igloo data
+    // For now, return empty list
+    const iglooList = db.getFriendsIgloos ? db.getFriendsIgloos(username, language) : [];
+    
+    // Response: List<IglooListItem>
+    res.json(iglooList);
+});
+
+/**
+ * GET /igloo/v1/igloos/popular
+ * Get list of popular igloos
+ * 
+ * Query: language
+ * Response: List<IglooListItem>
+ */
+router.get('/igloo/v1/igloos/popular', (req, res) => {
+    const { swid, username } = req.player;
+    const language = req.query.language || 'en';
+    
+    console.log(`[IGLOO] ${username} fetching popular igloos (lang=${language})`);
+    
+    // In a full implementation, this would return popular public igloos
+    // For now, return empty list
+    const iglooList = db.getPopularIgloos ? db.getPopularIgloos(language) : [];
+    
+    // Response: List<IglooListItem>
+    res.json(iglooList);
+});
+
+/**
+ * POST /igloo/v1/igloos/populations/zoneIds
+ * Get igloo populations by zone IDs
+ * 
+ * Query: language
+ * Request: List<ZoneId> - Array of { name, instanceId }
+ * Response: List<RoomPopulation>
+ */
+router.post('/igloo/v1/igloos/populations/zoneIds', (req, res) => {
+    const { swid, username } = req.player;
+    const language = req.query.language || 'en';
+    let zoneIds = req.body;
+    
+    // Handle various body formats
+    if (!zoneIds) {
+        zoneIds = [];
+    } else if (!Array.isArray(zoneIds)) {
+        // If it's an object with numeric keys (from some parsers), convert to array
+        if (typeof zoneIds === 'object') {
+            const keys = Object.keys(zoneIds);
+            if (keys.length > 0 && keys.every(k => !isNaN(parseInt(k)))) {
+                zoneIds = Object.values(zoneIds);
+            } else {
+                // Single zone object wrapped, or empty object
+                zoneIds = keys.length > 0 && zoneIds.name ? [zoneIds] : [];
+            }
+        } else {
+            zoneIds = [];
+        }
+    }
+    
+    console.log(`[IGLOO] ${username} fetching igloo populations for ${zoneIds.length} zones`);
+    
+    // Build room population response matching reference implementation format
+    const populations = zoneIds.map(zone => {
+        const zoneName = zone.name || zone;
+        const instanceId = zone.instanceId || '';
+        
+        return {
+            identifier: {
+                world: 'Igloo',
+                language: 1,
+                zoneId: {
+                    name: zoneName,
+                    instanceId: instanceId
+                },
+                contentIdentifier: config.content ? 
+                    `${config.content.clientVersion};${config.content.contentVersion};${config.content.subContentVersion};NONE` :
+                    '1.13.0;1.13.0;2019-04-17;NONE',
+                room: zoneName
+            },
+            populationScaled: 0
+        };
+    });
+    
+    // Response: List<RoomPopulation>
+    res.json(populations);
+});
+
+export default router;

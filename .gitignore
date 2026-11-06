@@ -1,0 +1,20 @@
+node_modules/
+
+# Runtime state
+*.db
+*.db-shm
+*.db-wal
+
+# Never commit game clients or binaries
+*.apk
+*.xapk
+*.ipa
+*.exe
+*.dmg
+*.msi
+
+# Editor/OS junk
+.vscode/
+.idea/
+*.swp
+.DS_Store

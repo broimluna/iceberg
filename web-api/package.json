@@ -1,0 +1,17 @@
+{
+  "name": "web-api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CPI's REST/HTTP backend recreation (auth, inventory, catalog, and everything outside the realtime SFS2X connection).",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "license": "AGPL-3.0-only"
+}
