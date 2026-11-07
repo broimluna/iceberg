@@ -140,6 +140,18 @@ try {
   check(alert?.Text === "TROLL" && alert?.Level === "1" && typeof alert?.AlertId === "number", `bob gets AddAlert TROLL/1 (${JSON.stringify(alert)})`);
   check((await B.call("POST", "/state")).http === 200, "a warning doesn't block bob");
 
+  // Pressing OK on the warning clears it (PUT /alert/clear). The reply
+  // carries a ClearAlert notification the SDK runs through its sequence
+  // queue, so it must be the next sequence number.
+  const foreign = await A.call("PUT", "/alert/clear", { AlertIds: [alert?.AlertId] });
+  check(foreign.http === 200, `alice clearing bob's alert id -> ${foreign.http} ${JSON.stringify(foreign.body)}`);
+  check(((await B.call("POST", "/state")).body?.Alerts ?? []).length === 1, "alice can't clear bob's alert");
+  const clr = await B.call("PUT", "/alert/clear", { AlertIds: [alert?.AlertId] });
+  const cn = clr.body?.Notification;
+  check(clr.http === 200 && clr.body?.Status === "OK" && JSON.stringify(cn?.AlertIds) === JSON.stringify([alert?.AlertId]), `alert/clear -> ${clr.http} ${JSON.stringify(clr.body)}`);
+  check(!!cn && B.apply(cn, "ClearAlert"), `ClearAlert reply is the next notification (seq ${cn?.SequenceNumber}, latest ${B.latest})`);
+  check(((await B.call("POST", "/state")).body?.Alerts ?? []).length === 0, "alert gone from /state");
+
   // Next TROLL is suggested at level 2: a 12 h ban.
   sres = await cli("sanction", "bob", "TROLL");
   const sOut = sres.stdout.toString();

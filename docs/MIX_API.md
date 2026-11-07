@@ -381,7 +381,7 @@ iceberg's current state.
 |---|---|---|---|
 | PUT | `/moderation/text` | ModerateTextRequest | ✅ shared rule filter (section 9) |
 | PUT | `/moderation/reportPlayer` | ReportPlayerRequest | ✅ stored in `mix_reports` |
-| PUT | `/alert/clear` | ClearAlertsRequest | ✅ |
+| PUT | `/alert/clear` | ClearAlertsRequest | ✅ (was broken until 2026-11-07, see section 9) |
 | POST | `/pushNotificationsSetting` | TogglePushNotificationRequest | ✅ (no-op) |
 | POST | `/pushNotificationsSetting/delete` | BaseUserRequest | ✅ (no-op) |
 
@@ -871,6 +871,30 @@ Two consequences:
   same service code via `ICEBERG_DB_PATH`, so the alert's notification
   gets the user's next sequence number even while the server runs.
 
+### Live check with CPI (2026-11-07)
+
+On `tboskk1`, logged into the CPI client, using `bun tools/mod.ts`:
+
+- **`sanction tboskk1 TROLL 1`** (a warning): within one poll, CPI showed
+  an orange **"Warning!"** popup with Disney's `troll_1` text: "Please
+  respect everyone, no bullying or being mean to others." So CPI
+  consumes Mix `AddAlert` notifications and maps `(Text, Level)` to the
+  same `customtokens.alerts.*` strings as the Mix app.
+- **Pressing OK** sends `PUT /alert/clear` with the alert's id. In
+  iceberg this route still used an in-memory `alerts` map that no longer
+  existed, so every dismissal was a 500, and the alert came back
+  through `/state`. It now deletes only the caller's own alerts. It
+  replies with a `ClearAlert` notification stored like any other, so it
+  carries the next sequence number. `LocalUser.ClearAlerts` validates
+  that notification and runs it through the sequence queue, so a
+  made-up number would be rejected.
+- **`sanction tboskk1 TROLL`** (suggested level 2, a 12 h ban): CPI's next
+  `POST /notifications/sinceSequence` got 401 `UNAUTHORIZED_BANNED`, and
+  CPI logged out at once. Its account picker then showed the saved
+  penguin with a red **"Banned"** stamp and a padlock. So the
+  `AccountBannedEventArgs` path is wired in CPI too.
+- The Mix app wasn't checked live for bans; it uses the same SDK paths.
+
 ### Text moderation
 
 `PUT /moderation/text` takes `{Text, ChatThreadId, ModerationPolicy}`
@@ -1009,8 +1033,5 @@ the recreation's `windows64` bundles were made.
   untrusted thread?
 - The CPI client's copy of `SessionResumer`: does it read
   `NotificationSequenceThreshold` the same way?
-- How the CPI client reacts to `UNAUTHORIZED_BANNED` on its Mix calls,
-  and what each app shows when Guest Controller login is refused for
-  a banned account.
 - How the client treats a cpipe manifest response whose version is
   unchanged or older than the one it holds.
