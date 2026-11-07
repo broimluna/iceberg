@@ -123,11 +123,37 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
 
 - First-run manifest: `StreamingAssets/1123402340.txt`
   (`AssetManager.GetCpipeFileNameInStreamingAssets()`).
-- At runtime, `Mix/CpipeManifestApi.cs` requests
-  `ExternalizedConstants.CpipeUrl + "?" + <query>` for a newer manifest.
-  The server has to answer this, or keep answering "no update".
-- The manifest JSON carries `manifest.cdnRoot` and `manifest.paths`
-  (path to hash/version).
+- At runtime, `Mix/CpipeManifestApi.GetCpipeManifest` requests
+  `GET {cpipe_url}?restrict=true&cv=<client version>&v=<manifest version>`.
+  - The `v` parameter is only sent when the client already has a
+    manifest version.
+  - It sends `Authorization: <cellophane_client_id_assets>`, i.e.
+    `Authorization: GAE 01D93B3F-8532-4A91-81E7-558BE3600600`. "GAE"
+    is Google App Engine again: the cellophane asset token was an App
+    Engine credential.
+  - The server has to answer this, or keep answering "no update".
+- The class also contains a `generateToken()` that SHA1-signs
+  `"<version>-<ENV>"` with another fragment-built key. Nothing in the
+  manifest request uses it. It is probably left over from an older
+  signed-URL scheme. **(inferred)**
+- Bundled manifest format (`StreamingAssets/1123402340.txt`):
+  ```json
+  {"manifest": {"version": "00134", "unique": "1487182197",
+                "cdnRoot": "", "url": "",
+                "paths": {"<relative path>": {"crc": "EAD7584A", "v": 1487031360}, ...}},
+   "ab": ...}
+  ```
+  - `paths` has 5,459 entries, including all three
+    `donotcopy/n7c4c656{,_dev,_qa}` configs. Each entry is a CRC32 plus
+    a Unix-time version.
+  - `unique` 1487182197 is **2017-02-15**, so this is a snapshot of the
+    content from Mix's final months. The service shut down in 2018.
+  - Because `cdnRoot` is empty, the client resolves everything against
+    its bundled `StreamingAssets`. That is why the recreation boots
+    with no CDN at all.
+  - The original app built a file's CDN URL as `cdnRoot` + path, and
+    the `v` value is what busted caches when a file changed
+    (`CpipeFileManifest.TranslateFileUrl`).
 
 The point of cpipe was that content (stickers, gags, games, the config
 itself) could be updated without shipping a new app build.
