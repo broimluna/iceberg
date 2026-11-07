@@ -46,6 +46,13 @@ try {
                    "ChatThreadLastSeenMessageSequenceNumbers", "GameStateChatMessages", "OfficialAccounts", "UserNicknames"]) {
     check(Array.isArray(st[k]) && st[k].length === 0, `/state ${k} is [] (${JSON.stringify(st[k])})`);
   }
+
+  // Called right after /state at login (OfficialAccountGetter). A missing
+  // route made the app show "Oops! Something went wrong". An empty list
+  // passes the client's ValidateResponse.
+  const oa = loggedIn ? await M.call("POST", "/officialAccount/all") : { http: 0, body: null };
+  check(oa.http === 200 && oa.body?.Status === "OK" && Array.isArray(oa.body?.OfficialAccountIds) && oa.body.OfficialAccountIds.length === 0,
+    `/officialAccount/all -> ${oa.http} ${JSON.stringify(oa.body)}`);
 } finally {
   api.stop();
 }
