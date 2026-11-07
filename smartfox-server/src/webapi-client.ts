@@ -77,3 +77,23 @@ export async function grantQuestObjective(username: string, objective: string): 
     return null;
   }
 }
+
+// Tells the WebAPI a connection closed, so the player stops showing as
+// online in friend and player-card lookups. sessionId is the
+// joinRoomData sessionId the WebAPI issued for this room join.
+export async function reportSessionEnded(sessionId: string): Promise<void> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/session-ended`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
+      },
+      body: JSON.stringify({ sessionId: Number(sessionId) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) console.log(`[${new Date().toISOString()}] webapi-client: session-ended for ${sessionId} failed with status ${res.status}`);
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: session-ended request failed: ${(err as Error).message}`);
+  }
+}

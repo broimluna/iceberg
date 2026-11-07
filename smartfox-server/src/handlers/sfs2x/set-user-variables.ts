@@ -1,5 +1,6 @@
 import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData, type SFSValue } from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
+import { extractRawJsonValue } from "../../wire-helpers.ts";
 import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
 import type { HandlerContext } from "../context.ts";
 
@@ -8,8 +9,9 @@ import type { HandlerContext } from "../context.ts";
 // The client only applies the variables to its own user when that echo
 // arrives, so the sender needs it too.
 export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContext): void {
-  const vl = params["vl"];
-  if (vl?.type === SFSDataType.SFS_ARRAY) {
+  const raw = params["vl"];
+  if (raw?.type === SFSDataType.SFS_ARRAY) {
+    const vl: SFSValue = { type: SFSDataType.SFS_ARRAY, value: raw.value.map((v) => unwrapSignedVariable(v, ctx)) };
     const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", vl));
     ctx.send(packet);
     for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
@@ -40,4 +42,59 @@ function trackEquippedConsumable(vars: SFSValue[], ctx: HandlerContext): void {
     }
     handleClientConChanged(ctx, next);
   }
+}
+
+const VARIABLE_TYPE_INT = 2;
+const VARIABLE_TYPE_STRING = 4;
+
+function variableEntry(name: string, type: number, value: SFSValue): SFSValue {
+  return {
+    type: SFSDataType.SFS_ARRAY,
+    value: [
+      { type: SFSDataType.UTF_STRING, value: name },
+      { type: SFSDataType.BYTE, value: type },
+      value,
+      { type: SFSDataType.BOOL, value: false },
+    ],
+  };
+}
+
+// The client sets "colour", "tube" and "outfit" to a JSON SignedResponse
+// (Profile, EquipTubeResponse, PlayerOutfitDetails), but reads other
+// players' values as GetIntValue() for colour and tube, and as a bare
+// PlayerOutfitDetails for outfit. The server unwraps them before they go
+// out, and keeps them for the user-variable snapshot that late joiners get.
+function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
+  if (v.type !== SFSDataType.SFS_ARRAY) return v;
+  const [name, , value] = v.value;
+  if (name?.type !== SFSDataType.UTF_STRING || value?.type !== SFSDataType.UTF_STRING) return v;
+  const json = value.value;
+  const { session } = ctx;
+  try {
+    switch (name.value) {
+      case "colour": {
+        const colour = JSON.parse(json)?.data?.colour;
+        if (!Number.isInteger(colour)) return v;
+        session.colour = colour;
+        return variableEntry("colour", VARIABLE_TYPE_INT, { type: SFSDataType.INT, value: colour });
+      }
+      case "tube": {
+        const tubeId = JSON.parse(json)?.data?.tubeId;
+        if (!Number.isInteger(tubeId)) return v;
+        session.selectedTubeId = tubeId;
+        return variableEntry("tube", VARIABLE_TYPE_INT, { type: SFSDataType.INT, value: tubeId });
+      }
+      case "outfit": {
+        // Kept as raw text: equipment ids and timestamps are 64-bit.
+        JSON.parse(json);
+        const outfit = extractRawJsonValue(json, "data");
+        if (!outfit?.startsWith("{")) return v;
+        session.outfitJson = outfit;
+        return variableEntry("outfit", VARIABLE_TYPE_STRING, { type: SFSDataType.UTF_STRING, value: outfit });
+      }
+    }
+  } catch {
+    // Not a SignedResponse; pass it through unchanged.
+  }
+  return v;
 }

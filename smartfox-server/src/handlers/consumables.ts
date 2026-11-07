@@ -384,10 +384,13 @@ function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: Consuma
 
 function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): void {
   const { session } = ctx;
-  // Interacting with yourself while holding a taken item eats it.
+  // Interacting with yourself while holding a taken item (or a
+  // non-shareable held item) eats it.
   if (targetSessionId === session.playerSessionId) {
     const name = session.equippedConsumable;
-    if (!name || !CONSUMABLES[name]?.serverAdded || !session.heldActionCount) return;
+    const held = name ? CONSUMABLES[name] : undefined;
+    const edible = held?.serverAdded || (held?.experience === "playerHeld" && !held.shareable);
+    if (!name || !edible || !session.heldActionCount) return;
     setHeldActionCount(session, 0);
     setTimeout(() => {
       if (session.equippedConsumable === name && session.heldActionCount === 0) removeHeldItem(session);
@@ -398,7 +401,7 @@ function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): 
   const holder = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId)?.session;
   const trayName = holder?.equippedConsumable;
   const tray = trayName ? CONSUMABLES[trayName] : undefined;
-  if (!holder || !tray || tray.experience !== "playerHeld" || tray.serverAdded || !holder.heldActionCount) return;
+  if (!holder || !tray || tray.experience !== "playerHeld" || !tray.shareable || !holder.heldActionCount) return;
   // Hands must be free, and the recipient type must be a real prop or the
   // client throws on the unknown prop.
   if (session.equippedConsumable || !tray.recipient || !CONSUMABLES[tray.recipient]?.serverAdded) return;
@@ -452,16 +455,18 @@ function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boo
 }
 
 // Clears "con_prop" once a held item is gone, with "con" now `next`.
-// "con_prop" can't be cleared alone while "con" is still set: the client
-// reads that as an item change and dereferences the missing "con_prop".
-// - next is null: {con_prop: NULL} to everyone (con is already gone).
+// Other clients only remove a held item (and close its tray offering) when
+// "con" and "con_prop" are cleared in the same update, and "con_prop" can't
+// be cleared alone while "con" is set: the client reads that as an item
+// change and dereferences the missing "con_prop".
+// - next is null: {con: NULL, con_prop: NULL} to everyone.
 // - otherwise: the player gets {con: next, con_prop: NULL}, which fires
 //   nothing (their client equipped locally); everyone else gets
 //   {con: NULL, con_prop: NULL} (item removed), then {con: next}.
 function replaceHeldItem(ctx: HandlerContext, next: EquippedObject | undefined): void {
   const { session } = ctx;
   if (!next) {
-    broadcastUserVars(session, [nullUserVar("con_prop")]);
+    broadcastUserVars(session, [nullUserVar("con"), nullUserVar("con_prop")]);
     return;
   }
   sendUserVars(ctx, session, [objectConVar(next), nullUserVar("con_prop")]);

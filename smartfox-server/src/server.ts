@@ -22,6 +22,7 @@ import { findExtensionHandler } from "./handlers/registry.ts";
 import { PORT } from "./config.ts";
 import { register, unregister } from "./session-registry.ts";
 import { startNotifyListener } from "./notify-listener.ts";
+import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 
 // Per connection: detect the transport (raw BitSwarm or WebSocket), frame
@@ -146,6 +147,7 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("close", (hadError) => {
     unregister(session);
+    if (session.playerSessionId) void reportSessionEnded(session.playerSessionId);
     // Remove the avatar for everyone else in the room.
     broadcastUserLeftRoom(session.roomName, session);
     console.log(`[${new Date().toISOString()}] ${peer} closed (error=${hadError})`);
