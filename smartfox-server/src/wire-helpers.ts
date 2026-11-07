@@ -2,6 +2,17 @@ import crypto from "node:crypto";
 import { SFSDataType, type SFSObjectData } from "./sfs-wire.ts";
 import type { Session } from "./session.ts";
 
+// Caps for client-supplied strings the server keeps and replays to other
+// players. A UTF_STRING can't exceed 65535 bytes, so one oversized value
+// (smuggled in through a TEXT field) would make every packet that carries
+// it unsendable, e.g. the room's join and proximity pushes.
+export const MAX_NAME_BYTES = 255;
+export const MAX_OUTFIT_BYTES = 32 * 1024;
+
+export function fitsBytes(s: string | undefined, max: number): s is string {
+  return s !== undefined && Buffer.byteLength(s, "utf8") <= max;
+}
+
 export function getUtfString(obj: SFSObjectData, key: string): string | undefined {
   const v = obj[key];
   return v?.type === SFSDataType.UTF_STRING ? v.value : undefined;

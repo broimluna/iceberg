@@ -1,5 +1,5 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
-import { getUtfString } from "../wire-helpers.ts";
+import { getUtfString, fitsBytes, MAX_NAME_BYTES } from "../wire-helpers.ts";
 import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
@@ -489,9 +489,11 @@ function replaceHeldItem(ctx: HandlerContext, next: EquippedObject | undefined):
 export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject | undefined): void {
   const { session } = ctx;
   const previous = session.equippedConsumable;
-  const nextConsumable = next?.type === "consum" ? next.name : undefined;
+  // Replayed to late joiners, so an oversized name isn't kept.
+  const name = fitsBytes(next?.name, MAX_NAME_BYTES) ? next?.name : undefined;
+  const nextConsumable = next?.type === "consum" ? name : undefined;
   session.equippedConsumable = nextConsumable;
-  setHeldObject(session, next?.name);
+  setHeldObject(session, name);
   if (nextConsumable !== undefined && nextConsumable === previous) return;
   if (releaseHeldItem(ctx, previous)) replaceHeldItem(ctx, next);
 }

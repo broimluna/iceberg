@@ -9,7 +9,7 @@ import {
   type VariableKind,
 } from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
-import { extractRawJsonValue } from "../../wire-helpers.ts";
+import { extractRawJsonValue, fitsBytes, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
 import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
 import { onPlayerStateChanged } from "../../daily-tasks.ts";
 import type { HandlerContext } from "../context.ts";
@@ -125,7 +125,9 @@ function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
         // Kept as raw text: equipment ids and timestamps are 64-bit.
         JSON.parse(json);
         const outfit = extractRawJsonValue(json, "data");
-        if (!outfit?.startsWith("{")) return v;
+        // An oversized outfit isn't stored for late joiners; it passes
+        // through unchanged like any non-SignedResponse value.
+        if (!outfit?.startsWith("{") || !fitsBytes(outfit, MAX_OUTFIT_BYTES)) return v;
         session.outfitJson = outfit;
         return variableEntry("outfit", "string", { type: SFSDataType.UTF_STRING, value: outfit });
       }

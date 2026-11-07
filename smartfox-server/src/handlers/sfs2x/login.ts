@@ -1,6 +1,6 @@
 import net from "node:net";
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../../sfs-wire.ts";
-import { getUtfString, getSFSObject, extractRawJsonValue } from "../../wire-helpers.ts";
+import { getUtfString, getSFSObject, extractRawJsonValue, fitsBytes, MAX_NAME_BYTES, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
 import { JOIN_DELAY_MS } from "../../config.ts";
 import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
 import { sendConsumableItemsSnapshot } from "../consumables.ts";
@@ -16,7 +16,8 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
   const { session } = ctx;
   const zoneName = getUtfString(params, "zn") ?? "ClubPenguin";
   session.zoneName = zoneName;
-  session.userName = getUtfString(params, "un") ?? "guest";
+  const userName = getUtfString(params, "un");
+  session.userName = fitsBytes(userName, MAX_NAME_BYTES) ? userName : "guest";
   const innerParams = getSFSObject(params, "p");
   const joinRoomDataStr = getUtfString(innerParams, "joinRoomData");
 
@@ -26,7 +27,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
   if (joinRoomDataStr) {
     try {
       const parsed = JSON.parse(joinRoomDataStr);
-      if (typeof parsed?.data?.room === "string") roomName = parsed.data.room;
+      if (typeof parsed?.data?.room === "string" && fitsBytes(parsed.data.room, MAX_NAME_BYTES)) roomName = parsed.data.room;
       if (typeof parsed?.data?.playerRoomData?.profile?.colour === "number") {
         session.colour = parsed.data.playerRoomData.profile.colour;
       }
@@ -34,14 +35,16 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
         session.selectedTubeId = parsed.data.selectedTubeId;
       }
       // swid sits beside "data" on the SignedResponse wrapper.
-      if (typeof parsed?.swid === "string") session.swid = parsed.swid;
+      if (typeof parsed?.swid === "string" && fitsBytes(parsed.swid, MAX_NAME_BYTES)) session.swid = parsed.swid;
     } catch (err) {
       console.log(`[${new Date().toISOString()}] ${ctx.peer} - failed to parse joinRoomData JSON: ${(err as Error).message}`);
     }
-    const sessionIdMatch = joinRoomDataStr.match(/"sessionId"\s*:\s*(\d+)/);
+    // A 64-bit id is at most 20 digits.
+    const sessionIdMatch = joinRoomDataStr.match(/"sessionId"\s*:\s*(\d{1,20})\b/);
     if (sessionIdMatch) session.playerSessionId = sessionIdMatch[1];
     // The outfit also contains a sessionId, so it's kept as raw JSON text.
-    session.outfitJson = extractRawJsonValue(joinRoomDataStr, "outfit");
+    const outfit = extractRawJsonValue(joinRoomDataStr, "outfit");
+    if (fitsBytes(outfit, MAX_OUTFIT_BYTES)) session.outfitJson = outfit;
   }
   session.roomName = roomName;
   // The client also sends p.transientData, but that copy is unsigned; the
@@ -114,8 +117,18 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     sendExistingOccupantsToJoiner(ctx, roomName);
     broadcastNewJoinerToRoom(roomName, session);
   };
-  if (JOIN_DELAY_MS > 0) setTimeout(sendJoin, JOIN_DELAY_MS);
-  else sendJoin();
+  // The delayed path runs outside server.ts's dispatch try/catch.
+  if (JOIN_DELAY_MS > 0) {
+    setTimeout(() => {
+      try {
+        sendJoin();
+      } catch (err) {
+        console.log(`[${new Date().toISOString()}] ${ctx.peer} - delayed join push threw: ${(err as Error).stack ?? err}`);
+      }
+    }, JOIN_DELAY_MS);
+  } else {
+    sendJoin();
+  }
 }
 
 // Right after JoinRoom, a single SetUserVariables packet (c=0, a=12) carries
