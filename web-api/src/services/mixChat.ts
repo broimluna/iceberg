@@ -11,6 +11,7 @@ import * as db from "../database.ts";
 import { notifyMany, notify, type MixNotification } from "./mixNotify.ts";
 import { mixUser } from "../routes/mix/common.ts";
 import { MixError } from "./mixErrors.ts";
+import { filterText } from "./moderation.ts";
 
 const sql = db.db;
 
@@ -132,4 +133,101 @@ export function stateFor(swid: string) {
         ChatThreadLastSeenMessageSequenceNumbers,
         GameStateChatMessages: [],
     };
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+
+export type MessageType = "TEXT" | "STICKER" | "GAG";
+const NOTIFICATION_TYPE: Record<MessageType, string> = {
+    TEXT: "AddChatThreadTextMessage",
+    STICKER: "AddChatThreadStickerMessage",
+    GAG: "AddChatThreadGagMessage",
+};
+const MAX_TEXT_UNITS = 1000;
+
+type MessageRow = {
+    id: number; thread_id: number; seq: number; sender_swid: string; client_message_id: number;
+    type: string; payload: string; created_at: string;
+};
+
+/**
+ * A mix_chat_messages row in its wire shape (MixDomain/*ChatMessage.cs).
+ * payload holds the type's own fields: TEXT {Text, IsModerated},
+ * STICKER {ContentId}, GAG {ContentId, TargetUserId}. created_at is an
+ * ISO-8601 string with milliseconds, so Created round-trips exactly.
+ */
+export function toMessageDto(row: MessageRow) {
+    return {
+        Created: Date.parse(row.created_at),
+        ChatMessageId: row.id,
+        ClientChatMessageId: row.client_message_id,
+        ChatThreadId: row.thread_id,
+        SenderUserId: row.sender_swid,
+        SequenceNumber: row.seq,
+        MessageType: row.type,
+        ...JSON.parse(row.payload),
+    };
+}
+
+function isMember(threadId: number, swid: string): boolean {
+    return !!sql.query("SELECT 1 FROM mix_chat_members WHERE thread_id = ? AND swid = ? AND left_at IS NULL").get(threadId, swid);
+}
+
+/**
+ * Sends a TEXT, STICKER or GAG message. A retry with the same
+ * (sender, ClientChatMessageId) gets back the sender's original
+ * notification and writes nothing. Everyone in the thread, sender
+ * included, gets AddChatThread<Type>Message at their own next sequence;
+ * the message's SequenceNumber is the thread's next seq.
+ */
+export function addMessage(sender: string, threadId: unknown, clientMessageId: unknown, type: MessageType, fields: any): MixNotification {
+    if (!Number.isSafeInteger(clientMessageId) || !Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
+    const tid = threadId as number;
+    const cid = clientMessageId as number;
+    return db.inTransaction(() => {
+        // 1. Retry: the original notification, unchanged.
+        const prior = sql.query("SELECT * FROM mix_chat_messages WHERE sender_swid = ? AND client_message_id = ?").get(sender, cid) as MessageRow | null;
+        if (prior) {
+            const stored = sql.query(`SELECT data FROM mix_pending_notifications
+                WHERE swid = ? AND type = ? AND json_extract(data, '$.Message.ChatMessageId') = ?
+                ORDER BY sequence LIMIT 1`).get(sender, NOTIFICATION_TYPE[prior.type as MessageType] ?? "", prior.id) as { data: string } | null;
+            if (stored) return JSON.parse(stored.data);
+            // The pending row was cleaned up (older than an hour). Rebuild it
+            // without writing; its SequenceNumber is already applied, so the
+            // client's queue ignores it.
+            return { Created: Date.parse(prior.created_at), NotificationId: prior.id, SequenceNumber: db.getMixNotificationSequence(sender), Message: toMessageDto(prior) };
+        }
+
+        // 2. Membership.
+        if (!isMember(tid, sender)) throw new MixError("NOT_FOUND");
+
+        // 3-4. Type fields.
+        let payload: object;
+        if (type === "TEXT") {
+            const text = fields?.Text;
+            if (typeof text !== "string" || text.length < 1 || text.length > MAX_TEXT_UNITS) throw new MixError("INVALID_REQUEST");
+            const f = filterText(text);
+            if (f.blocked) throw new MixError("MODERATION_BLOCKED");
+            payload = { Text: f.text, IsModerated: f.moderated };
+        } else {
+            const contentId = fields?.ContentId;
+            if (typeof contentId !== "string" || contentId.length === 0 || contentId.length > 256) throw new MixError("INVALID_REQUEST");
+            if (type === "GAG") {
+                const target = fields?.TargetUserId;
+                if (typeof target !== "string" || !isMember(tid, target)) throw new MixError("INVALID_REQUEST");
+                payload = { ContentId: contentId, TargetUserId: target };
+            } else {
+                payload = { ContentId: contentId };
+            }
+        }
+
+        // 5. Store and fan out.
+        const seq = latestSeq(tid) + 1;
+        const id = Number(sql.query(`INSERT INTO mix_chat_messages (thread_id, seq, sender_swid, client_message_id, type, payload, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`).run(tid, seq, sender, cid, type, JSON.stringify(payload), new Date().toISOString()).lastInsertRowid);
+        const message = toMessageDto(sql.query("SELECT * FROM mix_chat_messages WHERE id = ?").get(id) as MessageRow);
+        const sent = notifyMany(currentMembers(tid), NOTIFICATION_TYPE[type], () => ({ Message: message }));
+        return sent.get(sender)!;
+    });
 }

@@ -351,9 +351,9 @@ iceberg's current state.
 | POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ❌ |
 | POST | `/chatThreadMembership/history/delete` | ClearMemberChatHistoryRequest | ❌ |
 | POST | `/chatThreadMembership/unreadMessageCount/delete` | ClearUnreadMessageCountRequest | ❌ |
-| PUT | `/chatThread/textMessage` | AddChatThreadTextMessageRequest | ❌ |
-| PUT | `/chatThread/stickerMessage` | AddChatThreadStickerMessageRequest | ❌ |
-| PUT | `/chatThread/gagMessage` | AddChatThreadGagMessageRequest | ❌ |
+| PUT | `/chatThread/textMessage` | AddChatThreadTextMessageRequest | ✅ (section 7) |
+| PUT | `/chatThread/stickerMessage` | AddChatThreadStickerMessageRequest | ✅ (section 7) |
+| PUT | `/chatThread/gagMessage` | AddChatThreadGagMessageRequest | ✅ (section 7) |
 | PUT | `/chatThread/photoMessage` | AddChatThreadPhotoMessageRequest | ❌ |
 | PUT | `/chatThread/videoMessage` | AddChatThreadVideoMessageRequest | ❌ |
 | PUT | `/chatThread/gameStateMessage` | AddChatThreadGameStateMessageRequest | ❌ |
@@ -727,6 +727,42 @@ All message types extend `BaseChatMessage`:
   friends.
 - `ChatThread.Members` are full user objects with avatars, like
   everywhere else (section 5).
+
+### Sending messages in iceberg (`addMessage`)
+
+`PUT /chatThread/textMessage`, `/stickerMessage` and `/gagMessage` take
+`{ChatThreadId, ClientChatMessageId}` plus `Text`, `ContentId`, or
+`ContentId` and `TargetUserId`. They reply
+`{Status: "OK", Notification: AddChatThread<Type>Message}`.
+
+- **Retries are free.** `(sender, ClientChatMessageId)` is unique. A
+  repeat returns the sender's original stored notification byte for byte,
+  with the same `ChatMessageId`, thread `SequenceNumber` and notification
+  `SequenceNumber`, and writes nothing. This is what `ClientChatMessageId`
+  is for: the app can resend after a timeout without duplicating the
+  bubble. If the stored notification has already been cleaned up (after
+  an hour), the reply is rebuilt from the message row. Its notification
+  sequence is one the client has already applied, so the client ignores
+  it.
+- The sender must be a current member, or `400 NOT_FOUND` (the
+  `AbstractChatThread` read-error string, reused).
+- **Text:** 1–1000 UTF-16 units, otherwise `400 INVALID_REQUEST`. Text runs
+  through the shared filter (section 9). Masked words are stored masked,
+  with `IsModerated: true`; the validator requires `IsModerated` on every
+  text message. A block rule gives `400 MODERATION_BLOCKED`. **This is an
+  iceberg-defined status:** the SDK's send path has no moderation-specific
+  failure, so the app just shows the send as failed.
+- **Sticker:** needs a non-empty `ContentId`. **Gag:** also needs a
+  `TargetUserId` who is a current member (a gag is a prank aimed at
+  someone in the chat).
+- The message gets the thread's next `SequenceNumber` (from 1). Every
+  current member, sender included, gets the notification at their own
+  next notification sequence. Messages sent at the same moment by two
+  members stay gap-free in every stream, because the insert and the
+  fan-out share one SQLite transaction.
+- `Created` is the message's stored timestamp (ISO-8601 with
+  milliseconds), so history reads return the same value as the live
+  notification.
 
 ### Chat in `/state`
 
