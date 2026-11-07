@@ -8,14 +8,18 @@
 import { Database } from "bun:sqlite";
 import path from "path";
 
-// Database file path
-const DB_PATH = path.join(import.meta.dir, "cpi_data.db");
+// Database file path. ICEBERG_DB_PATH lets tools (tools/mod.ts --db) open
+// another database through this module.
+const DB_PATH = process.env.ICEBERG_DB_PATH || path.join(import.meta.dir, "cpi_data.db");
 
 // Initialize database connection
 const db = new Database(DB_PATH);
 
 // Enable WAL mode for better performance
 db.exec("PRAGMA journal_mode = WAL");
+// The server and tools/mod.ts can write at the same time; wait instead of
+// failing with "database is locked".
+db.exec("PRAGMA busy_timeout = 5000");
 
 // Runs fn in one SQLite transaction. Re-entrant: inside another
 // inTransaction it just calls fn, so the outer transaction covers it.

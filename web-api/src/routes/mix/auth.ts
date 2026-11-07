@@ -1,6 +1,7 @@
 // Mix transport middleware: application/mix body encryption and auth.
 import * as db from "../../database.ts";
 import { decryptAesCbc, encryptAesCbc } from "../../lib/crypto.ts";
+import { isBanned } from "../../services/moderation.ts";
 
 const decryptAes = decryptAesCbc;
 const encryptAes = encryptAesCbc;
@@ -107,6 +108,13 @@ export function authenticateMix(req, res, next) {
     if (req.mixSessionSwid && req.mixSessionSwid !== token.swid) {
         console.warn(`[MIX] Auth failed: session belongs to ${req.mixSessionSwid}, token to ${token.swid} (${req.method} ${req.url})`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_MIX_SESSION' });
+    }
+
+    // A banned or locked user gets UNAUTHORIZED_BANNED: the SDK doesn't
+    // retry, it logs the user out (AccountBannedEventArgs).
+    if (isBanned(token.swid)) {
+        console.warn(`[MIX] ${token.swid} is banned (${req.method} ${req.url})`);
+        return res.status(401).json({ Status: 'UNAUTHORIZED_BANNED' });
     }
 
     req.mixUserId = token.swid;

@@ -15,6 +15,7 @@ import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
 import crypto from "crypto";
+import { isBanned } from "../services/moderation.ts";
 
 // =============================================================================
 // Helper Functions
@@ -104,6 +105,21 @@ function buildError(keyCategory, errorCode, inputName = null, message = null) {
             }]
         }
     };
+}
+
+/**
+ * Moderation bans at the Guest Controller (docs/MIX_API.md section 9).
+ * GuestControllerErrorParser maps PROFILE_USER_BANNED to the temporary-ban
+ * results and PROFILE_DISABLED to the profile-disabled ones. The SDK only
+ * reads an error body on HTTP 400 or 2xx; on 401-499 it gives up without
+ * parsing, so a ban must be a 400 or the app never shows it as a ban.
+ */
+function banError(swid) {
+    const ban = isBanned(swid);
+    if (!ban) return null;
+    return ban.kind === 'ban' && ban.until
+        ? buildError('LOGIN', 'PROFILE_USER_BANNED', null, `Banned until ${ban.until}`)
+        : buildError('LOGIN', 'PROFILE_DISABLED', null, 'Profile disabled');
 }
 
 /**
@@ -311,6 +327,12 @@ router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, re
             }
             console.log(`[LOGIN] Password verification PASSED`);
         }
+
+        const banned = banError(swid);
+        if (banned) {
+            console.log(`[LOGIN] ${loginValue} is banned: ${banned.error.errors[0].code}`);
+            return res.status(400).json(banned);
+        }
     
         console.log(`[LOGIN] User "${loginValue}" logging in with existing SWID: ${swid}`);
         console.log(`[LOGIN] playerInfo from DB: username=${playerInfo?.username}, displayName=${playerInfo?.displayName}`);
@@ -396,6 +418,12 @@ router.post('/jgc/v5/client/:clientId/guest/refresh-auth/:refreshToken', (req, r
     }
     
     const swid = stored.swid;
+
+    const banned = banError(swid);
+    if (banned) {
+        console.log(`[REFRESH] ${swid} is banned: ${banned.error.errors[0].code}`);
+        return res.status(400).json(banned);
+    }
     
     // Clean up any old tokens for this SWID to prevent conflicts
     db.deleteGuestTokensBySwid(swid);

@@ -113,6 +113,64 @@ try {
   await A.call("PUT", "/moderation/reportPlayer", { ReportedUserId: "{MOD-B}", Reason: "ok\u202Edesrever\u200B\u2028x" });
   const bidi = (await $`bun ${import.meta.dir}/mod.ts reports --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
   check(!/[\u202E\u200B\u2028]/.test(bidi) && bidi.includes("\\u{202e}") && bidi.includes("\\u{2028}"), `reports output escapes bidi/format/separator characters`);
+
+  // ---- Sanctions: Disney's ladder (MIX_API.md section 9) ----
+  const B = new MixClient(api.base);
+  await B.login("bob", "pw-bob");
+  await B.startSession();
+  await B.state();
+  const cli = (...a: string[]) => $`bun ${import.meta.dir}/mod.ts ${a} --db ${api.dbPath}`.nothrow().quiet();
+  const gcLogin = async (name: string, pw: string) => {
+    const gc = `${api.base}/jgc/v5/client/CPI-TEST`;
+    const k = await fetch(`${gc}/api-key`, { method: "POST" });
+    const r = await fetch(`${gc}/guest/login?expand=profile,displayName,marketing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `APIKEY ${k.headers.get("api-key")}` },
+      body: JSON.stringify({ loginValue: name, password: pw }),
+    });
+    const body: any = await r.json().catch(() => null);
+    return { status: r.status, code: body?.error?.errors?.[0]?.code ?? null, ok: !!body?.data?.token?.access_token };
+  };
+
+  // Warning only: an alert, no ban.
+  let sres = await cli("sanction", "bob", "TROLL", "1");
+  check(sres.exitCode === 0, `mod.ts sanction bob TROLL 1 -> ${sres.exitCode} ${sres.stderr.toString()}`);
+  const got = await B.drain();
+  const alert = got.find((g) => g.type === "AddAlert")?.n?.Alert;
+  check(alert?.Text === "TROLL" && alert?.Level === "1" && typeof alert?.AlertId === "number", `bob gets AddAlert TROLL/1 (${JSON.stringify(alert)})`);
+  check((await B.call("POST", "/state")).http === 200, "a warning doesn't block bob");
+
+  // Next TROLL is suggested at level 2: a 12 h ban.
+  sres = await cli("sanction", "bob", "TROLL");
+  const sOut = sres.stdout.toString();
+  check(sres.exitCode === 0 && /level 2/.test(sOut) && /12 h|12h/.test(sOut), `suggested level 2 = 12 h ban (${sOut.trim()})`);
+  const banned = await B.call("POST", "/state");
+  check(banned.http === 401 && banned.body?.Status === "UNAUTHORIZED_BANNED", `banned bob's call -> ${banned.http} ${JSON.stringify(banned.body)}`);
+  let li = await gcLogin("bob", "pw-bob");
+  check(li.status === 400 && li.code === "PROFILE_USER_BANNED", `temp-banned login -> ${li.status} ${li.code}`);
+  const wrongPw = await gcLogin("bob", "nope");
+  check(wrongPw.code === "INVALID_CREDENTIALS", `wrong password still says INVALID_CREDENTIALS, not banned (${wrongPw.code})`);
+
+  // Expiry.
+  { const d3 = new Database(api.dbPath); d3.run("UPDATE mix_bans SET until = ? WHERE swid = '{MOD-B}'", [new Date(Date.now() - 60_000).toISOString()]); d3.close(); }
+  li = await gcLogin("bob", "pw-bob");
+  check(li.ok, `login works after the ban expires (${li.status} ${li.code})`);
+
+  // VULNERABLE_PERSON starts at level 3: a lock.
+  sres = await cli("sanction", "bob", "VULNERABLE_PERSON", "1");
+  check(sres.exitCode === 0 && /level 3/.test(sres.stdout.toString()), `VULNERABLE_PERSON 1 clamps to 3 (${sres.stdout.toString().trim()})`);
+  li = await gcLogin("bob", "pw-bob");
+  check(li.status === 400 && li.code === "PROFILE_DISABLED", `locked login -> ${li.status} ${li.code}`);
+
+  // Unban.
+  const ub = await cli("unban", "bob");
+  check(ub.exitCode === 0, `mod.ts unban bob -> ${ub.exitCode} ${ub.stderr.toString()}`);
+  li = await gcLogin("bob", "pw-bob");
+  check(li.ok, `login works after unban (${li.status} ${li.code})`);
+  const d4 = new Database(api.dbPath, { readonly: true });
+  const sanctions = d4.query("SELECT type, level FROM mix_sanctions WHERE swid = '{MOD-B}' ORDER BY id").all();
+  d4.close();
+  check(JSON.stringify(sanctions) === JSON.stringify([{ type: "TROLL", level: 1 }, { type: "TROLL", level: 2 }, { type: "VULNERABLE_PERSON", level: 3 }]), `sanction history ${JSON.stringify(sanctions)}`);
 } finally {
   api.stop();
 }

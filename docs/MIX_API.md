@@ -766,8 +766,18 @@ chat or account suspension, it says **ban**, never gag.
   - `AUTHORIZATION_ACCOUNT_LOCKED_OUT` gives
     `LoginFailedAccountLockedOutResult` (a password lockout, not a
     moderation one)
-  - iceberg will use `PROFILE_USER_BANNED` for temporary bans and
-    `PROFILE_DISABLED` for permanent bans and locks.
+  - iceberg uses `PROFILE_USER_BANNED` for temporary bans and
+    `PROFILE_DISABLED` for permanent bans and locks, on both
+    `guest/login` (after the password check, so a wrong password still
+    says `INVALID_CREDENTIALS` and doesn't reveal the ban) and
+    `guest/refresh-auth`. Body:
+    `{error: {keyCategory: "LOGIN", errors: [{code, inputName: null, developerMessage}]}}`.
+  - **The HTTP status must be 400.** `GuestControllerClient` only
+    parses an error body when the status is 400 or 2xx. On 401–499 it
+    reports a bare failure ("authentication unavailable") without
+    reading the code. So a ban sent as 401 on refresh would never show
+    as a ban. The existing refresh-token errors are 401s, which is fine
+    for them: they really are "log in again".
 - `DISPLAYNAME_MODERATION_FAILED` comes from `DisplayNameUpdater`.
 
 ### Alerts are moderation warnings sent to the offender
@@ -832,6 +842,34 @@ Two consequences:
 - Because the server picks `(type, level)` and the client supplies the
   wording, a recreation gets Disney's original, localized moderation
   messages for free, in all five languages that have strings.
+
+### Sanctions in iceberg (`services/moderation.ts`)
+
+- `LADDER` transcribes the table above:
+  - "warning" (and "may be banned") is no ban
+  - "N h" is a ban of N hours
+  - "permanent", "ban" and "contact support" are a ban until lifted
+  - "locked" is a lock until lifted
+  - `POTENTIAL_PAEDOPHILE`, `TERRORIST` and `VULNERABLE_PERSON` start
+    at level 3, because levels 1–2 have no strings.
+- `sanction(swid, type, level, moderator)` clamps the level to the
+  category's range. Then, in one transaction, it stores the alert,
+  queues an `AddAlert` notification
+  (`Alert: {AlertId, Level: "<n>", Text: "<TYPE>", Timestamp}`; the
+  validator wants all four), adds the ban or lock row if the rung has
+  one, and records the sanction.
+- `suggestLevel` is the last level for that category plus one, so
+  repeat offenders climb the ladder by default.
+- Enforcement is server-side only: Mix calls get 401
+  `UNAUTHORIZED_BANNED`, and Guest Controller login/refresh get the
+  400 codes above. A ban is active while `lifted_at IS NULL` and
+  `until` (ISO-8601 UTC, so it compares as text) is null or in the
+  future.
+- Operator CLI: `bun tools/mod.ts sanction <swid|name> <TYPE> [level]`
+  (prints the alert and the resulting ban) and
+  `bun tools/mod.ts unban <swid|name>`. The CLI writes through the
+  same service code via `ICEBERG_DB_PATH`, so the alert's notification
+  gets the user's next sequence number even while the server runs.
 
 ### Text moderation
 

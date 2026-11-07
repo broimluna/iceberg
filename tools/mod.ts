@@ -7,18 +7,25 @@
 //   bun tools/mod.ts rules remove <id>
 //   bun tools/mod.ts reports [--open]
 //   bun tools/mod.ts report <id> dismiss|actioned
+//   bun tools/mod.ts sanction <swid|displayName> <TYPE> [level]
+//   bun tools/mod.ts unban <swid|displayName>
 //
 // --db <file> picks the database (default web-api/src/cpi_data.db).
-// This opens the DB directly instead of importing database.ts, which
-// opens its fixed path and runs migrations as a side effect.
+// rules/reports open the DB directly. sanction/unban go through
+// web-api/src/services/moderation.ts (pointed at --db via ICEBERG_DB_PATH),
+// so the alert, its AddAlert notification sequence and the ban are written
+// exactly as the server would.
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
 
 const USAGE = `usage: bun tools/mod.ts rules list
        bun tools/mod.ts rules add <pattern> [--regex] [--block]
        bun tools/mod.ts rules remove <id>
        bun tools/mod.ts reports [--open]
        bun tools/mod.ts report <id> dismiss|actioned
+       bun tools/mod.ts sanction <swid|displayName> <TYPE> [level]
+       bun tools/mod.ts unban <swid|displayName>
 options: --db <file>   database (default web-api/src/cpi_data.db)`;
 
 // Reasons and names come from players. Print control characters (ANSI
@@ -52,17 +59,54 @@ if (di >= 0) {
 const isRegex = flag("--regex");
 const isBlock = flag("--block");
 const onlyOpen = flag("--open");
-const [group, cmd, arg] = args;
-if (!["rules", "reports", "report"].includes(group) || (group !== "reports" && !cmd)) fail(USAGE);
+const [group, cmd, arg, extra] = args;
+if (!["rules", "reports", "report", "sanction", "unban"].includes(group) || (group !== "reports" && !cmd)) fail(USAGE);
 
 if (!existsSync(dbPath)) fail(`no database at ${dbPath} (start the web API once to create it)`);
 const db = new Database(dbPath);
 db.exec("PRAGMA busy_timeout = 5000");
-const table = group === "rules" ? "mix_moderation_rules" : "mix_reports";
+const table = group === "rules" ? "mix_moderation_rules" : group.startsWith("report") ? "mix_reports" : "mix_bans";
 const hasTable = db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
 if (!hasTable) fail(`${dbPath} has no ${table} table (start the web API once to create it)`);
 
-if (group === "reports") {
+// A swid, or a display name / username (case-insensitive).
+function resolveSwid(who: string): { swid: string; name: string | null } {
+  const row = db.query(`SELECT swid, display_name FROM player_identity
+      WHERE swid = ?1 OR display_name = ?1 COLLATE NOCASE OR username = ?1 COLLATE NOCASE
+      ORDER BY (swid = ?1) DESC LIMIT 1`).get(who) as { swid: string; display_name: string | null } | null;
+  if (!row) fail(`no player ${safe(who)}`);
+  return { swid: row.swid, name: row.display_name };
+}
+
+async function service() {
+  process.env.ICEBERG_DB_PATH = resolvePath(dbPath);
+  const origLog = console.log;
+  console.log = () => {}; // database.ts logs its startup
+  try {
+    return await import("../web-api/src/services/moderation.ts");
+  } finally {
+    console.log = origLog;
+  }
+}
+
+if (group === "sanction") {
+  const target = resolveSwid(cmd);
+  const m = await service();
+  const type = String(arg ?? "").toUpperCase();
+  if (!m.isAlertType(type)) fail(`unknown type ${safe(arg)}; one of: ${Object.keys(m.LADDER).join(", ")}`);
+  if (extra !== undefined && !/^\d+$/.test(extra)) fail(USAGE);
+  const level = extra !== undefined ? Number(extra) : m.suggestLevel(target.swid, type);
+  const r = m.sanction(target.swid, type, level, process.env.USER || "mod.ts");
+  const who = safe(target.name ? `${target.name} ${target.swid}` : target.swid);
+  const what = !r.ban ? "warning only" : r.ban.kind === "lock" ? "account locked until lifted"
+    : r.ban.until ? `${m.LADDER[type].rungs[r.level - 1]?.hours} h ban (until ${r.ban.until})` : "ban until lifted";
+  console.log(`${who}: alert ${r.alertId} ${type} level ${r.level}: ${what}`);
+} else if (group === "unban") {
+  const target = resolveSwid(cmd);
+  const m = await service();
+  if (!m.liftBan(target.swid)) fail(`${safe(cmd)} has no active ban`);
+  console.log(`lifted bans for ${safe(target.name ?? target.swid)}`);
+} else if (group === "reports") {
   const rows = db.query(`SELECT r.*, a.display_name AS reporter_name, b.display_name AS reported_name
       FROM mix_reports r
       LEFT JOIN player_identity a ON a.swid = r.reporter_swid

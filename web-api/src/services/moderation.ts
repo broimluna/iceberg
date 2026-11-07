@@ -11,6 +11,7 @@
 // PRAGMA data_version when another connection commits, so each call
 // checks it and reloads the rules when it moved.
 import * as database from "../database.ts";
+import { notify } from "./mixNotify.ts";
 
 export type Rule = { id: number; pattern: string; kind: "word" | "regex"; action: "mask" | "block"; created_at: string };
 type Compiled = { re: RegExp; action: Rule["action"] };
@@ -109,4 +110,95 @@ export function listReports(status?: ReportRow["status"]): ReportRow[] {
 
 export function setReportStatus(id: number, status: "actioned" | "dismissed"): boolean {
     return sql.query("UPDATE mix_reports SET status = ? WHERE id = ?").run(status, id).changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Sanctions: Disney's escalation ladder (docs/MIX_API.md section 9).
+//
+// A sanction is an alert plus, on some rungs, a ban. The alert's Text is
+// the category and Level the severity; the app shows Disney's own
+// localized string customtokens.alerts.<type>_<level>. Those strings name
+// the durations ("banned for 72 hours"), but the client never enforces
+// them, so the durations below transcribe the strings and the server
+// applies them.
+
+export type AlertTypeName =
+    | "CYBERCRIMINAL" | "CYBERBULLY" | "DATING_TEENS" | "OFFENSIVE_USER" | "OVERSHARING_CHILD"
+    | "POTENTIAL_PAEDOPHILE" | "SEX_PEST" | "SPAMMER" | "TERRORIST" | "TROLL" | "VULNERABLE_PERSON";
+
+/** null = warning only; hours null = until lifted ("permanent", "ban", "contact support"). */
+export type Rung = null | { kind: "ban" | "lock"; hours: number | null };
+type Rungs = [Rung, Rung, Rung, Rung, Rung];
+
+const W: Rung = null;
+const h = (hours: number): Rung => ({ kind: "ban", hours });
+const BAN: Rung = { kind: "ban", hours: null };
+const LOCK: Rung = { kind: "lock", hours: null };
+
+// Rungs below min have no string in the client; they're never used.
+export const LADDER: Record<AlertTypeName, { min: 1 | 3; rungs: Rungs }> = {
+    CYBERCRIMINAL:        { min: 1, rungs: [W, h(72), BAN, BAN, BAN] },
+    CYBERBULLY:           { min: 1, rungs: [W, W, h(12), h(24), BAN] },
+    DATING_TEENS:         { min: 1, rungs: [W, W, h(12), h(24), BAN] }, // level 2 says "may be banned": still a warning
+    OFFENSIVE_USER:       { min: 1, rungs: [W, h(12), h(24), h(72), BAN] },
+    OVERSHARING_CHILD:    { min: 1, rungs: [W, W, W, W, BAN] },
+    POTENTIAL_PAEDOPHILE: { min: 3, rungs: [W, W, BAN, BAN, BAN] },
+    SEX_PEST:             { min: 1, rungs: [W, h(12), h(24), BAN, BAN] },
+    SPAMMER:              { min: 1, rungs: [W, h(24), h(72), BAN, BAN] },
+    TERRORIST:            { min: 3, rungs: [W, W, BAN, BAN, BAN] },
+    TROLL:                { min: 1, rungs: [W, h(12), h(24), h(72), BAN] },
+    VULNERABLE_PERSON:    { min: 3, rungs: [W, W, LOCK, LOCK, LOCK] }, // protects the user: a lock, not a ban
+};
+
+export const isAlertType = (t: string): t is AlertTypeName => Object.hasOwn(LADDER, t);
+
+export type BanRow = {
+    rowid: number; swid: string; kind: "ban" | "lock"; until: string | null;
+    sanction_id: number | null; created_at: string; lifted_at: string | null;
+};
+
+const clampLevel = (type: AlertTypeName, level: number) =>
+    Math.min(5, Math.max(LADDER[type].min, Math.trunc(Number.isFinite(level) ? level : LADDER[type].min)));
+
+/** The last level used for this type, plus 1, within the ladder. Only a suggestion. */
+export function suggestLevel(swid: string, type: AlertTypeName): number {
+    const last = sql.query("SELECT level FROM mix_sanctions WHERE swid = ? AND type = ? ORDER BY id DESC LIMIT 1").get(swid, type) as { level: number } | null;
+    return clampLevel(type, last ? last.level + 1 : LADDER[type].min);
+}
+
+export function sanction(swid: string, type: AlertTypeName, level: number, moderator: string): { alertId: number; level: number; ban: BanRow | null } {
+    const lvl = clampLevel(type, level);
+    const rung = LADDER[type].rungs[lvl - 1];
+    return database.inTransaction(() => {
+        const now = Date.now();
+        const alertId = Number(database.addMixAlert(swid, String(lvl), type, now));
+        notify(swid, "AddAlert", { Alert: { AlertId: alertId, Level: String(lvl), Text: type, Timestamp: now } });
+        const sanctionId = Number(sql.query("INSERT INTO mix_sanctions (swid, type, level, alert_id, moderator) VALUES (?, ?, ?, ?, ?)")
+            .run(swid, type, lvl, alertId, moderator).lastInsertRowid);
+        let ban: BanRow | null = null;
+        if (rung) {
+            const until = rung.hours === null ? null : new Date(now + rung.hours * 3_600_000).toISOString();
+            const rowid = sql.query("INSERT INTO mix_bans (swid, kind, until, sanction_id) VALUES (?, ?, ?, ?)")
+                .run(swid, rung.kind, until, sanctionId).lastInsertRowid;
+            ban = sql.query("SELECT rowid, * FROM mix_bans WHERE rowid = ?").get(rowid) as BanRow;
+        }
+        return { alertId, level: lvl, ban };
+    });
+}
+
+/**
+ * The active ban or lock, or null. `until` is an ISO-8601 UTC string, so
+ * it compares correctly as text. When several are active, an open-ended
+ * one wins over a timed one, then the one that ends last.
+ */
+export function isBanned(swid: string): BanRow | null {
+    return (sql.query(`SELECT rowid, * FROM mix_bans
+        WHERE swid = ? AND lifted_at IS NULL AND (until IS NULL OR until > ?)
+        ORDER BY (until IS NULL) DESC, until DESC LIMIT 1`).get(swid, new Date().toISOString()) as BanRow | null) ?? null;
+}
+
+/** Lifts every active ban and lock. */
+export function liftBan(swid: string): boolean {
+    return sql.query("UPDATE mix_bans SET lifted_at = ? WHERE swid = ? AND lifted_at IS NULL AND (until IS NULL OR until > ?)")
+        .run(new Date().toISOString(), swid, new Date().toISOString()).changes > 0;
 }
