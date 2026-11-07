@@ -569,6 +569,42 @@ This used the prebuilt `testing` release of OpenCPIsland/DisneyMix
 - Logging out calls `POST /session/user/delete` (see the logout finding
   above).
 
+### Building the Mix app from source (native Linux, 2026-11-07)
+
+Building OpenCPIsland/DisneyMix yourself avoids the prebuilt build's
+hard-wired `10.0.0.77`, because a source build reads the bundled config.
+
+1. Unity **6000.3.14f1** with **Linux Build Support (IL2CPP)** (Unity
+   Hub). The Linux editor already includes Mono.
+2. Render the config into the project and into cpipe:
+   `bun tools/mix-config.ts render http://127.0.0.1:3000 --out
+   <DisneyMix>/Assets/StreamingAssets/donotcopy/n7c4c656`, and the same
+   for `web-api/data/mix/cpipe/donotcopy/n7c4c656` (section 2).
+3. Build headless:
+   `Unity -batchmode -quit -nographics -projectPath <DisneyMix>
+   -buildTarget Linux64 -buildLinux64Player <out>/DisneyMix.x86_64
+   -logFile build.log`. The first run imports the whole project. On
+   this machine the whole thing took about 6 minutes, with IL2CPP
+   (`GameAssembly.so`, 61 MB, 1.0 GB build in total).
+
+What we learned doing it:
+- **The project builds with IL2CPP on Linux unchanged.** On a Linux
+  host the editor adds `com.unity.sdk.linux-x86_64` and
+  `com.unity.toolchain.linux-x86_64-linux` to `Packages/manifest.json`.
+  Those are Unity's own sysroot and clang, so no system C++ compiler
+  is needed.
+- **Case sensitivity:** upstream ships `Resources/json/AssetBundles.json`
+  with a lowercase `assetbundles.json.meta`. That only pairs up on
+  Windows and macOS. On Linux, Unity renames the meta to match. The GUID
+  is unchanged, so nothing breaks. (The repo was evidently made on
+  Windows.)
+- **Flatpak Unity Hub + batchmode:** Hub's license file stays inside
+  the sandbox, so the native editor exits with code 198 ("No valid Unity
+  Editor license found"). Copy
+  `~/.var/app/com.unity.UnityHub/config/unity3d/Unity/licenses/UnityEntitlementLicense.xml`
+  to `~/.config/unity3d/Unity/licenses/`. A Personal license includes
+  the `com.unity.editor.headless` entitlement that batchmode needs.
+
 ---
 
 ## 6. `/state`: the snapshot
