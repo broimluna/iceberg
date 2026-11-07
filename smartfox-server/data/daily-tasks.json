@@ -1,0 +1,9618 @@
+{
+ "emoteCharacterCodes": [
+  57345,
+  57346,
+  57347,
+  57348,
+  57349,
+  57350,
+  57351,
+  57352,
+  57353,
+  57354,
+  57355,
+  57356,
+  57357,
+  57358,
+  57359,
+  57360,
+  57361,
+  57362,
+  57363,
+  57364,
+  57365,
+  57367,
+  57368,
+  57369,
+  57370,
+  57371,
+  57372,
+  57373,
+  57374,
+  57376,
+  57377,
+  57378,
+  57379,
+  57380,
+  57381,
+  57382,
+  57383,
+  57384,
+  57385,
+  57386,
+  57387,
+  57388,
+  57390,
+  57391,
+  57392,
+  57393,
+  57394,
+  57395,
+  57396,
+  57397,
+  57398,
+  57399,
+  57400,
+  57401,
+  57402,
+  57403,
+  57405,
+  57408,
+  57409,
+  57411,
+  57412,
+  57413,
+  57414,
+  57415,
+  57417,
+  57418,
+  57419,
+  57421,
+  57424,
+  57425,
+  57426,
+  57427,
+  57428,
+  57429,
+  57431,
+  57432,
+  57433,
+  57435,
+  57436,
+  57437,
+  57440,
+  57441,
+  57442,
+  57443,
+  57445,
+  57446,
+  57447,
+  57448,
+  57450,
+  57451,
+  57453,
+  57454,
+  57457,
+  57458,
+  57459,
+  57460,
+  57461,
+  57462,
+  57463,
+  57464,
+  57466,
+  57468,
+  57470,
+  57472,
+  57473,
+  57475,
+  57477,
+  57478,
+  57479,
+  57480,
+  57481,
+  57482,
+  57484,
+  57485,
+  57488,
+  57489,
+  57490,
+  57491,
+  57492,
+  57493,
+  57494,
+  57495,
+  57496,
+  57497,
+  57499,
+  57501,
+  57502,
+  57515,
+  57516,
+  57518,
+  57519,
+  57530,
+  57531,
+  57532,
+  57534,
+  57600,
+  57601,
+  57603,
+  57604,
+  57605,
+  57606,
+  57607,
+  57608,
+  57616,
+  57617,
+  57618,
+  57619,
+  57621,
+  57622,
+  57623,
+  57624,
+  57625,
+  57632,
+  57633,
+  57634,
+  57635,
+  57636,
+  57637,
+  57638,
+  57639,
+  57640,
+  57641,
+  57648,
+  57649,
+  57650,
+  57651,
+  57652,
+  57653,
+  57654,
+  57655,
+  57656
+ ],
+ "tasks": {
+  "AllTrampolines": {
+   "comparison": 1,
+   "counterMax": 14,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 14,
+   "watchers": [
+    {
+     "switch": "AllTrampolines",
+     "type": "switch"
+    }
+   ]
+  },
+  "AnchorPartyBlaster": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "MegaPartyBlaster",
+      "PartyBlaster",
+      "SuperPartyBlaster",
+      "HolidayPartyBlaster",
+      "HalloweenPartyBlaster"
+     ],
+     "criteriaSwitch": "AnchorPartyBlaster",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "AprilBuy": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "AprilRoom": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "AprilRoom_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachAirbag": {
+   "comparison": 1,
+   "counterMax": 10,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 10,
+   "watchers": [
+    {
+     "switch": "BeachAirbag",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachAirbag10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachAirbag10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachBetweenTrees": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "BeachBetweenTrees_Volume",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachBuoy2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachBuoy2",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachBuoyHide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachBuoyHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachBuoySwim": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachBuoySwim_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachChairs": {
+   "comparison": 1,
+   "counterMax": 6,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 6,
+   "watchers": [
+    {
+     "switch": "BeachChairs",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachClimbBuoy2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachClimbBuoy2_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachClimbTrees": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BeachClimbTrees_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachClimbTrees5000": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "switch": "BeachClimbTrees5000_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachCoins": {
+   "comparison": 1,
+   "counterMax": 10,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 10,
+   "watchers": [
+    {
+     "switch": "BeachCoins",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachEatShared": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeServerAdded",
+      "FishdogServerAdded",
+      "GlowStickServerAdded",
+      "HotChocolateServerAdded",
+      "PizzaPlanetServerAdded",
+      "PizzaServerAdded",
+      "SeaweedSmoothieServerAdded",
+      "SquidStickServerAdded",
+      "StinkyCheeseServerAdded",
+      "SpicyPizzaServerAdded",
+      "CandyCaneServerAdded",
+      "FluffyCakeServerAdded",
+      "HalloweenBasketServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachFindPumpkins": {
+   "comparison": 1,
+   "counterMax": 12,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 12,
+   "watchers": [
+    {
+     "switch": "BeachFindPumpkins_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachFireCook": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachFireCook_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachFlowers": {
+   "comparison": 1,
+   "counterMax": 12,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 12,
+   "watchers": [
+    {
+     "switch": "BeachFlowers_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachForest10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachForest10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachGoLoopy": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BeachGoLoopy_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachGreenEgg": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BeachGreenEgg_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachIslandTube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachIslandTube_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachJumpToAirbag": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachJumpToAirbag_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachLogJump": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "BeachLogJump",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachMarketMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachMarketMenu",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachMarketPurchase": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "BeachMarketPurchase",
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "BeachRiverCocoa": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "HotChocolateSingle",
+      "HotChocolateServerAdded",
+      "HotChocolateDispensible"
+     ],
+     "criteriaSwitch": "BeachRiverCocoa",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachRiverCocoa1000": {
+   "comparison": 1,
+   "counterMax": 500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 500,
+   "watchers": [
+    {
+     "consumables": [
+      "HotChocolateSingle",
+      "HotChocolateServerAdded",
+      "HotChocolateDispensible"
+     ],
+     "criteriaSwitch": "BeachRiverCocoa1000",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachRiverPizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaSingle",
+      "PizzaServerAdded",
+      "PizzaPlanetServerAdded",
+      "SpicyPizzaServerAdded",
+      "SpicyPizzaSingle",
+      "PizzaDispensible",
+      "PizzaPlanetSingle"
+     ],
+     "criteriaSwitch": "BeachRiverPizza",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachRiverPizza1000": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaSingle",
+      "PizzaServerAdded",
+      "PizzaPlanetServerAdded",
+      "SpicyPizzaServerAdded",
+      "SpicyPizzaSingle",
+      "PizzaDispensible",
+      "PizzaPlanetSingle"
+     ],
+     "criteriaSwitch": "BeachRiverPizza1000",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachShareFood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachSharkScare5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachSharkScare5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachShellHide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachShellHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachSigns": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BeachSigns",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachSnowmen": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BeachSnowmen_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachSpeakers": {
+   "comparison": 1,
+   "counterMax": 6,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 6,
+   "watchers": [
+    {
+     "switch": "BeachSpeakers_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachStage10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStage10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStageAntler": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStageAntler_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStageCrowd": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStageCrowd_TaskStage",
+      "BeachStageCrowd_TaskCrowd"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStageDrum1": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "BeachStageDrum1",
+     "type": "action"
+    }
+   ]
+  },
+  "BeachStageDrum5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStageDrum5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStageEmote": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BeachStageEmote_Task_Volume",
+     "emotes": [
+      57639,
+      57640,
+      57638
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BeachStageFireworks": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "Firework",
+      "SuperFirework",
+      "HolidayFirework"
+     ],
+     "criteriaSwitch": "BeachStageFireworks_Volume",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BeachStageGuitar1": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "BeachStageGuitar1",
+     "type": "action"
+    }
+   ]
+  },
+  "BeachStageGuitar5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStageGuitar5_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStageJump": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "criteriaSwitch": "BeachStageJump_Volume",
+     "type": "action"
+    }
+   ]
+  },
+  "BeachStageKeytar1": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "BeachStageKeytar1",
+     "type": "action"
+    }
+   ]
+  },
+  "BeachStageKeytar5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BeachStageKeytar5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BeachStagePlayAll": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BeachStagePlayAll",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachStageSpeakers": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachStageSpeakers_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachStageToWater": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachStageToWater_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachTrickTreat": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BeachTrickTreat_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachTubeJump": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachTubeJump_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachWaterfallHide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BeachWaterfallHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BeachWheels": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BeachWheels_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BigHeroOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BigHeroOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BigHeroShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BigHeroShop_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BirthdayBash": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BlizChairliftGhost": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BlizChairliftGhost_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlizHowlMoon": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BlizHowlMoon_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BlizHowlMoon_V2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BlizHowlMoon_V2_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BlizSlimeWaterfall": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BlizSlimeWaterfall_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlizSpookyRaces": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BlizSpookyRaces_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlizTrickTreat": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "BlizTrickTreat_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlizWearWolves": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BlizWearWolves_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlizzardBeach50000": {
+   "comparison": 1,
+   "counterMax": 50000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 50000,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "criteriaSwitch": "BlizzardBeach50000",
+     "type": "action"
+    }
+   ]
+  },
+  "BlizzardBeachEmote": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BlizzardBeachEmote_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlueCheerLab": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "BlueCheerLab_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BlueTrackRace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BlueTrackRace"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BlueTrackRace_FW": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BlueTrackRace_FW"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BlueTrackTube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BlueTrackTube_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BlueWatchRace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BlueWatchRace_Bleacher",
+      "BlueWatchRace_Track"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkAcceptFishdog": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "FishdogServerAdded"
+     ],
+     "criteriaSwitch": "BoardwalkAcceptFishdog_Task_Volume",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BoardwalkAcceptFishdog_V2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "FishdogServerAdded"
+     ],
+     "criteriaSwitch": "BoardwalkAcceptFishdog_V2_Task_Volume",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "BoardwalkCoins": {
+   "comparison": 1,
+   "counterMax": 10,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 10,
+   "watchers": [
+    {
+     "switch": "BoardwalkCoins",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkCompass4": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkCompass4Switch1",
+      "BoardwalkCompass4Switch2",
+      "BoardwalkCompass4Switch3",
+      "BoardwalkCompass4Switch4"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkCompassStand": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkCompassStand_Step",
+      "BoardwalkCompassStand_Step",
+      "BoardwalkCompassStand_Step",
+      "BoardwalkCompassStand_Step",
+      "BoardwalkCompassStand_Step"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkFishing2000": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "criteriaSwitch": "BoardwalkFishing2000",
+     "loot": [],
+     "type": "fish"
+    }
+   ]
+  },
+  "BoardwalkGeysers5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkGeysers5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkHotSprings": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BoardwalkHotSprings_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkHotSpringsLineup": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkHotSpringsLineup_Step",
+      "BoardwalkHotSpringsLineup_Step",
+      "BoardwalkHotSpringsLineup_Step",
+      "BoardwalkHotSpringsLineup_Step",
+      "BoardwalkHotSpringsLineup_Step"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkPassword": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BoardwalkPassword_Task",
+     "emotes": [
+      57379,
+      57392,
+      57461,
+      57625,
+      57358
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BoardwalkPicnic4": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkPicnic4_Seat",
+      "BoardwalkPicnic4_Seat",
+      "BoardwalkPicnic4_Seat",
+      "BoardwalkPicnic4_Seat"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkPirateFlag": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkPirateFlag"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkPumpkinPatch": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkPumpkinPatch_Seat",
+      "BoardwalkPumpkinPatch_Seat",
+      "BoardwalkPumpkinPatch_Seat",
+      "BoardwalkPumpkinPatch_Seat"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkPumpkinPatch_V2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkPumpkinPatch_V2_Seat",
+      "BoardwalkPumpkinPatch_V2_Seat",
+      "BoardwalkPumpkinPatch_V2_Seat",
+      "BoardwalkPumpkinPatch_V2_Seat"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkPurpleEgg": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BoardwalkPurpleEgg_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkRowboatPosts": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "BoardwalkRowboatPosts_Step",
+      "BoardwalkRowboatPosts_Step",
+      "BoardwalkRowboatPosts_Step",
+      "BoardwalkRowboatPosts_Step",
+      "BoardwalkRowboatPosts_Step"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "BoardwalkRubberDuck": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BoardwalkRubberDuck_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkScarecrow": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "switch": "BoardwalkScarecrow_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkSigns": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "BoardwalkSigns",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkSnowmen": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BoardwalkSnowmen_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkSpeakers": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "BoardwalkSpeakers",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkSpeakers500": {
+   "comparison": 1,
+   "counterMax": 500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 500,
+   "watchers": [
+    {
+     "switch": "BoardwalkSpeakers500",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkStarfish": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BoardwalkStarfish",
+     "emotes": [
+      57376
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BoardwalkTrickTreat": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "switch": "BoardwalkTrickTreat_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkTubeJump": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "BoardwalkTubeJump_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "BoardwalkWarranty": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "BoardwalkWarranty_Task",
+     "emotes": [
+      57379,
+      57392,
+      57461,
+      57625,
+      57358
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "BumpyRoad": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "BumpyRoad",
+     "type": "switch"
+    }
+   ]
+  },
+  "CSPNRoleplay": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "CSPNRoleplay",
+      "CSPNRoleplay",
+      "CSPNRoleplay"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "CSPNVisit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "CSPNVisit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "CampfireCocoa": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "HotChocolateSingle",
+      "HotChocolateServerAdded",
+      "HotChocolateDispensible"
+     ],
+     "criteriaSwitch": "CampfireCocoa_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "CampgroundEat": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeServerAdded",
+      "FishdogServerAdded",
+      "HotChocolateServerAdded",
+      "PizzaPlanetServerAdded",
+      "PizzaServerAdded",
+      "SeaweedSmoothieServerAdded",
+      "SquidStickServerAdded",
+      "StinkyCheeseServerAdded",
+      "SpicyPizzaServerAdded",
+      "CandyCaneServerAdded",
+      "FluffyCakeServerAdded",
+      "RainbowSmoothieServerAdded"
+     ],
+     "criteriaSwitch": "CampgroundEat_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "CampgroundServe": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "SpicyPizzaServerAdded",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "criteriaSwitch": "CampgroundServe_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "CampgroundTent": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "CampgroundTent",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "CannonDown": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "CannonDown_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "CannonUp": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "CannonUp_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "CannonballFun": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "CannonballFun",
+     "type": "switch"
+    }
+   ]
+  },
+  "Cars3Logo": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "Cars3Logo_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "Cars3Outfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Cars3Outfit",
+     "type": "switch"
+    }
+   ]
+  },
+  "Cars3Race": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "switch": "Cars3Race_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "Cars3Store": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Cars3Store",
+     "type": "switch"
+    }
+   ]
+  },
+  "ChairliftRide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "ChairliftRide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "ChangeIsGood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "ChangeIsGood",
+     "type": "switch"
+    }
+   ]
+  },
+  "ChatChew": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "ChatChew",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "CheesyDanceMoves": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaSingle",
+      "PizzaServerAdded",
+      "PizzaPlanetServerAdded",
+      "SpicyPizzaServerAdded",
+      "SpicyPizzaSingle",
+      "PizzaDispensible",
+      "PizzaPlanetSingle"
+     ],
+     "criteriaSwitch": "CheesyDanceMoves",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "ChocoliteCollect": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "ChocoliteCollect",
+     "type": "switch"
+    }
+   ]
+  },
+  "ClothingCatalogSubmission": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {}
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "type": "submitCatalogItem"
+    }
+   ]
+  },
+  "CocoaHutMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "CocoaHutMenu_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "CoconutsBeach": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "CoconutsBeach",
+     "type": "action"
+    }
+   ]
+  },
+  "ColdShower": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "ColdShower",
+     "type": "switch"
+    }
+   ]
+  },
+  "ConfettiFarmers": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "ConfettiFarmers",
+     "type": "action"
+    }
+   ]
+  },
+  "DescendantsMakeOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DescendantsMakeOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DescendantsMigrator": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 0
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DescendantsMigrator_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DescendantsStage": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DescendantsStage_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DescendantsTownShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DescendantsTownShop_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DisneyBooth": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "DisneyBooth",
+     "type": "action"
+    }
+   ]
+  },
+  "DivingAirSupply": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingAirSupply",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingAirSupply8": {
+   "comparison": 1,
+   "counterMax": 8,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 8,
+   "watchers": [
+    {
+     "switch": "DivingAirSupply8",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingArches": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "DivingArches",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingArches10000": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "switch": "DivingArches10000",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingBalcony": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "Firework",
+      "SuperFirework",
+      "HolidayFirework"
+     ],
+     "criteriaSwitch": "DivingBalcony",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "DivingBrainCoral": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "DivingBrainCoral",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingCactusGrotto": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingPillarHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingCandyThrone": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "HalloweenBasketServerAdded",
+      "HalloweenBasketOrange",
+      "HalloweenBasketPurple",
+      "HalloweenBasketGreen"
+     ],
+     "criteriaSwitch": "DivingCandyThrone_Task_Volume",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "DivingChairs": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "DivingChairs",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingCrabCave5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingCrabCave5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingCrabChair": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingCrabChair_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingCrabDen": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingCrabDen",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingFindPumpkins": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "DivingFindPumpkins_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingGlowGrotto5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingGlowGrotto5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingHighDive": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingHighDive",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingHighDive500": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "switch": "DivingHighDive500",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingJail": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "DivingJail",
+     "type": "action"
+    }
+   ]
+  },
+  "DivingPartySub": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingPartySub",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingPartySub10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingPartySub10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingPillarHide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingPillarHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingPropeller": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingPropeller",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingRace",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRace500": {
+   "comparison": 1,
+   "counterMax": 500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 500,
+   "watchers": [
+    {
+     "switch": "DivingRace500",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRaceCostume": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingRaceCostume",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRadar": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingRadar_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRaveCave": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingRaveCave",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingRiddle1": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "SeaweedSmoothieSingle",
+      "SeaweedSmoothieServerAdded",
+      "HotChocolateSingle",
+      "HotChocolateServerAdded",
+      "HotChocolateDispensible",
+      "RainbowSmoothieSingle",
+      "RainbowSmoothieServerAdded"
+     ],
+     "criteriaSwitch": "DivingRiddle1",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "DivingSeaUrchins": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingSeaUrchins",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSigns": {
+   "comparison": 1,
+   "counterMax": 7,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 7,
+   "watchers": [
+    {
+     "switch": "DivingSigns_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSnowmen": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "DivingSnowmen_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSponges": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "DivingSponges",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSquidSurround": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingSquidSurroundSwitch1",
+      "DivingSquidSurroundSwitch2"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingStairsStand": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingStairsStand_Step",
+      "DivingStairsStand_Step",
+      "DivingStairsStand_Step",
+      "DivingStairsStand_Step",
+      "DivingStairsStand_Step",
+      "DivingStairsStand_Step"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingStairsTube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingStairsTube_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSubHide": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingSubHide_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingSubLights": {
+   "comparison": 1,
+   "counterMax": 7,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 7,
+   "watchers": [
+    {
+     "switch": "DivingSubLights_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingThroneRoom": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingThroneRoom",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingThroneRoom5": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingThroneRoom5"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingTrapCrowd": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "DivingTrapCrowd_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "DivingTreasure": {
+   "comparison": 1,
+   "counterMax": 7,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 7,
+   "watchers": [
+    {
+     "switch": "DivingTreasure",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingTreasure5000": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "switch": "DivingTreasure5000",
+     "type": "switch"
+    }
+   ]
+  },
+  "DivingWateryFace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "DivingWateryFace",
+     "emotes": [
+      57346,
+      57351,
+      57352,
+      57353
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "DivingWheel": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DivingWheel",
+     "type": "switch"
+    }
+   ]
+  },
+  "DontMakeMeOlaf": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "DontMakeMeOlaf",
+     "emotes": [
+      57362
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "DuckTales_UseCane": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "DuckTales_UseCane",
+     "type": "action"
+    }
+   ]
+  },
+  "DuckTales_VisitStore": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DuckTales_VisitStore",
+     "type": "switch"
+    }
+   ]
+  },
+  "DuckTales_WearItem": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DuckTales_WearItem",
+     "type": "switch"
+    }
+   ]
+  },
+  "DuckTales_Zipline": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "DuckTales_Zipline",
+     "type": "switch"
+    }
+   ]
+  },
+  "Earthday2017_Emote": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57604,
+      57607,
+      57606
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Earthday2017_Task1": {
+   "comparison": 1,
+   "counterMax": 12,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 12,
+   "watchers": [
+    {
+     "criteriaSwitch": "Earthday2017_Task",
+     "emotes": [
+      57379,
+      57392
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Earthday2017_Task2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "Earthday2017_Task2"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "ExchangeStudent": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "ExchangeStudent",
+     "type": "switch"
+    }
+   ]
+  },
+  "FiresideCocoa": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "HotChocolateSingle",
+      "HotChocolateServerAdded",
+      "HotChocolateDispensible"
+     ],
+     "criteriaSwitch": "FiresideCocoa",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "FishAway": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "criteriaSwitch": "FishAway",
+     "loot": [],
+     "type": "fish"
+    }
+   ]
+  },
+  "FishDogMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "FishDogMenu",
+     "type": "switch"
+    }
+   ]
+  },
+  "FlashBuyAGame": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "FlashBuyFood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "FlashBuyGames": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "FlashStockUpFood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "FoodtrekkerCook": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "FoodtrekkerCook_Task",
+     "emotes": [
+      57427,
+      57432,
+      57431,
+      57519,
+      57433,
+      57426,
+      57442,
+      57411,
+      57478,
+      57399,
+      57415,
+      57454,
+      57485
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "FoodtrekkerEat": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeServerAdded",
+      "FishdogServerAdded",
+      "HotChocolateServerAdded",
+      "PizzaPlanetServerAdded",
+      "PizzaServerAdded",
+      "SeaweedSmoothieServerAdded",
+      "SquidStickServerAdded",
+      "StinkyCheeseServerAdded",
+      "SpicyPizzaServerAdded",
+      "CandyCaneServerAdded",
+      "FluffyCakeServerAdded",
+      "RainbowSmoothieServerAdded"
+     ],
+     "criteriaSwitch": "FoodtrekkerEat_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "FoodtrekkerOrder": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "FoodtrekkerOrder_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "FoodtrekkerServe": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "criteriaSwitch": "FoodtrekkerServe_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "FoodtrekkerTable8": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat",
+      "FoodtrekkerTable8_Seat"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "FrankysBuyMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "FrankysBuyMenu_Task",
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "FrankysCheckMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "FrankysCheckMenu_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "FrankysEatPizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "SpicyPizzaServerAdded",
+      "SpicyPizzaSingle",
+      "PizzaPlanetServerAdded",
+      "PizzaServerAdded",
+      "PizzaServerAdded",
+      "PizzaSingle",
+      "PizzaPlanetSingle"
+     ],
+     "criteriaSwitch": "FrankysEatPizza_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "FrankysKitchenYell": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "FrankysKitchenYell_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "FrankysServePizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaGroup",
+      "PizzaPlanetGroup",
+      "SpicyPizzaGroup"
+     ],
+     "criteriaSwitch": "FrankysServePizza_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "FrankysSitBooth": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "FrankysSitBooth_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "FrankysWearPizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "FrankysWearPizza_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "FunHutMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "FunHutMenu",
+     "type": "switch"
+    }
+   ]
+  },
+  "GalileoGalileo": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "GalileoGalileo",
+     "type": "switch"
+    }
+   ]
+  },
+  "GeyserPoolCircuit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "GeyserPoolCircuit",
+     "type": "switch"
+    }
+   ]
+  },
+  "GeyserPoolSeaweed": {
+   "comparison": 1,
+   "counterMax": 13,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 13,
+   "watchers": [
+    {
+     "switch": "GeyserPoolSeaweed",
+     "type": "switch"
+    }
+   ]
+  },
+  "GlobalEarthHour": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "emotes": [
+      57379,
+      57392,
+      57461,
+      57625,
+      57358,
+      57604
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "GlobalEatCandyCane": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "CandyCaneSingle",
+      "CandyCaneServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalEatFluffcake": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "FluffyCakeSingle",
+      "FluffyCakeServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalHolidayBlaster": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "HolidayPartyBlaster"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalHolidayFireworks": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "HolidayFirework"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalHolidayOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "GlobalHolidayOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "GlobalMakeClothing": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "type": "createCustomEquipped"
+    }
+   ]
+  },
+  "GlobalPartyGame": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "FishBucketGameServerAdded",
+      "ScavengerHuntGroup",
+      "FindFourGameServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalShareCandyCane": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "CandyCane"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalShareFluffcake": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "FluffyCakeTray"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GlobalStPatrick": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "GlobalStPatrick_Task",
+     "emotes": [
+      57379,
+      57392,
+      57461,
+      57625,
+      57358
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Global_BICEmote": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57656,
+      57605,
+      57603
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Global_BICItem": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Global_BICItem_OutfitSwitch",
+     "type": "switch"
+    }
+   ]
+  },
+  "Global_DriveLeft": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57367
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Global_DriveRight": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57368
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "Global_EatPizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaServerAdded",
+      "PizzaPlanetServerAdded",
+      "SpicyPizzaServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Global_PizzaEatPizza": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaServerAdded",
+      "PizzaSingle",
+      "PizzaPlanetServerAdded",
+      "SpicyPizzaServerAdded",
+      "SpicyPizzaSingle",
+      "PizzaDispensible",
+      "PizzaPlanetSingle"
+     ],
+     "criteriaSwitch": "Global_PizzaEatPizza_Outfit",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Global_ShareCake": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FluffyCakeTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Global_WPD2017Eat": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "SquidStickSingle",
+      "SquidStickServerAdded",
+      "FishdogSingle",
+      "FishdogServerAdded",
+      "SquidStickDispensible"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Global_WPD2017Eat_V2": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "SquidStickSingle",
+      "SquidStickServerAdded",
+      "FishdogSingle",
+      "FishdogServerAdded",
+      "SquidStickDispensible"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "GoLoopy": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "GoLoopy",
+     "type": "switch"
+    }
+   ]
+  },
+  "GoldilocksSpot": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "GoldilocksSpot",
+     "type": "action"
+    }
+   ]
+  },
+  "GoodAltitude": {
+   "comparison": 1,
+   "counterMax": 20,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 20,
+   "watchers": [
+    {
+     "switch": "GoodAltitude",
+     "type": "switch"
+    }
+   ]
+  },
+  "GreenTrampolines": {
+   "comparison": 1,
+   "counterMax": 7,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 7,
+   "watchers": [
+    {
+     "switch": "GreenTrampolines",
+     "type": "switch"
+    }
+   ]
+  },
+  "HalloweenGhostBattle": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 0,
+    "mascotXP": {}
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "type": "submitCatalogItem"
+    }
+   ]
+  },
+  "HighDive": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "criteriaSwitch": "HighDive",
+     "type": "action"
+    }
+   ]
+  },
+  "HotSpringsOrder": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "HotSpringsOrder_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "HotSpringsServe": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "criteriaSwitch": "HotSpringsServe_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "IcebergCheese": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "IcebergCheese"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "JackhammerTime": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "JackhammerTime",
+     "type": "action"
+    }
+   ]
+  },
+  "LicenseToGrill": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "LicenseToGrill",
+     "type": "action"
+    }
+   ]
+  },
+  "LightUpTheSky": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "Firework",
+      "SuperFirework",
+      "HolidayFirework"
+     ],
+     "criteriaSwitch": "LightUpTheSky",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "LighthouseSnowball10000": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "LighthouseSnowball10000",
+     "type": "action"
+    }
+   ]
+  },
+  "LookoutBelow": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "LookoutBelow",
+     "type": "switch"
+    }
+   ]
+  },
+  "MigratorAnimalParty10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 0
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MigratorAnimalParty10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MigratorBowsprit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MigratorBowsprit_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MigratorClothesline": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "MigratorClothesline",
+     "type": "switch"
+    }
+   ]
+  },
+  "MigratorEat5000": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "MigratorEat5000_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "MigratorEatShared": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "MigratorShareFood_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "MigratorPirateAnimal10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MigratorPirateAnimal10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MigratorPirateParty10": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MigratorPirateParty10"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MigratorShareFood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "MigratorShareFood_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "MigratorSnowball10000": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "MigratorSnowball10000",
+     "type": "action"
+    }
+   ]
+  },
+  "MigratorSwordfight": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MigratorSwordfight_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MindTheGap": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "MindTheGap",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzBlueEgg": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "MtBlizzBlueEgg_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzFoodDeliver": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "MtBlizzFoodDeliver_Task",
+     "type": "targethit"
+    }
+   ]
+  },
+  "MtBlizzHolidaySanta": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MtBlizzHolidaySanta_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MtBlizzHolidaySweater": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "MtBlizzHolidaySweater_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzPlay2500": {
+   "comparison": 1,
+   "counterMax": 2500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2500,
+   "watchers": [
+    {
+     "switch": "MtBlizzPlay2500_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzPlayShared": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "MtBlizzPlayShared_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzShareGame": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "MtBlizzSnowGiants": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "MtBlizzSnowGiants_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzSnowman": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "MtBlizzSnowman_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "MtBlizzWolfFireworks": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "Firework",
+      "SuperFirework",
+      "SuperFireworkNonMember",
+      "HolidayFirework"
+     ],
+     "criteriaSwitch": "MtBlizzWolfFireworks_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "MtBlizzWolfWatch": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "MtBlizzWolfFireworks_FireworksTask",
+      "MtBlizzWolfFireworks_AudienceTask"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "MtBlizzardRespect": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "MtBlizzardRespect_Task",
+     "emotes": [
+      57617,
+      57530,
+      57408
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "MultipleGeysers": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "MultipleGeysers",
+     "type": "switch"
+    }
+   ]
+  },
+  "MultipleGeysersRoom": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "switch": "MultipleGeysersRoom",
+     "type": "switch"
+    }
+   ]
+  },
+  "NetWorthy": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "NetWorthy",
+     "type": "switch"
+    }
+   ]
+  },
+  "NoTimeToZipline": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "NoTimeToZipline",
+     "type": "switch"
+    }
+   ]
+  },
+  "OrangeTrampolines": {
+   "comparison": 1,
+   "counterMax": 6,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 6,
+   "watchers": [
+    {
+     "switch": "OrangeTrampolines",
+     "type": "switch"
+    }
+   ]
+  },
+  "PaperTrail": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "PaperTrail",
+     "type": "switch"
+    }
+   ]
+  },
+  "PartySubConfetti": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PartySubConfetti",
+     "type": "switch"
+    }
+   ]
+  },
+  "PartySubDisco": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PartySubDisco",
+     "type": "switch"
+    }
+   ]
+  },
+  "PartySubFavors": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PartySubFavors",
+     "type": "switch"
+    }
+   ]
+  },
+  "PicnicAreaOrder": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "PicnicAreaOrder_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "PicnicAreaServe": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "criteriaSwitch": "PicnicAreaServe_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "PieInTheSky": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "PizzaGroup",
+      "PizzaPlanetGroup",
+      "SpicyPizzaGroup"
+     ],
+     "criteriaSwitch": "PieInTheSky",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "PiratePinata": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "Pinata"
+     ],
+     "criteriaSwitch": "PiratePinata_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "PizzaLighthouse": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaLighthouse_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaPizzaPizza": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PizzaPizzaPizza_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "PizzaRescue": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaRescue_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaRowboat": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaRowboat_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaSuperModel": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PizzaSuperModel",
+     "type": "switch"
+    }
+   ]
+  },
+  "PizzaTent": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaTent_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaThrone": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaThrone_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaWaterfall": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "PizzaWaterfall_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "PizzaZipline": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PizzaZipline_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "PlatformBinoculars": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      9
+     ],
+     "criteriaSwitch": "PlatformBinoculars",
+     "type": "action"
+    }
+   ]
+  },
+  "PlatformSign": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7
+     ],
+     "criteriaSwitch": "PlatformSign",
+     "type": "action"
+    }
+   ]
+  },
+  "PlatformWhistle": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Shellbeard": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      8
+     ],
+     "criteriaSwitch": "PlatformWhistle",
+     "type": "action"
+    }
+   ]
+  },
+  "PlayTiltOTubes": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "PlayTiltOTubes_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "PorchSnowball": {
+   "comparison": 1,
+   "counterMax": 10,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 10,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "PorchSnowball_Volume",
+     "type": "action"
+    }
+   ]
+  },
+  "RDMA2017_Decal1": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RDMA2017_Decal1",
+     "type": "switch"
+    }
+   ]
+  },
+  "RDMA2017_Decal2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RDMA2017_Decal2",
+     "type": "switch"
+    }
+   ]
+  },
+  "RDMA2017_Prep1": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "RDMA2017_Prep1_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "RDMA2017_Task1": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "criteriaSwitch": "RDMA2017_Task1",
+     "emotes": [
+      57376
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "RDMA2017_Task2": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "criteriaSwitch": "RDMA2017_Task2",
+     "emotes": [
+      57345,
+      57347,
+      57353,
+      57361,
+      57364,
+      57382,
+      57383,
+      57384,
+      57392,
+      57394,
+      57412,
+      57413,
+      57515,
+      57443,
+      57459,
+      57475,
+      57491,
+      57429,
+      57377,
+      57393,
+      57400,
+      57417
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "RabbitOrPenguin": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "RainbowBalloons": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "RainbowBalloons_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowBoardwalk": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RainbowBoardwalk_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowCollect1Drop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RainbowCollect1Drop_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowCollect2Drops": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 0,
+     "switches": [
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume",
+      "RainbowCollect2Drops_Volume"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RainbowCollect3Drops": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "RainbowCollect3Drops_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowDrinkSmoothie": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "RainbowSmoothieSingle",
+      "RainbowSmoothieServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "RainbowMakeOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RainbowMakeOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowShareSmoothie": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "RainbowSmoothieTray"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "RainbowShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "RainbowShop_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "RainbowSnowball": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 0
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "RainbowSnowball_Volume",
+     "type": "action"
+    }
+   ]
+  },
+  "RainbowTiltATube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RainbowTiltATube_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RainbowWearOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RainbowWearOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RaveCaveGlowstick": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "GlowStickPink",
+      "GlowStickRainbow",
+      "GlowStickYellow",
+      "GlowstickPack",
+      "GlowStickServerAdded",
+      "GlowStickMint"
+     ],
+     "criteriaSwitch": "RaveCaveGlowstick",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "RaveCaveMenu": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RaveCaveMenu",
+     "type": "switch"
+    }
+   ]
+  },
+  "RaveCavePurchase": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "RaveCavePurchase",
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "RedCheerMosaic": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "RedCheerMosaic_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "RedTrackRace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "RedTrackRace"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RedTrackRace_FW": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "RedTrackRace_FW"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RedTrackTube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "RedTrackTube_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "RedWatchRace": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "RedWatchRace_Bleacher",
+      "RedWatchRace_Track"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RescueHutRoleplay": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "RescueHutRoleplay_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "RescueHutSign": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7
+     ],
+     "criteriaSwitch": "RescueHutSign_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "RoomDanceBoardwalk": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "RoomDanceBoardwalk"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RoughSeas": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "RoughSeas",
+     "emotes": [
+      57381
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [
+      15
+     ],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "RowboatBinoculars": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      9
+     ],
+     "criteriaSwitch": "RowboatBinoculars_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "RowboatShark": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7
+     ],
+     "criteriaSwitch": "RowboatShark",
+     "type": "action"
+    }
+   ]
+  },
+  "RowboatSit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "RowboatSitSwitch1",
+      "RowboatSitSwitch2"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "RowboatWhistle": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      8
+     ],
+     "criteriaSwitch": "RowboatWhistle",
+     "type": "action"
+    }
+   ]
+  },
+  "SecretPlatform": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "SecretPlatform_Volume",
+     "type": "switch"
+    }
+   ]
+  },
+  "ShareFood": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "SharkTeethClimb": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "SharkTeethClimb",
+     "type": "switch"
+    }
+   ]
+  },
+  "ShipsWheel": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "ShipsWheel",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "SkyHighDuel": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "SkyHighDuel",
+     "type": "action"
+    }
+   ]
+  },
+  "SnowVsSand": {
+   "comparison": 1,
+   "counterMax": 20,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 20,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "SnowmeltEat": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeServerAdded",
+      "FishdogServerAdded",
+      "HotChocolateServerAdded",
+      "PizzaPlanetServerAdded",
+      "PizzaServerAdded",
+      "SeaweedSmoothieServerAdded",
+      "SquidStickServerAdded",
+      "StinkyCheeseServerAdded",
+      "SpicyPizzaServerAdded",
+      "CandyCaneServerAdded",
+      "FluffyCakeServerAdded",
+      "RainbowSmoothieServerAdded"
+     ],
+     "criteriaSwitch": "SnowmeltEat_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "SnowmeltServe": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "FishdogGroup",
+      "HotChocolateGroup",
+      "PizzaGroup",
+      "PizzaPlanetGroup",
+      "SeaweedSmoothieTray",
+      "SquidStickGroup",
+      "StinkyCheeseTray",
+      "SpicyPizzaGroup",
+      "CandyCane",
+      "FluffyCakeTray",
+      "RainbowSmoothieTray",
+      "20thBirthdayCakeGroup"
+     ],
+     "criteriaSwitch": "SnowmeltServe_Task",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "SnowmeltShopBuy": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "SnowmeltShopBuy_Task",
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "SnowmeltShopBuyRookie": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [],
+     "criteriaSwitch": "SnowmeltShopBuyRookie_Task",
+     "type": "consumablePurchase"
+    }
+   ]
+  },
+  "SpringHasSprung": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "SpringHasSprung",
+     "type": "switch"
+    }
+   ]
+  },
+  "SquidStickPicnic": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "consumables": [
+      "SquidStickSingle",
+      "SquidStickServerAdded",
+      "SquidStickDispensible"
+     ],
+     "criteriaSwitch": "SquidStickPicnic",
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "StairSerenade": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "StairSerenade4"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "Submariner": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "actions": [
+      5
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "SubmergedScepter": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "SubmergedScepter",
+     "type": "action"
+    }
+   ]
+  },
+  "SundeckMats": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "SundeckMats",
+     "type": "switch"
+    }
+   ]
+  },
+  "SundeckShark": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "SundeckShark",
+     "type": "switch"
+    }
+   ]
+  },
+  "SundeckZipline": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "SundeckZipline",
+     "type": "switch"
+    }
+   ]
+  },
+  "SwabDeckAft": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      9
+     ],
+     "criteriaSwitch": "SwabDeckAft",
+     "type": "action"
+    }
+   ]
+  },
+  "SwabDeckAftRoom": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "SwabDeckAftRoom"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "SwabDeckFore": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      9
+     ],
+     "criteriaSwitch": "SwabDeckFore",
+     "type": "action"
+    }
+   ]
+  },
+  "SwabDeckForeRoom": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "SwabDeckForeRoom"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "SwabDeckMain": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      9
+     ],
+     "criteriaSwitch": "SwabDeckMain",
+     "type": "action"
+    }
+   ]
+  },
+  "SwabDeckMainRoom": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "SwabDeckMainRoom"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "SwimWithTheFishes": {
+   "comparison": 1,
+   "counterMax": 25,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 25,
+   "watchers": [
+    {
+     "actions": [
+      5
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "SwissCheese": {
+   "comparison": 1,
+   "counterMax": 10,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 10,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "SwissCheese",
+     "type": "action"
+    }
+   ]
+  },
+  "TakeThePlunge": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "TakeThePlunge",
+     "type": "switch"
+    }
+   ]
+  },
+  "TalkRockhopper": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TalkRockhopper",
+     "type": "switch"
+    }
+   ]
+  },
+  "TaskCompletion_4": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {}
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "type": "taskCompletion"
+    }
+   ]
+  },
+  "TaskCompletion_5": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {}
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "type": "taskCompletion"
+    }
+   ]
+  },
+  "TharSheBlows": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      8
+     ],
+     "criteriaSwitch": "TharSheBlows",
+     "type": "action"
+    }
+   ]
+  },
+  "ThreeTwoOne": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "ThreeTwoOne",
+     "type": "switch"
+    }
+   ]
+  },
+  "TipTopTube": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TipTopTube",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownBench": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownBench_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownBenchIgloo": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownBenchIgloo_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownBlueSigns": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "switch": "TownBlueSigns_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownBuoy": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownBuoy_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownBuskBongos": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "TownBuskBongos",
+     "type": "action"
+    }
+   ]
+  },
+  "TownBuskGuitar": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "TownBuskGuitar",
+     "type": "action"
+    }
+   ]
+  },
+  "TownCandelabras": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "TownCandelabras_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownDanceCheer": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "TownDanceCheer_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownDanceColor": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownDanceColor_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownDancePlay": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "TownDancePlay_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownDancePower": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "TownDancePower_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownDecorate": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "TownDecorate_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownDecorateColor": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      4
+     ],
+     "criteriaSwitch": "TownDecorateColor_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownDisneyVisit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownDisneyVisit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownDonateCFC": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "TownDonateCFC_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownEmoteJackhammer": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "TownEmoteJackhammer_Task_Volume",
+     "emotes": [
+      57409
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "TownEmotePumpkin": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "TownEmotePumpkin_Task_Volume",
+     "emotes": [
+      57639
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "TownEmoteStar": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "TownEmoteStar_Task",
+     "emotes": [
+      57376
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "TownFlagSing": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "TownFlagSing_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "TownFrozenShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownFrozenShop_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownFrozenTree": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownFrozenTree_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHappyChat": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "emotes": [
+      57377,
+      57393,
+      57400,
+      57417,
+      57345,
+      57347,
+      57353,
+      57361,
+      57364,
+      57379,
+      57382,
+      57383,
+      57384,
+      57385,
+      57392,
+      57394,
+      57401,
+      57412,
+      57413,
+      57515,
+      57441,
+      57443,
+      57459,
+      57654,
+      57460,
+      57475,
+      57464,
+      57491,
+      57429,
+      57447,
+      57463,
+      57656,
+      57603,
+      57605,
+      57606,
+      57608,
+      57633,
+      57624,
+      57623,
+      57634,
+      57635,
+      57639,
+      57640,
+      57354,
+      57356,
+      57622,
+      57358
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "TownHaveFeast": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownHaveFeast_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHideFlag": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownHideFlag_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHideTree": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownHideTree_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHolidayBauble": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownHolidayBauble_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHolidayEmoji": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "criteriaSwitch": "TownHolidayEmoji_Task",
+     "emotes": [
+      57354,
+      57355,
+      57356,
+      57357,
+      57358,
+      57359
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "TownHolidayShirt": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownHolidayShirt_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownHolidayShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "TownHolidayShop_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "TownJumpShrub": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "switch": "TownJumpShrub_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownLapStatue": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownLapStatue_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownMuralFriends": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "switch": "TownMuralFriends_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownMuralIgloo": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownMuralIgloo_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownOlafOutfit": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownOlafOutfit_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownOrangeEgg": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "TownOrangeEgg_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownRoryShop": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownRoryShop_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownSeatSkull": {
+   "comparison": 1,
+   "counterMax": 4,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 4,
+   "watchers": [
+    {
+     "switch": "TownSeatSkull_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownSnowmen": {
+   "comparison": 1,
+   "counterMax": 2,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 2,
+   "watchers": [
+    {
+     "switch": "TownSnowmen_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownTram": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownTram_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownTreePark": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": true,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "TownTreePark_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "TownTrickTreat": {
+   "comparison": 1,
+   "counterMax": 5,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5,
+   "watchers": [
+    {
+     "switch": "TownTrickTreat_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownTubeAcross": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownTubeAcross_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownTulips": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "TownTulips_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "TownWatchBusker": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "TownWatchBusker_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "TownWhiteout": {
+   "comparison": 1,
+   "counterMax": 6,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 6,
+   "watchers": [
+    {
+     "switch": "TownWhiteout_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "Town_Investigate": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "Town_Investigate_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "Town_Jackhammer": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "Town_Jackhammer_Task",
+     "type": "action"
+    }
+   ]
+  },
+  "Town_Strange": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Town_Strange_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "Trampoline3000": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Trampoline3000",
+     "type": "switch"
+    }
+   ]
+  },
+  "Trampoline3000Coins": {
+   "comparison": 1,
+   "counterMax": 15,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 15,
+   "watchers": [
+    {
+     "switch": "Trampoline3000Coins",
+     "type": "switch"
+    }
+   ]
+  },
+  "UnityDay2017_Bold": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "UnityDay2017_Bold_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "UnityDay2017_Chain": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "UnityDay2017_Chain"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "UnityDay2017_Choose": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "UnityDay2017_Choose_Task",
+     "emotes": [],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "UnityDay2017_Share": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "criteriaSwitch": "UnityDay2017_Share_Task",
+     "emotes": [
+      57632,
+      57634,
+      57625
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "UnityDay2017_Speak": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57625,
+      57634,
+      57632
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "WPD2017Boost": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "actions": [
+      5
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "WPD2017Boost_V2": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "actions": [
+      5
+     ],
+     "type": "action"
+    }
+   ]
+  },
+  "WPD2017Geyser": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "WPD2017Geyser_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "WPD2017Geyser_V2": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 1,
+   "memberOnly": false,
+   "reward": {
+    "coins": 50,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "operator": 1,
+     "switches": [
+      "WPD2017Geyser_V2_Task"
+     ],
+     "type": "room"
+    }
+   ]
+  },
+  "WPD2017Jump": {
+   "comparison": 1,
+   "counterMax": 6,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 6,
+   "watchers": [
+    {
+     "switch": "WPD2017Jump_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "WPD2017Prep1": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "actions": [
+      2
+     ],
+     "criteriaSwitch": "WPD2017Prep1",
+     "type": "action"
+    }
+   ]
+  },
+  "WPD2017Prep2": {
+   "comparison": 1,
+   "counterMax": 3000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 3000,
+   "watchers": [
+    {
+     "actions": [
+      7,
+      8,
+      9
+     ],
+     "criteriaSwitch": "WPD2017Prep2",
+     "type": "action"
+    }
+   ]
+  },
+  "Waterfaller": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "Waterfaller",
+     "type": "switch"
+    }
+   ]
+  },
+  "Waterslider": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "Waterslider",
+     "type": "switch"
+    }
+   ]
+  },
+  "WishSquid": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "criteriaSwitch": "WishSquid",
+     "type": "action"
+    }
+   ]
+  },
+  "WolfCaveAnimal": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": true,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "WolfCaveAnimal",
+     "type": "switch"
+    }
+   ]
+  },
+  "WorldCakeSlice5000": {
+   "comparison": 1,
+   "counterMax": 2000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2000,
+   "watchers": [
+    {
+     "consumables": [
+      "BirthdayCakeGroup",
+      "BirthdayCakeServerAdded",
+      "BirthdayCakeSingle",
+      "20thBirthdayCakeDispensible",
+      "20thBirthdayCakeSingle"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "WorldCreateOutfit2500": {
+   "comparison": 1,
+   "counterMax": 2500,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 2500,
+   "watchers": [
+    {
+     "type": "createCustomEquipped"
+    }
+   ]
+  },
+  "WorldFishDog5000": {
+   "comparison": 1,
+   "counterMax": 500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 500,
+   "watchers": [
+    {
+     "consumables": [
+      "FishdogSingle",
+      "FishdogServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "WorldGlowstick5000": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "consumables": [
+      "GlowStickServerAdded",
+      "GlowStickPink",
+      "GlowStickRainbow",
+      "GlowStickYellow",
+      "GlowStickMint"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "WorldHeart10000": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "emotes": [
+      57379,
+      57392
+     ],
+     "matchCounting": 0,
+     "matchType": 0,
+     "sizzleClips": [],
+     "texts": [],
+     "type": "chat"
+    }
+   ]
+  },
+  "WorldJump10000": {
+   "comparison": 1,
+   "counterMax": 10000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 10000,
+   "watchers": [
+    {
+     "actions": [
+      1
+     ],
+     "criteriaSwitch": "WorldJump10000",
+     "type": "action"
+    }
+   ]
+  },
+  "WorldPartyBlaster5000": {
+   "comparison": 1,
+   "counterMax": 500,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 500,
+   "watchers": [
+    {
+     "consumables": [
+      "MegaPartyBlaster",
+      "PartyBlaster",
+      "SuperPartyBlaster",
+      "HolidayPartyBlaster",
+      "HalloweenPartyBlaster"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "WorldSmoothie5000": {
+   "comparison": 1,
+   "counterMax": 1000,
+   "group": 2,
+   "memberOnly": true,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 1000,
+   "watchers": [
+    {
+     "consumables": [
+      "SeaweedSmoothieSingle",
+      "SeaweedSmoothieServerAdded"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Year1EatCake": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "Rockhopper": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Year1EatCake_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "Year1EatCake5000": {
+   "comparison": 1,
+   "counterMax": 5000,
+   "group": 2,
+   "memberOnly": false,
+   "reward": {
+    "coins": 75,
+    "mascotXP": {
+     "AuntArctic": 40
+    }
+   },
+   "threshold": 5000,
+   "watchers": [
+    {
+     "consumables": [
+      "FluffyCakeSingle",
+      "FluffyCakeServerAdded",
+      "FluffCakeDispensible",
+      "BirthdayCakeSingleNonMember",
+      "BirthdayCakeSingleDispensible",
+      "BirthdayCakeSingle",
+      "BirthdayCakeServerAdded",
+      "20thBirthdayCakeDispensible",
+      "20thBirthdayCakeSingle",
+      "20thBirthdayCakeGroup"
+     ],
+     "event": 1,
+     "type": "consumable"
+    }
+   ]
+  },
+  "Year1WearShirt": {
+   "comparison": 1,
+   "counterMax": 1,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 30,
+    "mascotXP": {
+     "DJCadence": 40
+    }
+   },
+   "threshold": 1,
+   "watchers": [
+    {
+     "switch": "Year1WearShirt_Task",
+     "type": "switch"
+    }
+   ]
+  },
+  "ZipIt": {
+   "comparison": 1,
+   "counterMax": 3,
+   "group": 0,
+   "memberOnly": false,
+   "reward": {
+    "coins": 40,
+    "mascotXP": {
+     "Rookie": 40
+    }
+   },
+   "threshold": 3,
+   "watchers": [
+    {
+     "switch": "ZipIt",
+     "type": "switch"
+    }
+   ]
+  }
+ }
+}

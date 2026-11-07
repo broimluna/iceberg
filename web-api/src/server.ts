@@ -11,6 +11,7 @@ import config from "./config.ts";
 import { logger, errorHandler, notFoundHandler, authenticate } from "./middleware/index.ts";
 import * as routes from "./routes/index.ts";
 import { encryptionMiddleware } from "./routes/encryption.ts";
+import { incrementTask as incrementDailyTask } from "./routes/task.ts";
 
 // Initialize Express app
 const app = express();
@@ -157,6 +158,22 @@ app.post('/api/internal/session-ended', express.json(), (req, res) => {
     db.deleteSession(sessionId);
     console.log(`[INTERNAL-API] Session ${sessionId} ended`);
     res.json({ success: true });
+});
+
+/**
+ * POST /api/internal/task-increment
+ * The game server reports a counted daily-challenge event.
+ * Body: { username, taskId, times }. Returns { counter, changed, completed }.
+ */
+app.post('/api/internal/task-increment', express.json(), (req, res) => {
+    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    const { username, taskId, times } = req.body ?? {};
+    if (typeof username !== 'string' || typeof taskId !== 'string' || !Number.isInteger(times) || times < 1) {
+        return res.status(400).json({ error: 'Missing or invalid username, taskId or times' });
+    }
+    const result = incrementDailyTask(username, taskId, times);
+    if (!result) return res.status(404).json({ error: 'Unknown task' });
+    res.json(result);
 });
 
 // Mount all route modules

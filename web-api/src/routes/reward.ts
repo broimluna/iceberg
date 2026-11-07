@@ -79,17 +79,12 @@ function applyRewards(username, reward) {
  * Response: RewardGrantedResponse { assets }
  */
 router.put('/reward/v1', (req, res) => {
-    const { swid, username } = req.player;
-    console.log(`[REWARD] ${username} persisting rewards from game server`);
-    
-    const rewardsData = req.body.data || req.body.Data || (req.body.rewards ? req.body : null);
-    
-    if (rewardsData?.rewards) {
-        for (const [sessionId, reward] of Object.entries(rewardsData.rewards)) {
-            console.log(`[REWARD] Applying reward for session ${sessionId}`);
-            applyRewards(username, reward);
-        }
-    }
+    // The client echoes every reward.add it receives here. The game server
+    // already granted that reward itself (/api/internal/grant-reward), so
+    // applying it again would pay twice, and a modified client could send
+    // anything. Only the current assets are returned.
+    const { username } = req.player;
+    console.log(`[REWARD] ${username} echoed a reward.add, not applied (server-granted): ${JSON.stringify(req.body).slice(0, 300)}`);
     
     // Response: RewardGrantedResponse
     res.json({ 

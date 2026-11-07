@@ -1,6 +1,7 @@
 import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getPossiblyEncryptedUtfString } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
+import { onChatMessage } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 
 // "chat.msg"
@@ -33,6 +34,8 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
   ctx.send(packet);
   for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
   console.log(`[${new Date().toISOString()}] ${ctx.peer} <- chat.msg echo (message=${JSON.stringify(messageText)}, emotion=${emotion})`);
+  // "emotion" is the sizzle clip id.
+  onChatMessage(ctx, messageText, emotion);
 }
 
 // "chat.activity" / "chat.activity_cancel" - typing indicator start/stop.

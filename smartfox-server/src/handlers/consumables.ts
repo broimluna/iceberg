@@ -4,6 +4,8 @@ import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../sessio
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
+import { onConsumableUsed } from "../daily-tasks.ts";
+import { grantReward } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
@@ -142,9 +144,9 @@ function distance(a: number[], b: number[]): number {
 
 // When a world consumable expires, players within RewardRadius of it (by
 // last reported position) split TotalReward, each getting at least
-// MinPerPlayerReward. The creator always counts as a recipient. Each player
-// gets "reward.add" with only their own entry; the client then persists it
-// through PUT /reward/v1, which applies every entry it's given.
+// MinPerPlayerReward. The creator always counts as a recipient. The server
+// grants each reward through the WebAPI; "reward.add" (only the player's
+// own entry) is what makes the client show it.
 function sendExpiryRewards(item: LiveConsumable): void {
   const { totalCoins = 0, minCoins = 0, rewardRadius = 0 } = item.def;
   if (totalCoins <= 0) return;
@@ -167,6 +169,7 @@ function sendExpiryRewards(item: LiveConsumable): void {
         rewards: { [session.playerSessionId]: { coins } },
       },
     };
+    void grantReward(session.userName, { coins });
     send(extensionPacket("reward.add", new SFSObjectWriter().putUtfString("reward", JSON.stringify(payload))));
     log(`${peer} <- reward.add (${item.type} #${item.itemId}, coins=${coins})`);
   }
@@ -258,6 +261,7 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
       // TODO: partyGameLobby, with party games.
       log(`${ctx.peer} - ${cmd}: ${type} is a ${def.experience} consumable, not implemented yet`);
   }
+  onConsumableUsed(ctx, type);
 }
 
 // "con.use" - type = JSON SignedResponse<UsedConsumable> {type,

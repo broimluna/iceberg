@@ -97,3 +97,34 @@ export async function reportSessionEnded(sessionId: string): Promise<void> {
     console.log(`[${new Date().toISOString()}] webapi-client: session-ended request failed: ${(err as Error).message}`);
   }
 }
+
+// Counts a daily task event (daily-tasks.ts). The WebAPI applies it and
+// returns the task's counter; changed is false when CounterMax was already
+// reached, completed is true when this made the task complete.
+export interface TaskIncrementResult {
+  counter: number;
+  changed: boolean;
+  completed: boolean;
+}
+
+export async function incrementTask(username: string, taskId: string, times: number): Promise<TaskIncrementResult | null> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/task-increment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
+      },
+      body: JSON.stringify({ username, taskId, times }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      console.log(`[${new Date().toISOString()}] webapi-client: task-increment for ${username}/${taskId} failed with status ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as TaskIncrementResult;
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: task-increment request failed: ${(err as Error).message}`);
+    return null;
+  }
+}

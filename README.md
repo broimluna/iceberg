@@ -58,11 +58,15 @@ variables.
   `con.reuse`): one-shot props, party blasters and pinatas as MMO items
   with a countdown and coin rewards for nearby players, and trays that
   other players can take from.
+- Daily challenges counted by the server (`task.c`), including shared
+  community challenges, with rewards paid once and only when complete.
 - Igloo update broadcasts (`room.igloo_updated`) and room transient data
   (`zone.transfer`), which carries a held consumable into the next room.
 
 **Not done yet:**
-- Daily challenges and task progress (`task.c` / `task.r`).
+- Daily challenges that depend on where you are in a room (most of them):
+  the server doesn't evaluate scene trigger volumes yet. Challenges based
+  on chat, emotes, actions and consumables are counted and saved.
 - Party games (Dance Battle, Find Four, Fish Bucket, Scavenger Hunt, Tube
   Race).
 - Island targets (`target.hit`), such as the jackhammer-breakable rocks.

@@ -18,6 +18,11 @@ export function unregister(session: Session): void {
   byUserId.delete(session.userId);
 }
 
+// Everyone connected, in any room.
+export function getAll(): RegisteredSession[] {
+  return [...byUserId.values()];
+}
+
 // Everyone in a room - the basis for all room broadcasts.
 export function getByRoom(roomName: string): RegisteredSession[] {
   return [...byUserId.values()].filter((entry) => entry.session.roomName === roomName);

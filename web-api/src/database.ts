@@ -184,6 +184,11 @@ function initializeDatabase() {
 
     // Daily task progress
     db.exec(`
+        CREATE TABLE IF NOT EXISTS community_tasks (
+            task_id TEXT PRIMARY KEY,
+            counter INTEGER NOT NULL DEFAULT 0,
+            day INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS daily_tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
@@ -1221,15 +1226,30 @@ function suspendOtherQuests(username, exceptQuestId) {
 /**
  * Get all daily tasks for a player
  */
+// Daily task progress belongs to a day: whole UTC days since the epoch,
+// the same value the game server uses (smartfox-server/src/daily-tasks.ts).
+// Rows from earlier days are ignored and overwritten.
+function currentTaskDay(now = Date.now()) {
+    return Math.floor(now / 86400000);
+}
+
 function getDailyTasks(username) {
     getOrCreatePlayer(username);
-    const rows = db.prepare('SELECT * FROM daily_tasks WHERE username = ?').all(username);
-    return rows.map(t => ({
+    const day = currentTaskDay();
+    const rows = db.prepare('SELECT * FROM daily_tasks WHERE username = ? AND day = ?').all(username, day);
+    const progress = new Map(rows.map(t => [t.task_id, {
         taskId: t.task_id,
         counter: t.counter,
         day: t.day,
         claimed: t.claimed === 1
-    }));
+    }]));
+    // Community tasks: everyone's shared counter, with this player's own
+    // claimed flag.
+    for (const c of db.prepare('SELECT * FROM community_tasks WHERE day = ?').all(day)) {
+        const own = progress.get(c.task_id);
+        progress.set(c.task_id, { taskId: c.task_id, counter: c.counter, day, claimed: own?.claimed ?? false });
+    }
+    return [...progress.values()];
 }
 
 /**
@@ -1271,6 +1291,47 @@ function updateDailyTask(username, taskId, counter = null, day = null, claimed =
         params.push(username, taskId);
         db.prepare(`UPDATE daily_tasks SET ${updates.join(', ')} WHERE username = ? AND task_id = ?`).run(...params);
     }
+}
+
+// Sets a task's counter for a day (from the game server). A row left from
+// an earlier day starts over, unclaimed.
+function setDailyTaskCounter(username, taskId, counter, day) {
+    getOrCreatePlayer(username);
+    db.prepare(`
+        INSERT INTO daily_tasks (username, task_id, counter, day, claimed) VALUES (?, ?, ?, ?, 0)
+        ON CONFLICT(username, task_id) DO UPDATE SET
+            counter = excluded.counter,
+            claimed = CASE WHEN daily_tasks.day = excluded.day THEN daily_tasks.claimed ELSE 0 END,
+            day = excluded.day
+    `).run(username, taskId, counter, day);
+}
+
+function getCommunityTaskCounter(taskId, day = currentTaskDay()) {
+    const row = db.prepare('SELECT counter FROM community_tasks WHERE task_id = ? AND day = ?').get(taskId, day);
+    return row ? row.counter : 0;
+}
+
+function setCommunityTaskCounter(taskId, counter, day) {
+    db.prepare(`
+        INSERT INTO community_tasks (task_id, counter, day) VALUES (?, ?, ?)
+        ON CONFLICT(task_id) DO UPDATE SET counter = excluded.counter, day = excluded.day
+    `).run(taskId, counter, day);
+}
+
+// Today's row for one task, or null.
+function getTodaysDailyTask(username, taskId) {
+    const row = db.prepare('SELECT * FROM daily_tasks WHERE username = ? AND task_id = ? AND day = ?').get(username, taskId, currentTaskDay());
+    return row ? { taskId: row.task_id, counter: row.counter, day: row.day, claimed: row.claimed === 1 } : null;
+}
+
+// Marks today's row claimed. Returns false if it was already claimed or
+// doesn't exist, so a reward is paid once.
+function claimTodaysDailyTask(username, taskId) {
+    // Community tasks have no counter row for the player until claimed.
+    db.prepare('INSERT OR IGNORE INTO daily_tasks (username, task_id, counter, day, claimed) VALUES (?, ?, 0, ?, 0)').run(username, taskId, currentTaskDay());
+    db.prepare('UPDATE daily_tasks SET counter = 0, claimed = 0, day = ? WHERE username = ? AND task_id = ? AND day != ?').run(currentTaskDay(), username, taskId, currentTaskDay());
+    const info = db.prepare('UPDATE daily_tasks SET claimed = 1 WHERE username = ? AND task_id = ? AND day = ? AND claimed = 0').run(username, taskId, currentTaskDay());
+    return info.changes === 1;
 }
 
 // ========== TUTORIAL OPERATIONS ==========
@@ -2480,6 +2541,12 @@ export {
     
     // Daily tasks
     getDailyTasks,
+    currentTaskDay,
+    setDailyTaskCounter,
+    getTodaysDailyTask,
+    claimTodaysDailyTask,
+    getCommunityTaskCounter,
+    setCommunityTaskCounter,
     getOrCreateDailyTask,
     updateDailyTask,
     
