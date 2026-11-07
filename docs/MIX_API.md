@@ -1281,9 +1281,26 @@ the content side rather than the chat API:
      URLs containing the platform's `BundleFolder` (`AssetBundles/windows64/`
      on Windows, `AssetBundles/standalonelinux/` on Linux) to
      `file://…/StreamingAssets`, and its fallback drops `file://`.
-   - In this run the app never requested iceberg's `/cpipe` manifest, so
-     it kept the empty `cdnRoot` (inferred: it only refetches under
-     conditions not yet traced).
+   - **The source build never fetches a manifest from the network.** The
+     recreation stubbed the loader: `Mix/CpipeFileManifestLoader.cs`
+     `Load(...)` ignores its arguments and calls
+     `PrepareManifest(null, true)` (comment: "CPIPE backend retired: always
+     use bundled preload manifest"). With `aFirstRun == true`,
+     `CpipeFileManifest.Prepare` uses `PreloadData.CpipeData` and never
+     parses a response. Disney's network fetcher,
+     `CpipeManifestApi.GetCpipeManifest` (which built
+     `ExternalizedConstants.CpipeUrl + "?restrict=true&cv=…&v=…"`), still
+     exists but has **no callers**. So iceberg's `cpipe_url` setting and
+     its `/cpipe` manifest are never used by a source build, whatever the
+     server returns.
+   - `PreloadData.PreloadCpipeManifest` fills `CpipeData` from
+     `<persistentDataPath>/cache/<sha("cpipeManfiest")>.txt` if that file
+     exists, else from the bundled `StreamingAssets` manifest. (The cache
+     key really is spelled `cpipeManfiest`, Disney's typo.) Since nothing
+     writes that cache file any more, it is always the bundled one, unless
+     someone drops a file there by hand.
+   - With an empty `cdnRoot`, `TranslateFileUrl` produces `/<v>/<path>`
+     (it prepends `/` when the root neither starts nor ends with one).
 3. **Nothing serves the bundles under the manifest's paths.** The
    recreation's rebuilt bundles ship only in the build's
    `StreamingAssets/AssetBundles/windows64/hd/…`. Both manifests (bundled
