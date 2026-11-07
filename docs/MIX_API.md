@@ -749,6 +749,11 @@ All message types extend `BaseChatMessage`:
   it.
 - The sender must be a current member, or `400 NOT_FOUND` (the
   `AbstractChatThread` read-error string, reused).
+- **In a 1:1, the two must still be friends**, or
+  `400 FORBIDDEN_NOT_FRIENDS`. Unfriending keeps the old thread (and its
+  history), but neither side can send into it any more. Otherwise
+  unfriending someone who's bothering you wouldn't stop their messages.
+  Groups only check friendship when a member is added.
 - **Text:** 1–1000 UTF-16 units, otherwise `400 INVALID_REQUEST`. Text runs
   through the shared filter (section 9). Masked words are stored masked,
   with `IsModerated: true`; the validator requires `IsModerated` on every

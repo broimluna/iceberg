@@ -379,6 +379,12 @@ try {
     check(up.length === 1 && up[0].ChatThreadId === deId && up[0].IsTrusted === false, `${name} is told the 1:1 lost trust (${JSON.stringify(up)})`);
   }
   check((await D.state()).ChatThreads.find((t: any) => t.ChatThreadId === deId)?.IsTrusted === false, "the ex-friends' 1:1 stays untrusted in /state");
+  // Final review: unfriending must end the conversation, not just its trust.
+  const afterUnfriend = await send(D, "text", deId, { Text: "still there?" });
+  check(afterUnfriend.http === 400 && afterUnfriend.body?.Status === "FORBIDDEN_NOT_FRIENDS", `dave messaging erin after the unfriend -> ${afterUnfriend.http} ${afterUnfriend.body?.Status}`);
+  const stickerAfter = await send(D, "sticker", deId, { ContentId: "sticker_happy_01" });
+  check(stickerAfter.http === 400 && stickerAfter.body?.Status === "FORBIDDEN_NOT_FRIENDS", `a sticker after the unfriend -> ${stickerAfter.http} ${stickerAfter.body?.Status}`);
+  check((await E.drain()).length === 0, "erin receives nothing from dave after unfriending him");
 
   // Resync: a fresh /state agrees with what the streams built up.
   const fin = await A!.state();

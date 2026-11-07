@@ -227,8 +227,14 @@ export function addMessage(sender: string, threadId: unknown, clientMessageId: u
             return { Created: Date.parse(prior.created_at), NotificationId: prior.id, SequenceNumber: db.getMixNotificationSequence(sender), Message: toMessageDto(prior) };
         }
 
-        // 2. Membership.
+        // 2. Membership. In a 1:1 the two must still be friends: unfriending
+        // someone has to stop their messages, not just the thread's trust.
         if (!isMember(tid, sender)) throw new MixError("NOT_FOUND");
+        const kind = (sql.query("SELECT type FROM mix_chat_threads WHERE id = ?").get(tid) as { type: string }).type;
+        if (kind === "ONE_ON_ONE") {
+            const other = currentMembers(tid).find((m) => m !== sender);
+            if (!other || friendshipTrust(sender, other) === null) throw new MixError("FORBIDDEN_NOT_FRIENDS");
+        }
 
         // 3-4. Type fields.
         let payload: object;
