@@ -197,7 +197,7 @@ signature can be any string for a private server).
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `proto` | `PROTOTYPE` | BOTH | OUT (`PrototypeSendAction`): `data` = JSON string, caller-defined shape. IN: `data` -> parsed as a generic `LitJson` object (`JsonMapper.ToObject`, not a fixed C# type) plus the sender's session ID. Looks like a genuine catch-all/prototyping channel rather than one fixed purpose - there's also a *separate* `PROTOTYPE` User Variable (Part 2) for persistent per-user prototype state, distinct from this transient message channel. |
+| `proto` | `PROTOTYPE` | BOTH | OUT (`PrototypeSendAction`): `data` = JSON string, caller-defined shape. IN: `data` -> parsed as a generic `LitJson` object (`JsonMapper.ToObject`, not a fixed C# type) plus the sender's session ID. A prototyping channel: no shipped game code sends it or listens for it. There's also a *separate* `PROTOTYPE` User Variable (Part 2) for per-user prototype state, which the client sets itself. |
 
 ### Quests
 
@@ -261,7 +261,7 @@ signature can be any string for a private server).
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `wsevent.{0}` | `WEBSERVICE_EVENT` | OUT | **Resolved**: `{0}` is substituted with `wsEvent.Data.type` at call time (`SendWebServiceEvent(SignedResponse<WebServiceEvent> wsEvent)`, `string.Format`) - so the real wire command is `wsevent.<the WebServiceEvent's own type field>`, a small family of dynamically-named commands, not one fixed string. Payload: `d` = JSON `SignedResponse<WebServiceEvent>` (the full wrapper, sent again even though `type` was already used to build the command name). Looks like a generic bridge for forwarding a WebAPI-originated event onto the game server channel, keyed by event type. |
+| `wsevent.{0}` | `WEBSERVICE_EVENT` | OUT | **Resolved**: `{0}` is substituted with `wsEvent.Data.type` at call time (`SendWebServiceEvent(SignedResponse<WebServiceEvent> wsEvent)`, `string.Format`) - so the real wire command is `wsevent.<the WebServiceEvent's own type field>`, a small family of dynamically-named commands, not one fixed string. Payload: `d` = JSON `SignedResponse<WebServiceEvent>` (the full wrapper, sent again even though `type` was already used to build the command name). The client forwards every entry of a WebAPI response's `wsEvents` this way and expects no reply. `WebServiceEvent` = `{type: int, details: JSON}`; the only type the client's offline server produces is 1, a fishing catch, with `details` = the winning reward name. |
 
 ### Party games
 

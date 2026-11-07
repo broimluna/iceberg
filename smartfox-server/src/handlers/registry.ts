@@ -12,6 +12,8 @@ import { handleMembershipRefresh } from "./membership.ts";
 import { handlePlayerLocation } from "./player-location.ts";
 import { handlePickup } from "./pickup.ts";
 import { handleIglooUpdated } from "./igloo.ts";
+import { handlePrototypeAction } from "./prototype.ts";
+import { handleWebServiceEvent } from "./web-service-event.ts";
 import { handleConsumableSet, handleConsumableUse, handleConsumableReuse } from "./consumables.ts";
 
 export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext) => void;
@@ -42,4 +44,13 @@ export const extensionHandlers: Record<string, ExtensionHandler> = {
   "con.reuse": handleConsumableReuse,
   "reward.broadcast": handleRewardBroadcast,
   "room.igloo_updated": handleIglooUpdated,
+  proto: handlePrototypeAction,
 };
+
+// Most commands match by exact name. "wsevent.{type}" carries the event
+// type in the command name itself.
+export function findExtensionHandler(cmd: string): ExtensionHandler | undefined {
+  if (Object.hasOwn(extensionHandlers, cmd)) return extensionHandlers[cmd];
+  if (cmd.startsWith("wsevent.")) return handleWebServiceEvent;
+  return undefined;
+}

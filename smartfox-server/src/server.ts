@@ -18,7 +18,7 @@ import { handleHandshake } from "./handlers/sfs2x/handshake.ts";
 import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
-import { extensionHandlers } from "./handlers/registry.ts";
+import { findExtensionHandler } from "./handlers/registry.ts";
 import { PORT } from "./config.ts";
 import { register, unregister } from "./session-registry.ts";
 import { startNotifyListener } from "./notify-listener.ts";
@@ -80,7 +80,7 @@ const connectionHandler = (socket: net.Socket) => {
         handleSetUserVariables(params, ctx);
       } else if (controllerId === 1 && actionId === 13) {
         const cmd = params["c"]?.type === SFSDataType.UTF_STRING ? params["c"].value : undefined;
-        const handler = cmd ? extensionHandlers[cmd] : undefined;
+        const handler = cmd ? findExtensionHandler(cmd) : undefined;
         if (handler) {
           handler(getSFSObject(params, "p"), ctx);
         } else {
