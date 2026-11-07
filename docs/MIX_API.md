@@ -911,6 +911,31 @@ sequence number but never sent, so the client saw a gap
 (`NotificationSequenceCounter` ahead of what it received) and fell back
 to a full resync.
 
+### Status strings and type strings (confirmed, 2026-11-07)
+
+From the SDK, unless marked as iceberg's own choice:
+
+| Status | Where | Source |
+|---|---|---|
+| `NOT_FOUND` | thread doesn't exist, or the caller isn't (or was never) a member | `AbstractChatThread`, `ChatThreadMemberAdder` |
+| `INSUFFICIENT_READ_PERMISSION` | defined by the SDK; iceberg answers `NOT_FOUND` instead | `AbstractChatThread` |
+| `USER_ALREADY_THREAD_MEMBER`, `USER_NOT_THREAD_MEMBER` | member add/remove | `ChatThreadMemberAdder` |
+| `FORBIDDEN_NOT_FRIENDS` | adding a non-friend (iceberg also uses it for thread creation and trust removal) | `ChatThreadMemberAdder` |
+| `MAX_MEMBER_COUNT_EXCEEDED` | more than 20 people (`FriendSelectorPanel.MAX_GROUP_CHAT`) | `ChatThreadMemberAdder` |
+| `INVALID_REQUEST` | malformed or out-of-range input | iceberg's choice |
+| `MODERATION_BLOCKED` | text or nickname hit a block rule | iceberg's choice |
+
+Types: `ChatThreadType` is `ONE_ON_ONE`, `GROUP` or `OFFICIAL_ACCOUNT`.
+`MessageType` is `TEXT`, `STICKER`, `GAG`, `PHOTO`, `VIDEO`, `GAME_STATE`,
+`GAME_EVENT` or `MEMBER_LIST_CHANGED`. iceberg sends `TEXT`, `STICKER`,
+`GAG` and `MEMBER_LIST_CHANGED`. Photo, video and game messages, and the
+per-friend `/nickname` endpoints, are later phases.
+
+**Trust and typing, live:** `tboskk` and `tboskk1` are untrusted friends,
+and the app let them type and send free text in their 1:1. So untrusted
+threads aren't limited to stickers in this client; the server-side
+filter is what moderates them.
+
 ### Chat notification types
 
 From `GetNotificationsResponse`:
@@ -1286,8 +1311,9 @@ the content side rather than the chat API:
 - How does photo/video **upload** work? Where does `UgcMediaId` come from?
   Trace `ChatMessageSender.cs` / `IChatMessageSender.cs`.
 - What exactly does `PilCheck` ("PIL") gate?
-- Client-side trust gating: which message types are allowed in an
-  untrusted thread?
+- Client-side trust gating, beyond typed text: does `IsTrusted` change
+  anything else in the composer (e.g. links, photos)? Typed text is
+  allowed in untrusted threads (see section 7).
 - The CPI client's copy of `SessionResumer`: does it read
   `NotificationSequenceThreshold` the same way?
 - How the client treats a cpipe manifest response whose version is
