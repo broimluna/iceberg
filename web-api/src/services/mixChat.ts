@@ -12,6 +12,7 @@ import { notifyMany, notify, type MixNotification } from "./mixNotify.ts";
 import { mixUser } from "../routes/mix/common.ts";
 import { MixError } from "./mixErrors.ts";
 import { filterText } from "./moderation.ts";
+import { parseJson, isLong } from "../lib/bigJson.ts";
 
 const sql = db.db;
 
@@ -163,7 +164,17 @@ const MAX_TEXT_UNITS = 1000;
 type MessageRow = {
     id: number; thread_id: number; seq: number; sender_swid: string; client_message_id: number;
     type: string; payload: string; created_at: string;
+    /** client_message_id as text: SQLite keeps 64 bits exactly, a JS number doesn't. */
+    cid_text: string;
 };
+// Every message read selects this, so the 64-bit client id survives.
+const MSG = "SELECT *, CAST(client_message_id AS TEXT) AS cid_text FROM mix_chat_messages";
+
+/** A stored C# long back as a number when it fits exactly, else a BigInt. */
+function toLong(text: string): number | bigint {
+    const big = BigInt(text);
+    return Number.isSafeInteger(Number(big)) ? Number(big) : big;
+}
 
 /**
  * A mix_chat_messages row in its wire shape (MixDomain/*ChatMessage.cs).
@@ -175,9 +186,10 @@ export function toMessageDto(row: MessageRow) {
     return {
         Created: Date.parse(row.created_at),
         ChatMessageId: row.id,
-        // System messages have no client id; they're stored with a negative
-        // one only to keep (sender, client_message_id) unique.
-        ClientChatMessageId: row.client_message_id < 0 ? 0 : row.client_message_id,
+        // System messages have no client id (they're stored with a made-up
+        // one only to keep (sender, client_message_id) unique). Client ids are
+        // random 64-bit longs, negative ones included, and must round-trip.
+        ClientChatMessageId: row.type === "MEMBER_LIST_CHANGED" ? 0 : toLong(row.cid_text),
         ChatThreadId: row.thread_id,
         SenderUserId: row.sender_swid,
         SequenceNumber: row.seq,
@@ -198,17 +210,17 @@ function isMember(threadId: number, swid: string): boolean {
  * the message's SequenceNumber is the thread's next seq.
  */
 export function addMessage(sender: string, threadId: unknown, clientMessageId: unknown, type: MessageType, fields: any): MixNotification {
-    if (!Number.isSafeInteger(clientMessageId) || !Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
+    if (!isLong(clientMessageId) || !Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
     const tid = threadId as number;
-    const cid = clientMessageId as number;
+    const cid = clientMessageId;
     return db.inTransaction(() => {
         // 1. Retry: the original notification, unchanged.
-        const prior = sql.query("SELECT * FROM mix_chat_messages WHERE sender_swid = ? AND client_message_id = ?").get(sender, cid) as MessageRow | null;
+        const prior = sql.query(`${MSG} WHERE sender_swid = ? AND client_message_id = ?`).get(sender, cid) as MessageRow | null;
         if (prior) {
             const stored = sql.query(`SELECT data FROM mix_pending_notifications
                 WHERE swid = ? AND type = ? AND json_extract(data, '$.Message.ChatMessageId') = ?
                 ORDER BY sequence LIMIT 1`).get(sender, NOTIFICATION_TYPE[prior.type as MessageType] ?? "", prior.id) as { data: string } | null;
-            if (stored) return JSON.parse(stored.data);
+            if (stored) return parseJson(stored.data);
             // The pending row was cleaned up (older than an hour). Rebuild it
             // without writing; its SequenceNumber is already applied, so the
             // client's queue ignores it.
@@ -248,11 +260,11 @@ export function addMessage(sender: string, threadId: unknown, clientMessageId: u
  * `recipients`, each at their own next notification sequence. Call inside
  * inTransaction.
  */
-function storeMessage(sender: string, tid: number, cid: number, type: string, payload: object, recipients: string[]): Map<string, MixNotification> {
+function storeMessage(sender: string, tid: number, cid: number | bigint, type: string, payload: object, recipients: string[]): Map<string, MixNotification> {
     const seq = latestSeq(tid) + 1;
     const id = Number(sql.query(`INSERT INTO mix_chat_messages (thread_id, seq, sender_swid, client_message_id, type, payload, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)`).run(tid, seq, sender, cid, type, JSON.stringify(payload), new Date().toISOString()).lastInsertRowid);
-    const message = toMessageDto(sql.query("SELECT * FROM mix_chat_messages WHERE id = ?").get(id) as MessageRow);
+    const message = toMessageDto(sql.query(`${MSG} WHERE id = ?`).get(id) as MessageRow);
     return notifyMany(recipients, NOTIFICATION_TYPE[type]!, () => ({ Message: message }));
 }
 
@@ -383,7 +395,7 @@ export function readPage(swid: string, threadId: unknown, cursor: unknown, maxCo
     const below = typeof cursor === "string" && /^\d+$/.test(cursor) ? Number(cursor) : Number.MAX_SAFE_INTEGER;
     const size = Number.isSafeInteger(maxCount) && (maxCount as number) > 0 ? Math.min(maxCount as number, 50) : 50;
     const skip = new Set(Array.isArray(excluded) ? excluded.filter((x) => Number.isSafeInteger(x)) : []);
-    const rows = (sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq < ? ORDER BY seq DESC LIMIT ?`)
+    const rows = (sql.query(`${MSG} WHERE ${where} AND seq < ? ORDER BY seq DESC LIMIT ?`)
         .all(...params, below, size + 1) as MessageRow[]);
     const page = rows.slice(0, size);
     const more = rows.length > size;
@@ -401,7 +413,7 @@ export function readRanges(swid: string, threadId: unknown, ranges: unknown) {
     const rows: MessageRow[] = [];
     const seen = new Set<number>();
     for (let i = 0; i < ranges.length && rows.length < MAX_READ; i += 2) {
-        for (const r of sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq BETWEEN ? AND ? ORDER BY seq LIMIT ?`)
+        for (const r of sql.query(`${MSG} WHERE ${where} AND seq BETWEEN ? AND ? ORDER BY seq LIMIT ?`)
             .all(...params, ranges[i], ranges[i + 1], MAX_READ - rows.length) as MessageRow[]) {
             if (!seen.has(r.id)) { seen.add(r.id); rows.push(r); }
         }
@@ -423,7 +435,7 @@ export function readRecentPerThread(swid: string, lowerBounds: unknown, maxPerTh
         let v: Visibility;
         try { v = visibility(swid, lowerBounds[i]); } catch { continue; }
         const [where, params] = visibleWhere(lowerBounds[i], v);
-        const newest = sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq >= ? ORDER BY seq DESC LIMIT ?`)
+        const newest = sql.query(`${MSG} WHERE ${where} AND seq >= ? ORDER BY seq DESC LIMIT ?`)
             .all(...params, lowerBounds[i + 1], n) as MessageRow[];
         rows.push(...newest.reverse());
     }
@@ -436,7 +448,7 @@ export function readSpecific(swid: string, threadId: unknown, messageIds: unknow
     if (!Array.isArray(messageIds)) throw new MixError("INVALID_REQUEST");
     const ids = [...new Set(messageIds.filter((x) => Number.isSafeInteger(x)))].slice(0, MAX_READ);
     const [where, params] = visibleWhere(threadId as number, v);
-    const rows = ids.length === 0 ? [] : sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND id IN (${ids.map(() => "?").join(",")}) ORDER BY seq`)
+    const rows = ids.length === 0 ? [] : sql.query(`${MSG} WHERE ${where} AND id IN (${ids.map(() => "?").join(",")}) ORDER BY seq`)
         .all(...params, ...ids) as MessageRow[];
     return groupMessages(rows);
 }
@@ -448,7 +460,7 @@ export function readSince(swid: string, since: unknown) {
     const rows: MessageRow[] = [];
     for (const { thread_id } of memberships) {
         const [where, params] = visibleWhere(thread_id, visibility(swid, thread_id));
-        rows.push(...(sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND created_at > ?`).all(...params, after) as MessageRow[]));
+        rows.push(...(sql.query(`${MSG} WHERE ${where} AND created_at > ?`).all(...params, after) as MessageRow[]));
     }
     rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
     return groupMessages(rows.slice(0, MAX_READ).reverse());

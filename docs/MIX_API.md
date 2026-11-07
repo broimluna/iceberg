@@ -807,6 +807,31 @@ they are the caller's next two notifications, in that order.
 - System messages have no client message id, so they show
   `ClientChatMessageId: 0`.
 
+### 64-bit ids: `ClientChatMessageId` (found live, 2026-11-07)
+
+The SDK's ids are C# `long`s, and **the app's `ClientChatMessageId` is a
+random 64-bit value**, e.g. `2211020771495972600` or
+`-8014680941660341000`. That's far past JavaScript's
+`Number.MAX_SAFE_INTEGER` (2^53 − 1). The app matches the server's reply,
+and later the polled copy and history, to its pending bubble by that
+exact id. So a server written in JavaScript has to carry it losslessly
+end to end:
+
+- **Parse:** iceberg decrypts Mix bodies with `lib/bigJson.ts`
+  `parseJson`. Integer literals a JS number can't hold exactly become
+  `BigInt`, using the JSON.parse reviver's source text.
+- **Store:** SQLite `INTEGER` holds the full 64 bits. Message reads also
+  select `CAST(client_message_id AS TEXT)`, because the driver would
+  otherwise hand back a rounded number.
+- **Serialize:** replies and stored notifications go through
+  `stringifyJson`, which writes BigInts as bare digits (`JSON.rawJSON`).
+- A plain `JSON.parse` turned the first live sends into
+  `400 INVALID_REQUEST` (the id wasn't a safe integer). Had it got past
+  that check, the rounded id would have left every bubble stuck on
+  "retry".
+- Ids outside the signed 64-bit range give `INVALID_REQUEST`.
+  `MEMBER_LIST_CHANGED` system messages report `ClientChatMessageId: 0`.
+
 ### Reading history
 
 Every read replies with all eight message lists (`Text`, `Sticker`,

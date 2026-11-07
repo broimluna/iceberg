@@ -2,6 +2,7 @@
 import * as db from "../../database.ts";
 import { decryptAesCbc, encryptAesCbc } from "../../lib/crypto.ts";
 import { isBanned } from "../../services/moderation.ts";
+import { parseJson, stringifyJson } from "../../lib/bigJson.ts";
 
 const decryptAes = decryptAesCbc;
 const encryptAes = encryptAesCbc;
@@ -52,8 +53,9 @@ export function mixEncryptionMiddleware(req, res, next) {
             // req.body is a Buffer from express.raw() middleware
             const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
             const decrypted = decryptAes(rawBody, sessionKey);
-            req.body = JSON.parse(decrypted.toString('utf8'));
-            console.log(`[MIX] Decrypted body:`, JSON.stringify(req.body));
+            // Lossless: the SDK's 64-bit ids (ClientChatMessageId) stay exact.
+            req.body = parseJson(decrypted.toString('utf8'));
+            console.log(`[MIX] Decrypted body:`, stringifyJson(req.body));
             
             // Store session key for response encryption, and whose session it
             // is so authenticateMix can check it against the token.
@@ -63,7 +65,7 @@ export function mixEncryptionMiddleware(req, res, next) {
             // Override res.json to encrypt the response
             const originalJson = res.json.bind(res);
             res.json = (data) => {
-                const plaintext = JSON.stringify(data);
+                const plaintext = stringifyJson(data);
                 const encrypted = encryptAes(Buffer.from(plaintext, 'utf8'), sessionKey);
                 res.setHeader('Content-Type', 'application/mix');
                 res.send(encrypted);

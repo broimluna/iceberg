@@ -7,6 +7,7 @@
 
 import { Database } from "bun:sqlite";
 import path from "path";
+import { parseJson, stringifyJson } from "./lib/bigJson.ts";
 
 // Database file path. ICEBERG_DB_PATH lets tools (tools/mod.ts --db) open
 // another database through this module.
@@ -2456,7 +2457,7 @@ function getMixPendingNotifications(swid, sinceSequence = 0) {
     return rows.map(row => ({
         id: row.id,
         type: row.type,
-        data: JSON.parse(row.data),
+        data: parseJson(row.data),
         sequence: row.sequence
     }));
 }
@@ -2491,7 +2492,7 @@ function addMixPendingNotification(swid, type, data) {
     db.prepare(`
         INSERT INTO mix_pending_notifications (swid, type, data, sequence)
         VALUES (?, ?, ?, ?)
-    `).run(swid, type, JSON.stringify(data), sequence);
+    `).run(swid, type, stringifyJson(data), sequence);
     
     return sequence;
 }

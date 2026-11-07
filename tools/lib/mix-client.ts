@@ -9,6 +9,7 @@
 import crypto from "node:crypto";
 import { Database } from "bun:sqlite";
 import { decryptAesCbc, encryptAesCbc } from "../../web-api/src/lib/crypto.ts";
+import { parseJson, stringifyJson } from "../../web-api/src/lib/bigJson.ts";
 
 export const MIX_CLIENT_TOKEN = "F7EA7678-FE45-4A00-89EB-496EFDA74761";
 
@@ -113,7 +114,7 @@ export class MixClient {
   }
 
   async call(method: "PUT" | "POST", path: string, body: object = {}): Promise<{ http: number; body: any }> {
-    const json = JSON.stringify({ ...body, UserId: this.swid, Timestamp: Date.now() });
+    const json = stringifyJson({ ...body, UserId: this.swid, Timestamp: Date.now() });
     const headers: Record<string, string> = {
       "X-Mix-OneIdToken": this.accessToken,
       "X-Mix-ClientToken": MIX_CLIENT_TOKEN,
@@ -133,7 +134,8 @@ export class MixClient {
       text = decryptAesCbc(raw, this.key).toString("utf8");
     }
     let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch { parsed = text; }
+    // Lossless: 64-bit ids (ClientChatMessageId) come back as BigInt.
+    try { parsed = parseJson(text); } catch { parsed = text; }
     return { http: r.status, body: parsed };
   }
 

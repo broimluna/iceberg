@@ -279,6 +279,25 @@ try {
   check(out2.http === 400 && out2.body?.Status === "NOT_FOUND", `carol paging the 1:1 -> ${out2.http} ${out2.body?.Status}`);
   const formerly = await C!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: g3.ChatThreadId, Ranges: [1, 10] });
   check(formerly.http === 200 && JSON.stringify(seqsOf(formerly.body)) === "[1,2]", `carol, who left g3 at seq 2, sees 1..2 but not bob's removal at 3 (${JSON.stringify(seqsOf(formerly.body))})`);
+
+  // ---- 64-bit ClientChatMessageId (found in the live test) ----
+  // The app's ids are random C# longs beyond Number.MAX_SAFE_INTEGER, and
+  // it matches the reply to its pending bubble by that exact id.
+  for (const big of ["2211020771495972600", "-8014680941660341000"]) {
+    const raw = (JSON as any).rawJSON(big);
+    const r = await A!.call("PUT", "/chatThread/textMessage", { ChatThreadId: t1.ChatThreadId, ClientChatMessageId: raw, Text: `id ${big}` });
+    const m = r.body?.Notification?.Message;
+    check(r.http === 200 && m?.ClientChatMessageId === BigInt(big), `send with id ${big} -> ${r.http} ${r.body?.Status ?? ""} (${m?.ClientChatMessageId})`);
+    if (r.http === 200) A!.apply(r.body.Notification, "AddChatThreadTextMessage");
+    const again = await A!.call("PUT", "/chatThread/textMessage", { ChatThreadId: t1.ChatThreadId, ClientChatMessageId: raw, Text: `id ${big}` });
+    check(again.body?.Notification?.SequenceNumber === r.body?.Notification?.SequenceNumber && again.body?.Notification?.Message?.ClientChatMessageId === BigInt(big), "its retry returns the same notification, id exact");
+    const got = (await B!.drain()).find((g) => g.type === "AddChatThreadTextMessage")?.n?.Message;
+    check(got?.ClientChatMessageId === BigInt(big), `bob's polled copy keeps the exact id (${got?.ClientChatMessageId})`);
+    const hist = await B!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [t1.ChatThreadId, 1] });
+    check(hist.body?.Text?.some((x: any) => x.ClientChatMessageId === BigInt(big)), "history keeps the exact id");
+  }
+  const tooBigId = await A!.call("PUT", "/chatThread/textMessage", { ChatThreadId: t1.ChatThreadId, ClientChatMessageId: (JSON as any).rawJSON("99999999999999999999"), Text: "x" });
+  check(tooBigId.http === 400 && tooBigId.body?.Status === "INVALID_REQUEST", `an id beyond 64 bits -> ${tooBigId.http} ${tooBigId.body?.Status}`);
 } finally {
   api.stop();
 }
