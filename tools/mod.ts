@@ -22,8 +22,13 @@ const USAGE = `usage: bun tools/mod.ts rules list
 options: --db <file>   database (default web-api/src/cpi_data.db)`;
 
 // Reasons and names come from players. Print control characters (ANSI
-// escapes, CR, C1) as \xNN so they can't rewrite the operator's terminal.
-const safe = (v: unknown) => String(v ?? "").replace(/[\x00-\x1f\x7f-\x9f]/g, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
+// escapes, CR, C1) as \xNN, and Unicode format and separator characters
+// (bidi overrides, zero-width, line/paragraph separators) as \u{NNNN}, so
+// they can't rewrite, reorder or hide the operator's terminal output.
+const safe = (v: unknown) => String(v ?? "").replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (c) => {
+  const n = c.codePointAt(0)!;
+  return n < 0x100 ? `\\x${n.toString(16).padStart(2, "0")}` : `\\u{${n.toString(16)}}`;
+});
 
 function fail(msg: string): never {
   console.error(msg);

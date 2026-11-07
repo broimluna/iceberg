@@ -108,6 +108,11 @@ try {
   const longest = (d2.query("SELECT MAX(LENGTH(reason)) AS n FROM mix_reports").get() as any).n;
   d2.close();
   check(longest <= 500, `stored reason capped (${longest})`);
+  // Bidi overrides, zero-width and line-separator characters can reorder or
+  // hide text without any control character.
+  await A.call("PUT", "/moderation/reportPlayer", { ReportedUserId: "{MOD-B}", Reason: "ok\u202Edesrever\u200B\u2028x" });
+  const bidi = (await $`bun ${import.meta.dir}/mod.ts reports --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
+  check(!/[\u202E\u200B\u2028]/.test(bidi) && bidi.includes("\\u{202e}") && bidi.includes("\\u{2028}"), `reports output escapes bidi/format/separator characters`);
 } finally {
   api.stop();
 }
