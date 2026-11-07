@@ -105,8 +105,21 @@ The recreation ships two copies:
    "force_update_version":"2.3", ...}
   ```
 - **`n7c4c656`** is the recreation's working copy. It points the
-  Guest Controller, Mix API, and cpipe all at one host
+  Guest Controller, Mix API, and cpipe all at the root of one host
   (`http://10.0.0.76:5782`), with `guest_v2_baseUrl` at `/jgc/v5`.
+  That is a different machine and port from the `10.0.0.77:80` the
+  prebuilt build is hard-wired to (section "Live boot" below), so the
+  recreation dev evidently ran more than one server setup (inferred).
+- **iceberg's render** (`tools/mix-config.ts`) instead puts the Mix API
+  at `<base>/mix` and cpipe at `<base>/cpipe`, closer to Disney's
+  layout (`.../mix/` on App Engine, cpipe on its own path). The server
+  mounts the Mix routes at both `/mix` and the root, so either config
+  works. Those must be **two separate `app.use` calls**: Express 4
+  compiles `app.use(['/', '/mix'], r)` into a single layer whose `/`
+  alternative always matches first and strips nothing, so the router
+  sees `/mix/state` and every `/mix/...` call 404'd. Nobody noticed
+  because CPI and the prebuilt Mix build both call the root
+  (`mix-boot-test` now runs a session under `/mix`).
 
 Mix's internal codename was **Spark**. You can see it in the Guest
 Controller client ID `DI-SPARK-PROD` and in the asset paths under
@@ -172,7 +185,12 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
   `MIX_CPIPE_CONFIG_VERSION`.
 - Bumping the version should make the app refetch the config from
   `GET /cpipe/files/<v>/donotcopy/n7c4c656`, which is served from
-  `web-api/data/mix/cpipe/`. This lets us repoint an installed app
+  `web-api/data/mix/cpipe/`. Because the default version is the server
+  start time, every restart advertises a "newer" config. So render the
+  same config there as you bundle in the build
+  (`bun tools/mix-config.ts render <url> --out
+  web-api/data/mix/cpipe/donotcopy/n7c4c656`). Otherwise the refetch
+  404s. That directory is git-ignored because it's per-deployment. This lets us repoint an installed app
   without rebuilding it (to be confirmed live in phase 1).
 - Without an `Authorization` header the request gets 400. With one,
   only its presence is checked, since it's a public token.

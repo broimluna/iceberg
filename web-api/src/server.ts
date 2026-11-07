@@ -201,8 +201,11 @@ app.use(routes.membershipRoutes);
 app.use(routes.guestcontrollerRoutes);
 // Disney Mix content CDN (manifest + files); before the Mix routes.
 app.use(routes.cpipeRoutes);
-// Mount mix routes at both root and /mix to handle different client behaviors
-app.use(['/', '/mix'], routes.mixRoutes);
+// Mix routes at /mix (tools/mix-config.ts's mix_platform_services_url) and at
+// the root (CPI and the prebuilt Mix build). Two separate mounts: an array
+// mount is one layer whose '/' alternative always wins, so /mix/... 404'd.
+app.use('/mix', routes.mixRoutes);
+app.use(routes.mixRoutes);
 app.use(routes.diagnosticsRoutes);
 
 // =============================================================================

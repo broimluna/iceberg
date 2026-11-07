@@ -18,3 +18,6 @@ node_modules/
 .idea/
 *.swp
 .DS_Store
+
+# Per-deployment Mix boot config (bun tools/mix-config.ts render <url> --out ...)
+web-api/data/mix/cpipe/donotcopy/

@@ -70,9 +70,12 @@ export class MixClient {
   key: Buffer | null = null;
   latest = 0;
   readonly clientId: string;
+  /** Where Mix API calls go (mix_platform_services_url); GC stays at base. */
+  readonly mixBase: string;
 
-  constructor(readonly base: string, opts: { clientId?: string } = {}) {
+  constructor(readonly base: string, opts: { clientId?: string; mixBase?: string } = {}) {
     this.clientId = opts.clientId ?? "CPI-TEST";
+    this.mixBase = opts.mixBase ?? base;
   }
 
   async login(displayName: string, password: string): Promise<void> {
@@ -123,7 +126,7 @@ export class MixClient {
     } else {
       headers["Content-Type"] = "application/json";
     }
-    const r = await fetch(`${this.base}${path}`, { method, headers, body: payload });
+    const r = await fetch(`${this.mixBase}${path}`, { method, headers, body: payload });
     const raw = Buffer.from(await r.arrayBuffer());
     let text = raw.toString("utf8");
     if ((r.headers.get("content-type") ?? "").includes("application/mix") && this.key) {

@@ -72,6 +72,20 @@ try {
   const st2 = loggedIn ? await M.state() : {};
   check((st2.Users ?? []).length > 0 && st2.Users.every((u: any) => avatarOk(u.Avatar)), "/state Users carry avatars");
   check(byId.body?.Users?.[0]?.Avatar?.AvatarId === byName.body?.Users?.[0]?.Avatar?.AvatarId, "a user's default AvatarId is stable across calls");
+
+  // tools/mix-config.ts points mix_platform_services_url at <base>/mix, so
+  // a source-built app sends every Mix call under /mix. An Express array
+  // mount (['/', '/mix']) is one layer whose '/' alternative always wins,
+  // which left every /mix/... route a 404.
+  await createPlayer(api.base, api.dbPath, "{FFFF-6}", "finn");
+  const P = new MixClient(api.base, { clientId: "DI-SPARK-PROD", mixBase: `${api.base}/mix` });
+  let prefixed = false;
+  try { await P.login("finn", "pw-finn"); await P.startSession(); prefixed = true; } catch (e) { console.log((e as Error).message); }
+  check(prefixed, "session start under /mix");
+  const pst = prefixed ? await P.call("POST", "/state") : { http: 0 };
+  check(pst.http === 200, `/mix/state -> ${pst.http}`);
+  const poa = prefixed ? await P.call("POST", "/officialAccount/all") : { http: 0, body: null };
+  check(poa.http === 200 && poa.body?.Status === "OK", `/mix/officialAccount/all -> ${poa.http}`);
 } finally {
   api.stop();
 }
