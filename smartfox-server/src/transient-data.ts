@@ -51,6 +51,7 @@ export function restoreTransientData(session: Session): void {
   saved.delete(session.swid);
   if (!entry || Date.now() - entry.savedAt > TTL_MS) return;
   session.equippedConsumable = entry.data.equippedConsumable;
+  session.heldObject = entry.data.equippedConsumable;
   try {
     const props = entry.data.equippedConsumableProperties;
     const count = props ? JSON.parse(props)?.actionCount : undefined;

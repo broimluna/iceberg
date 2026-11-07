@@ -60,13 +60,16 @@ variables.
   other players can take from.
 - Daily challenges counted by the server (`task.c`), including shared
   community challenges, with rewards paid once and only when complete.
+  The server evaluates the scene switches most challenges depend on
+  (trigger volumes, sitting, held items, outfits, interactions, "N players
+  here at once") against each player's position and state.
 - Igloo update broadcasts (`room.igloo_updated`) and room transient data
   (`zone.transfer`), which carries a held consumable into the next room.
 
 **Not done yet:**
-- Daily challenges that depend on where you are in a room (most of them):
-  the server doesn't evaluate scene trigger volumes yet. Challenges based
-  on chat, emotes, actions and consumables are counted and saved.
+- A few daily challenges whose scene objects aren't in the game data
+  (some event and zone-less ones), and the ones based on catalog
+  submissions, consumable purchases and custom clothing.
 - Party games (Dance Battle, Find Four, Fish Bucket, Scavenger Hunt, Tube
   Race).
 - Island targets (`target.hit`), such as the jackhammer-breakable rocks.

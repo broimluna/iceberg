@@ -2,6 +2,7 @@ import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData, type SF
 import { getByRoomExcluding } from "../../session-registry.ts";
 import { extractRawJsonValue } from "../../wire-helpers.ts";
 import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
+import { onPlayerStateChanged } from "../../daily-tasks.ts";
 import type { HandlerContext } from "../context.ts";
 
 // RequestType.SetUserVariables = 12. The request carries only "vl"; the
@@ -19,6 +20,9 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
     // After the echo, so any follow-up (con.partial, clearing con_prop)
     // arrives after the client's own change.
     trackEquippedConsumable(vl.value, ctx);
+    trackLocomotionState(vl.value, ctx);
+    // Outfit, colour, tube and locomotion state feed daily-challenge switches.
+    onPlayerStateChanged(ctx.session);
   } else {
     console.log(`[${new Date().toISOString()}] ${ctx.peer} - SetUserVariables with no "vl" array, not responding`);
   }
@@ -41,6 +45,17 @@ function trackEquippedConsumable(vars: SFSValue[], ctx: HandlerContext): void {
       }
     }
     handleClientConChanged(ctx, next);
+  }
+}
+
+// "loc": PlayerStateService.SetLocomotionState sends the
+// Domain.LocomotionState byte, or NULL for Default.
+function trackLocomotionState(vars: SFSValue[], ctx: HandlerContext): void {
+  for (const v of vars) {
+    if (v.type !== SFSDataType.SFS_ARRAY) continue;
+    const [name, , value] = v.value;
+    if (name?.type !== SFSDataType.UTF_STRING || name.value !== "loc") continue;
+    ctx.session.locomotionState = typeof value?.value === "number" ? value.value : 0;
   }
 }
 

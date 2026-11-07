@@ -4,7 +4,7 @@ import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../sessio
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
-import { onConsumableUsed } from "../daily-tasks.ts";
+import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
 
@@ -84,6 +84,14 @@ function broadcastDequip(ctx: HandlerContext): void {
   ctx.session.equippedItemName = undefined;
   ctx.session.equippedConsumable = undefined;
   ctx.session.heldActionCount = undefined;
+  setHeldObject(ctx.session, undefined);
+}
+
+// What the player holds, for scene switches (PropSwitch).
+function setHeldObject(session: Session, name: string | undefined): void {
+  if (session.heldObject === name) return;
+  session.heldObject = name;
+  onPlayerStateChanged(session);
 }
 
 // ==================== MMO item encoding ====================
@@ -363,6 +371,7 @@ function broadcastUserVars(session: Session, vars: SFSArrayWriter[]): void {
 
 function setHeldItem(session: Session, name: string, actionCount: number): void {
   session.equippedConsumable = name;
+  setHeldObject(session, name);
   session.heldActionCount = actionCount;
   broadcastUserVars(session, [conVar(name), conPropVar(actionCount)]);
 }
@@ -374,6 +383,7 @@ function setHeldActionCount(session: Session, actionCount: number): void {
 
 function removeHeldItem(session: Session): void {
   session.equippedConsumable = undefined;
+  setHeldObject(session, undefined);
   session.heldActionCount = undefined;
   broadcastUserVars(session, [nullUserVar("con"), nullUserVar("con_prop")]);
 }
@@ -487,6 +497,7 @@ export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject
   const previous = session.equippedConsumable;
   const nextConsumable = next?.type === "consum" ? next.name : undefined;
   session.equippedConsumable = nextConsumable;
+  setHeldObject(session, next?.name);
   if (nextConsumable !== undefined && nextConsumable === previous) return;
   if (releaseHeldItem(ctx, previous)) replaceHeldItem(ctx, next);
 }
@@ -497,6 +508,7 @@ export function equipObject(ctx: HandlerContext, next: EquippedObject): void {
   const { session } = ctx;
   const previous = session.equippedConsumable;
   session.equippedConsumable = undefined;
+  setHeldObject(session, next.name);
   if (releaseHeldItem(ctx, previous)) replaceHeldItem(ctx, next);
   else broadcastUserVars(session, [objectConVar(next)]);
 }

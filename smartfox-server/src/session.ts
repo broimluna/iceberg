@@ -30,6 +30,12 @@ export class Session {
   // actionCount in the "con_prop" variable, set while holding a tray or an
   // item taken from one.
   heldActionCount: number | undefined;
+  // NameOnServer of whatever is in "con" (consumable, gear or dispensable).
+  heldObject: string | undefined;
+  // "loc" user variable: Domain.LocomotionState byte (0 when cleared).
+  locomotionState = 0;
+  // Path of the last LOCAL object the player interacted with (l.a Interact).
+  lastInteraction: string | undefined;
   // When this player last took an item from someone's tray (ms).
   lastTakeAt = 0;
 
