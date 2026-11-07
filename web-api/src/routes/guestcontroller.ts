@@ -259,7 +259,8 @@ router.post('/jgc/v5/client/:clientId/api-key', (req, res) => {
  */
 router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, res) => {
     try {
-        console.log(`[LOGIN] Request body:`, JSON.stringify(req.body));
+        // Never log the body: it carries the plaintext password.
+        console.log(`[LOGIN] Login attempt for loginValue: ${JSON.stringify(req.body?.loginValue ?? null)}`);
         
         const { loginValue, password } = req.body;
         

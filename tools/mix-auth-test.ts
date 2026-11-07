@@ -47,6 +47,8 @@ try {
   check(startAsBob.http === 401 && startAsBob.body?.Status === "UNAUTHORIZED_ONEID_TOKEN", `session start as bob with alice's token -> ${startAsBob.http} ${startAsBob.body?.Status}`);
   const bobStill = await B.call("POST", "/state");
   check(bobStill.http === 200, `bob's own session still works (${bobStill.http})`);
+  // Guest Controller logins must never write the password to the log.
+  check(!api.logs().includes("pw-alice") && !api.logs().includes("pw-bob"), "login passwords never appear in the server log");
 } finally {
   api.stop();
 }
