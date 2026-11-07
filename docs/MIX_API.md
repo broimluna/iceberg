@@ -422,6 +422,24 @@ creates many notifications at once.
 **Action:** set this to several seconds once chat lands, and confirm
 against the CPI client's copy of `SessionResumer`.
 
+### ⚠️ Finding (fixed 2026-11-07): `sinceSequence` is inclusive
+
+`NotificationPoller.Poll` sends `SequenceNumber = LatestSequenceNumber + 1`.
+That means "give me everything from the next one I need onward", so the
+value is **inclusive**.
+
+iceberg used to answer with `sequence > SequenceNumber`. That skipped
+exactly the notification the client was waiting for, every time. The
+client saw a gap, waited out `NotificationSequenceThreshold` (100 ms),
+paused, and resynced the whole snapshot through `/state`. So CPI
+friends *appeared* to work, but every friend event cost a full resync
+instead of one poll.
+
+The fix treats the value as inclusive. `tools/mix-session-test.ts`
+reproduces the old behavior with an SDK-faithful client, and
+`tools/mix-friends-test.ts` had been written to the bug (polling with
+`latest`) and now polls with `latest + 1` like the SDK.
+
 ### Community modifications in the recreation
 
 The recreation's `NotificationPoller.HandleGetNotificationsResponse`

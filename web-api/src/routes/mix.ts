@@ -771,8 +771,12 @@ router.post('/notifications', authenticateMix, (req, res) => {
 router.post('/notifications/sinceSequence', authenticateMix, (req, res) => {
     const { UserId, SequenceNumber, ExcludeNotificationSequenceNumbers } = req.body;
     
-    // Get pending notifications for this user from database
-    const userNotifications = db.getMixPendingNotifications(UserId, SequenceNumber);
+    // SequenceNumber is inclusive: the SDK asks for "latest + 1 onward"
+    // (NotificationPoller.Poll), so return everything from it, not after it.
+    // Treating it as exclusive skipped the one notification the client was
+    // waiting for, which it saw as a gap and recovered from by resyncing.
+    const since = Number.isFinite(SequenceNumber) ? SequenceNumber - 1 : 0;
+    const userNotifications = db.getMixPendingNotifications(UserId, since);
     
     console.log(`[NOTIFICATIONS] User ${UserId} polling with SequenceNumber: ${SequenceNumber}, pending notifications: ${userNotifications.length}`);
     

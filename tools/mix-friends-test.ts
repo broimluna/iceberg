@@ -33,8 +33,9 @@ class MixClient {
     if (ok) this.latest = n.SequenceNumber;
     return ok;
   }
+  // Like NotificationPoller.Poll: asks for latest + 1 onward (inclusive).
   async poll() {
-    const r = await this.call("/notifications/sinceSequence", { SequenceNumber: this.latest, ExcludeNotificationSequenceNumbers: [] });
+    const r = await this.call("/notifications/sinceSequence", { SequenceNumber: this.latest + 1, ExcludeNotificationSequenceNumbers: [] });
     return r;
   }
 }
