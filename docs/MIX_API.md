@@ -205,6 +205,38 @@ key reuse)**
 iceberg implements this in `mix.ts` (`mixEncryptionMiddleware`,
 `buildRsaPublicKey`).
 
+### HTTP status semantics (`MixWebCall`)
+
+The client treats HTTP status codes very differently, so a server has
+to pick them carefully:
+
+- **5xx**: retried once automatically, then reported as an error.
+  Never use 5xx for an expected failure.
+- **429**: reported as `THROTTLED` without reading the body. This is a
+  built-in rate-limit signal.
+- **401**: the body's `Status` goes to the unauthorized handler
+  (`MixWebCallFactory`):
+  - `UNAUTHORIZED_ONEID_TOKEN` refreshes the Guest Controller token
+  - `UNAUTHORIZED_MIX_SESSION` redoes the key exchange
+  - `UNAUTHORIZED_BANNED` logs the user out
+  - anything else refreshes both
+- **Other 4xx**: the body's `Status` is passed to the specific
+  feature's error handler. For example, `ChatThreadMemberAdder`
+  switches on `USER_ALREADY_THREAD_MEMBER` and
+  `USER_NOT_THREAD_MEMBER`. This is how domain errors reach the UI.
+- **2xx**: the body is parsed as the typed response.
+
+All error bodies are encrypted like any other response once a session
+exists.
+
+### ⚠️ Finding: iceberg's Mix auth doesn't check the token (as of 2026-11-07)
+
+`authenticateMix` accepts any non-empty `X-Mix-OneIdToken` and trusts
+the `UserId` in the request body. So any client could act as any
+user. The fix is phase 0 of the Mix support plan: bind the token to
+its swid, reject a mismatched body `UserId`, and reject a session that
+belongs to someone else.
+
 ---
 
 ## 4. Endpoint inventory
@@ -480,6 +512,19 @@ All message types extend `BaseChatMessage`:
   each member's stream at that member's own next sequence. Each of
   them carries the same message with the same thread sequence.
 
+### Exact strings (confirmed in the SDK)
+
+- `ChatThreadType`: `ONE_ON_ONE`, `GROUP`, `OFFICIAL_ACCOUNT`
+  (`ChatThreadTypeConverter`, `StateGetter`). Official account
+  channels are a third thread type, not a flag on a group.
+- `MessageType`: `TEXT`, `STICKER`, `GAG`, `PHOTO`, `VIDEO`,
+  `GAME_STATE`, `GAME_EVENT`, `MEMBER_LIST_CHANGED`
+  (`ChatMessageParser`).
+- Read errors: `NOT_FOUND`, `INSUFFICIENT_READ_PERMISSION`
+  (`AbstractChatThread`).
+- Member-add errors: `USER_ALREADY_THREAD_MEMBER`,
+  `USER_NOT_THREAD_MEMBER` (`ChatThreadMemberAdder`).
+
 ### Chat notification types
 
 From `GetNotificationsResponse`:
@@ -533,8 +578,16 @@ chat or account suspension, it says **ban**, never gag.
   - anything else refreshes both
 - A ban is all-or-nothing at the API level. There is no
   "can log in but can't chat" status.
-- Related statuses: `PROFILE_USER_BANNED` (profile calls) and
-  `DISPLAYNAME_MODERATION_FAILED` (`DisplayNameUpdater`).
+- At **Guest Controller login** (`GuestControllerErrorParser`):
+  - `PROFILE_USER_BANNED` gives `LoginFailedTemporaryBanResult`, and
+    on token refresh `RefreshTemporaryBanError`
+  - `PROFILE_DISABLED` gives `LoginFailedProfileDisabledResult`
+  - `AUTHORIZATION_ACCOUNT_LOCKED_OUT` gives
+    `LoginFailedAccountLockedOutResult` (a password lockout, not a
+    moderation one)
+  - iceberg will use `PROFILE_USER_BANNED` for temporary bans and
+    `PROFILE_DISABLED` for permanent bans and locks.
+- `DISPLAYNAME_MODERATION_FAILED` comes from `DisplayNameUpdater`.
 
 ### Alerts are moderation warnings sent to the offender
 
@@ -695,8 +748,6 @@ the recreation's `windows64` bundles were made.
   untrusted thread?
 - The CPI client's copy of `SessionResumer`: does it read
   `NotificationSequenceThreshold` the same way?
-- The exact `ChatThreadType` strings the client parses, and the status
-  string it expects for a missing or forbidden thread.
 - How the CPI client reacts to `UNAUTHORIZED_BANNED` on its Mix calls,
   and what each app shows when Guest Controller login is refused for
   a banned account.
