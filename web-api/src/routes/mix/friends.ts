@@ -226,10 +226,15 @@ router.post('/friendship/invitation/delete', authenticateMix, (req, res) => inTr
  */
 router.post('/friendship/trust/delete', authenticateMix, (req, res) => inTransaction(() => {
     const { UserId, FriendUserId } = req.body;
-    
-    // Update trust status in database by re-adding with updated trust value
-    db.addMixFriendship(UserId, FriendUserId, false);
-    db.addMixFriendship(FriendUserId, UserId, false);
+
+    // Only an existing friendship can lose trust. This used to upsert both
+    // rows, so removing "trust" from any user made them your friend
+    // without an invitation.
+    const friends = db.db.query("SELECT 1 FROM mix_friendships WHERE swid = ? AND friend_user_id = ?").get(UserId, FriendUserId);
+    if (typeof FriendUserId !== 'string' || !friends) {
+        return res.status(400).json({ Status: 'FORBIDDEN_NOT_FRIENDS' });
+    }
+    db.db.query("UPDATE mix_friendships SET is_trusted = 0 WHERE (swid = ?1 AND friend_user_id = ?2) OR (swid = ?2 AND friend_user_id = ?1)").run(UserId, FriendUserId);
     
     notify(FriendUserId, 'RemoveFriendshipTrust', { FriendUserId: UserId });
     res.json(buildResponse({

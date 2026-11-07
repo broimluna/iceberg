@@ -100,6 +100,17 @@ try {
   check(cancel.Notification?.InvitationId === id2, "cancel notification has InvitationId");
   A.apply(cancel.Notification, "own RemoveFriendshipInvitation");
   B.apply((await B.poll()).RemoveFriendshipInvitation?.[0], "incoming RemoveFriendshipInvitation");
+
+  // Removing trust from someone who isn't your friend must not create a
+  // friendship (it used to upsert both rows, making anyone your "friend"
+  // without an invitation).
+  const sneaky = await A.call("/friendship/trust/delete", { FriendUserId: "{BBBB-2}" });
+  check(sneaky?.Status === "FORBIDDEN_NOT_FRIENDS", `trust/delete on a non-friend -> ${JSON.stringify(sneaky)}`);
+  const db2 = new Database(DB, { readonly: true });
+  const rows = (db2.query("SELECT COUNT(*) AS n FROM mix_friendships WHERE (swid = '{AAAA-1}' AND friend_user_id = '{BBBB-2}') OR (swid = '{BBBB-2}' AND friend_user_id = '{AAAA-1}')").get() as any).n;
+  db2.close();
+  check(rows === 0, `no friendship rows created (${rows})`);
+  check(((await B.poll()).RemoveFriendshipTrust ?? []).length === 0, "bob gets no RemoveFriendshipTrust");
 } finally {
   server.kill();
 }
