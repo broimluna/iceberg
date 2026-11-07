@@ -63,6 +63,15 @@ const config = {
         httpsPort: 8443
     },
 
+    // Disney Mix app support (docs/MIX_API.md section 2).
+    mix: {
+        // Version the cpipe manifest gives the boot config file
+        // (donotcopy/n7c4c656). The app refetches the file when it changes,
+        // so the default (server start time) makes a restart push a new
+        // config without rebuilding the app.
+        cpipeConfigVersion: Number(process.env.MIX_CPIPE_CONFIG_VERSION) || Math.floor(Date.now() / 1000)
+    },
+
     // Session file path for SFS2X integration
     sessionFile: process.env.SESSION_FILE || '',
 

@@ -27,6 +27,7 @@ import encryptionRoutes from "./encryption.ts";
 import membershipRoutes from "./membership.ts";
 import guestcontrollerRoutes from "./guestcontroller.ts";
 import mixRoutes from "./mix/index.ts";
+import cpipeRoutes from "./cpipe.ts";
 import diagnosticsRoutes from "./diagnostics.ts";
 
 export {
@@ -55,5 +56,6 @@ export {
     membershipRoutes,
     guestcontrollerRoutes,
     mixRoutes,
+    cpipeRoutes,
     diagnosticsRoutes
 };

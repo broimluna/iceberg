@@ -199,6 +199,8 @@ app.use(routes.eventRoutes);
 app.use(routes.encryptionRoutes);
 app.use(routes.membershipRoutes);
 app.use(routes.guestcontrollerRoutes);
+// Disney Mix content CDN (manifest + files); before the Mix routes.
+app.use(routes.cpipeRoutes);
 // Mount mix routes at both root and /mix to handle different client behaviors
 app.use(['/', '/mix'], routes.mixRoutes);
 app.use(routes.diagnosticsRoutes);

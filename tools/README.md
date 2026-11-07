@@ -16,6 +16,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `webapi-fixes-test.ts` | `X-HTTP-Method-Override` routing, the invitations table migration, and online/offline session handling. |
 | `mix-session-test.ts` | Mix login, the RSA→AES session, encrypted `/state`, and an invite delivered through a poll the way the SDK polls. |
 | `mix-auth-test.ts` | Mix requests act only as the token's user: bogus tokens, forged `UserId` and foreign sessions get the SDK's 401 statuses. |
+| `mix-boot-test.ts` | The cpipe manifest (`GET /cpipe`) and files (`GET /cpipe/files/...`), including path traversal rejection. |
 | `mix-config-test.ts` | The boot config tool round-trips, and `openssl` decrypts what it writes. |
 | `webapi-auth-test.ts` | CPI access-token auth with default settings: valid tokens work, while expired, unknown or raw-SWID tokens get 401 and never create accounts. |
 

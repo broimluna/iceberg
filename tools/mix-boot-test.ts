@@ -1,0 +1,39 @@
+// What the Disney Mix app needs before it can log in: the cpipe manifest
+// (GET {cpipe_url}?restrict=true&cv=..., Mix/CpipeManifestApi.cs) and the
+// files it names, served from cdnRoot.
+import { mkdirSync, writeFileSync } from "node:fs";
+import { startWebApi, makeChecker } from "./lib/harness.ts";
+
+const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", MIX_CPIPE_CONFIG_VERSION: "1234" } });
+const { check, finish } = makeChecker();
+
+try {
+  const noAuth = await fetch(`${api.base}/cpipe?restrict=true&cv=2.3`);
+  check(noAuth.status === 400, `manifest without Authorization -> ${noAuth.status}`);
+
+  const r = await fetch(`${api.base}/cpipe?restrict=true&cv=2.3`, { headers: { Authorization: "GAE 01D93B3F-8532-4A91-81E7-558BE3600600" } });
+  const body: any = await r.json().catch(() => null);
+  check(r.status === 200, `manifest -> ${r.status}`);
+  check(body?.manifest?.version === "00134", `manifest version ${body?.manifest?.version}`);
+  check(typeof body?.manifest?.cdnRoot === "string" && body.manifest.cdnRoot === `${api.base}/cpipe/files`, `cdnRoot ${body?.manifest?.cdnRoot}`);
+  check(body?.manifest?.paths?.["donotcopy/n7c4c656"]?.v === 1234, `config entry v ${body?.manifest?.paths?.["donotcopy/n7c4c656"]?.v}`);
+  check(Object.keys(body?.manifest?.paths ?? {}).length > 5000, `all manifest paths kept (${Object.keys(body?.manifest?.paths ?? {}).length})`);
+
+  const dir = `${api.dir}/data/mix/cpipe/donotcopy`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/n7c4c656`, "ENCRYPTED-CONFIG");
+  const f = await fetch(`${api.base}/cpipe/files/1234/donotcopy/n7c4c656`);
+  check(f.status === 200 && (await f.text()) === "ENCRYPTED-CONFIG", `versioned file path -> ${f.status}`);
+  const g = await fetch(`${api.base}/cpipe/files/donotcopy/n7c4c656`);
+  check(g.status === 200, `unversioned file path -> ${g.status}`);
+
+  const missing = await fetch(`${api.base}/cpipe/files/donotcopy/nope`);
+  check(missing.status === 404, `missing file -> ${missing.status}`);
+  const traversal = await fetch(`${api.base}/cpipe/files/..%2f..%2fsrc%2fserver.ts`);
+  check(traversal.status === 404, `encoded path traversal -> ${traversal.status}`);
+  const traversal2 = await fetch(`${api.base}/cpipe/files/1234/..%2f..%2f..%2fsrc%2fserver.ts`);
+  check(traversal2.status === 404, `encoded traversal after a version -> ${traversal2.status}`);
+} finally {
+  api.stop();
+}
+finish(api.logs());

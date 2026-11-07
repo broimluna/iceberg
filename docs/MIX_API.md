@@ -164,6 +164,19 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
     the `v` value is what busted caches when a file changed
     (`CpipeFileManifest.TranslateFileUrl`).
 
+**In iceberg** (`routes/cpipe.ts`):
+- `GET /cpipe` returns the recreation's manifest `00134` with
+  `cdnRoot = <origin>/cpipe/files`, and gives the boot config entry
+  the version `config.mix.cpipeConfigVersion`. That defaults to the
+  server start time and can be overridden with
+  `MIX_CPIPE_CONFIG_VERSION`.
+- Bumping the version should make the app refetch the config from
+  `GET /cpipe/files/<v>/donotcopy/n7c4c656`, which is served from
+  `web-api/data/mix/cpipe/`. This lets us repoint an installed app
+  without rebuilding it (to be confirmed live in phase 1).
+- Without an `Authorization` header the request gets 400. With one,
+  only its presence is checked, since it's a public token.
+
 The point of cpipe was that content (stickers, gags, games, the config
 itself) could be updated without shipping a new app build.
 
