@@ -5,6 +5,7 @@
 import { Database } from "bun:sqlite";
 
 import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { MixClient as SdkClient } from "./lib/mix-client.ts";
 
 // A throwaway copy of iceberg's web-api with its own empty database.
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1" } });
@@ -13,17 +14,17 @@ const BASE = api.base;
 const { check, finish } = makeChecker();
 const server = { kill: api.stop };
 
-// Mirrors the client's NotificationQueue: apply only latest+1.
-class MixClient {
+// The real SDK-faithful client (Guest Controller login, encrypted
+// session), with this test's original helpers on top. apply() mirrors the
+// client's NotificationQueue: only latest+1 is accepted.
+class FriendClient {
   latest = 0;
+  readonly mix = new SdkClient(BASE);
   constructor(public swid: string, public name: string) {}
+  async connect() { await this.mix.login(this.name, `pw-${this.name}`); await this.mix.startSession(); }
   async call(path: string, body: object) {
-    const r = await fetch(`${BASE}${path}`, {
-      method: path === "/friendship/invitation" || path === "/friendship" ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json", "X-Mix-OneIdToken": "t" },
-      body: JSON.stringify({ UserId: this.swid, Timestamp: Date.now(), ...body }),
-    });
-    return r.json() as Promise<any>;
+    const method = path === "/friendship/invitation" || path === "/friendship" ? "PUT" : "POST";
+    return (await this.mix.call(method, path, body)).body;
   }
   async state() { this.latest = (await this.call("/state", {})).NotificationSequenceCounter; return this.latest; }
   // Returns whether the client would accept it.
@@ -35,8 +36,7 @@ class MixClient {
   }
   // Like NotificationPoller.Poll: asks for latest + 1 onward (inclusive).
   async poll() {
-    const r = await this.call("/notifications/sinceSequence", { SequenceNumber: this.latest + 1, ExcludeNotificationSequenceNumbers: [] });
-    return r;
+    return this.call("/notifications/sinceSequence", { SequenceNumber: this.latest + 1, ExcludeNotificationSequenceNumbers: [] });
   }
 }
 
@@ -50,7 +50,8 @@ try {
   db.run(`UPDATE player_identity SET ${nameCol} = 'bob' WHERE swid = '{BBBB-2}'`);
   db.close();
 
-  const A = new MixClient("{AAAA-1}", "alice"), B = new MixClient("{BBBB-2}", "bob");
+  const A = new FriendClient("{AAAA-1}", "alice"), B = new FriendClient("{BBBB-2}", "bob");
+  await A.connect(); await B.connect();
   await A.state(); await B.state();
   check(A.latest === 0 && B.latest === 0, "fresh users start at sequence 0");
 

@@ -6,7 +6,7 @@ const decryptAes = decryptAesCbc;
 const encryptAes = encryptAesCbc;
 
 /**
- * Get session key from X-Mix-UserSessionId header
+ * Get the Mix session named by the X-Mix-UserSessionId header
  */
 function getSessionKey(req) {
     const sessionId = req.headers['x-mix-usersessionid'];
@@ -22,7 +22,7 @@ function getSessionKey(req) {
         return null;
     }
     
-    return session.symmetricKey;
+    return session;
 }
 
 // =============================================================================
@@ -39,7 +39,8 @@ export function mixEncryptionMiddleware(req, res, next) {
     
     // Check if this is an encrypted request (application/mix)
     if (contentType && contentType.includes('application/mix')) {
-        const sessionKey = getSessionKey(req);
+        const session = getSessionKey(req);
+        const sessionKey = session?.symmetricKey;
         
         if (!sessionKey) {
             console.error('[MIX] No session key found for encrypted request');
@@ -53,8 +54,10 @@ export function mixEncryptionMiddleware(req, res, next) {
             req.body = JSON.parse(decrypted.toString('utf8'));
             console.log(`[MIX] Decrypted body:`, JSON.stringify(req.body));
             
-            // Store session key for response encryption
+            // Store session key for response encryption, and whose session it
+            // is so authenticateMix can check it against the token.
             req.mixSessionKey = sessionKey;
+            req.mixSessionSwid = session.swid;
             
             // Override res.json to encrypt the response
             const originalJson = res.json.bind(res);
@@ -81,22 +84,32 @@ export function mixEncryptionMiddleware(req, res, next) {
 // Mix Authentication Middleware
 // =============================================================================
 
+// Every Mix request acts as the user its X-Mix-OneIdToken (a Guest
+// Controller access token) belongs to. The body's UserId and the
+// encrypted session must agree with it. A failure is a 401 with the
+// status the SDK routes on (MixWebCallFactory): UNAUTHORIZED_ONEID_TOKEN
+// makes it refresh the token, UNAUTHORIZED_MIX_SESSION makes it redo the
+// session key exchange.
 export function authenticateMix(req, res, next) {
     const oneIdToken = req.headers['x-mix-oneidtoken'];
-    const clientToken = req.headers['x-mix-clienttoken'];
-    
-    // For development, accept any token
-    // In production, validate against stored tokens
-    if (!oneIdToken) {
-        console.warn(`[MIX] Auth failed: Missing X-Mix-OneIdToken for ${req.method} ${req.url}`);
+    const token = oneIdToken ? db.getGuestToken(oneIdToken) : null;
+    if (!token || token.tokenType !== 'access') {
+        console.warn(`[MIX] Auth failed: unknown or expired X-Mix-OneIdToken for ${req.method} ${req.url}`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_ONEID_TOKEN' });
     }
-    
-    // Extract UserId from request body
-    const userId = req.body?.UserId;
-    if (userId) {
-        req.mixUserId = userId;
+
+    const claimed = req.body?.UserId;
+    if (claimed != null && claimed !== token.swid) {
+        console.warn(`[MIX] Auth failed: token belongs to ${token.swid} but body claims ${claimed} (${req.method} ${req.url})`);
+        return res.status(401).json({ Status: 'UNAUTHORIZED_ONEID_TOKEN' });
     }
-    
+
+    if (req.mixSessionSwid && req.mixSessionSwid !== token.swid) {
+        console.warn(`[MIX] Auth failed: session belongs to ${req.mixSessionSwid}, token to ${token.swid} (${req.method} ${req.url})`);
+        return res.status(401).json({ Status: 'UNAUTHORIZED_MIX_SESSION' });
+    }
+
+    req.mixUserId = token.swid;
+    if (req.body && typeof req.body === 'object') req.body.UserId = token.swid;
     next();
 }

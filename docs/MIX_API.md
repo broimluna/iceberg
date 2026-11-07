@@ -229,13 +229,23 @@ to pick them carefully:
 All error bodies are encrypted like any other response once a session
 exists.
 
-### ⚠️ Finding: iceberg's Mix auth doesn't check the token (as of 2026-11-07)
+### iceberg's Mix auth (fixed 2026-11-07)
 
-`authenticateMix` accepts any non-empty `X-Mix-OneIdToken` and trusts
-the `UserId` in the request body. So any client could act as any
-user. The fix is phase 0 of the Mix support plan: bind the token to
-its swid, reject a mismatched body `UserId`, and reject a session that
-belongs to someone else.
+Before this fix, `authenticateMix` accepted any non-empty
+`X-Mix-OneIdToken` and trusted the body's `UserId`, so any client could
+act as any user. A test reproduced it: alice's token sent a friend
+invite as bob. Now (`routes/mix/auth.ts`):
+
+- The token must be an unexpired Guest Controller **access** token.
+  Otherwise the response is `401 UNAUTHORIZED_ONEID_TOKEN`, and the SDK
+  refreshes its token and retries.
+- A body `UserId` that differs from the token's SWID gets the same 401.
+  Handlers always see the token's SWID in `UserId`.
+- An encrypted request whose `X-Mix-UserSessionId` belongs to another
+  SWID gets `401 UNAUTHORIZED_MIX_SESSION`, and the SDK redoes the key
+  exchange.
+
+`tools/mix-auth-test.ts` covers all three.
 
 ---
 
