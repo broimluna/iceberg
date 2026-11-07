@@ -19,6 +19,18 @@ const app = express();
 // Middleware
 // =============================================================================
 
+// The client's HTTP layer (Unity WWW) can only send GET and POST, so PUT
+// and DELETE arrive as POST with an X-HTTP-Method-Override header. Restore
+// the real verb before routing.
+app.use((req, res, next) => {
+    const override = req.headers['x-http-method-override'];
+    if (req.method === 'POST' && typeof override === 'string' && ['PUT', 'DELETE', 'PATCH'].includes(override.toUpperCase())) {
+        req.method = override.toUpperCase();
+        console.log(`[HTTP] ${req.url}: POST -> ${req.method} (X-HTTP-Method-Override), content-type=${req.headers['content-type'] ?? '(none)'}, length=${req.headers['content-length'] ?? '?'}`);
+    }
+    next();
+});
+
 // Capture raw body for encrypted requests (before JSON parsing)
 app.use((req, res, next) => {
     if (req.headers['x-encryption-key-id']) {
@@ -131,6 +143,20 @@ app.post('/api/internal/quest-objective', express.json(), (req, res) => {
         console.error('[INTERNAL-API] Error granting quest objective reward:', error);
         res.status(500).json({ error: 'Internal error' });
     }
+});
+
+/**
+ * POST /api/internal/session-ended
+ * The game server reports a closed connection, so the player stops showing
+ * as online. Body: { sessionId } (the joinRoomData sessionId).
+ */
+app.post('/api/internal/session-ended', express.json(), (req, res) => {
+    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    const sessionId = Number(req.body?.sessionId);
+    if (!Number.isSafeInteger(sessionId)) return res.status(400).json({ error: 'Missing or invalid sessionId' });
+    db.deleteSession(sessionId);
+    console.log(`[INTERNAL-API] Session ${sessionId} ended`);
+    res.json({ success: true });
 });
 
 // Mount all route modules

@@ -434,14 +434,40 @@ function initializeDatabase() {
     // Mix friendship invitations
     db.exec(`
         CREATE TABLE IF NOT EXISTS mix_friendship_invitations (
-            invitation_id INTEGER PRIMARY KEY,
+            invitation_id INTEGER NOT NULL,
             swid TEXT NOT NULL,
             friend_display_name TEXT NOT NULL,
             is_inviter INTEGER DEFAULT 0,
             is_trusted INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (invitation_id, swid)
         )
     `);
+    // Each invitation has one row per side (inviter and invitee) with the
+    // same invitation_id. Older databases made invitation_id alone the
+    // primary key, so the invitee's row always failed to insert.
+    const invitationPk = db.prepare("SELECT name FROM pragma_table_info('mix_friendship_invitations') WHERE pk > 0").all();
+    if (invitationPk.length === 1) {
+        db.exec(`
+            ALTER TABLE mix_friendship_invitations RENAME TO mix_friendship_invitations_old;
+            CREATE TABLE mix_friendship_invitations (
+                invitation_id INTEGER NOT NULL,
+                swid TEXT NOT NULL,
+                friend_display_name TEXT NOT NULL,
+                is_inviter INTEGER DEFAULT 0,
+                is_trusted INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (invitation_id, swid)
+            );
+            INSERT OR IGNORE INTO mix_friendship_invitations SELECT * FROM mix_friendship_invitations_old;
+            DROP TABLE mix_friendship_invitations_old;
+            -- Half-written invitations from the old schema (inviter row only).
+            DELETE FROM mix_friendship_invitations WHERE invitation_id IN (
+                SELECT invitation_id FROM mix_friendship_invitations GROUP BY invitation_id HAVING COUNT(*) < 2
+            );
+        `);
+        console.log('[DATABASE] Migrated mix_friendship_invitations to a per-side primary key');
+    }
 
     // Mix alerts
     db.exec(`
@@ -726,6 +752,13 @@ function getPlayerPassword(swid) {
  * @param {number} sessionId - The session ID
  * @param {string} roomName - The room name
  */
+// last_activity is SQLite CURRENT_TIMESTAMP text ("YYYY-MM-DD HH:MM:SS",
+// UTC), so it's compared with datetime(), never with a JS ISO string. It's
+// only written when a room is joined; the game server deletes the row when
+// the connection closes (/api/internal/session-ended), so the window is
+// only a backstop for a game server that died without reporting.
+const SESSION_ONLINE_WINDOW = '-12 hours';
+
 function registerPlayerSession(swid, sessionId, roomName) {
     const player = getPlayerBySwid(swid);
     if (!player) {
@@ -749,14 +782,11 @@ function registerPlayerSession(swid, sessionId, roomName) {
 function getOnlinePlayerSwids(swids) {
     if (!swids || swids.length === 0) return [];
     
-    // Consider a session "online" if last activity was within 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const placeholders = swids.map(() => '?').join(',');
-    
     const rows = db.prepare(`
         SELECT DISTINCT swid FROM player_sessions 
-        WHERE swid IN (${placeholders}) AND last_activity > ?
-    `).all(...swids, fiveMinutesAgo);
+        WHERE swid IN (${placeholders}) AND last_activity > datetime('now', ?)
+    `).all(...swids, SESSION_ONLINE_WINDOW);
     
     return rows.map(r => r.swid);
 }
@@ -765,8 +795,7 @@ function getOnlinePlayerSwids(swids) {
  * Remove expired sessions
  */
 function cleanupExpiredSessions() {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    db.prepare('DELETE FROM player_sessions WHERE last_activity < ?').run(oneHourAgo);
+    db.prepare("DELETE FROM player_sessions WHERE last_activity < datetime('now', ?)").run(SESSION_ONLINE_WINDOW);
 }
 
 /**
@@ -792,14 +821,12 @@ function getSession(sessionId) {
  * @returns {object|null} Session data or null if player not online
  */
 function getActiveSessionBySwid(swid) {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    console.log(`[DB] getActiveSessionBySwid: Looking for SWID ${swid} with last_activity > ${fiveMinutesAgo}`);
     const result = db.prepare(`
         SELECT * FROM player_sessions 
-        WHERE swid = ? AND last_activity > ?
+        WHERE swid = ? AND last_activity > datetime('now', ?)
         ORDER BY last_activity DESC
         LIMIT 1
-    `).get(swid, fiveMinutesAgo);
+    `).get(swid, SESSION_ONLINE_WINDOW);
     console.log(`[DB] getActiveSessionBySwid: Result =`, result);
     return result;
 }
