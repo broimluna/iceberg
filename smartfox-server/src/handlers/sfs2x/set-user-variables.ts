@@ -1,6 +1,6 @@
 import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData, type SFSValue } from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
-import { handleClientConChanged } from "../consumables.ts";
+import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
 import type { HandlerContext } from "../context.ts";
 
 // RequestType.SetUserVariables = 12. The request carries only "vl"; the
@@ -23,21 +23,21 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
 }
 
 // The client equips consumables itself by setting "con" = {type: "consum",
-// name}, and clears it with a NULL variable. Each entry is
+// name}, and clears "con" with a NULL variable. Each entry is
 // [name, type, value, isPrivate].
 function trackEquippedConsumable(vars: SFSValue[], ctx: HandlerContext): void {
   for (const v of vars) {
     if (v.type !== SFSDataType.SFS_ARRAY) continue;
     const [name, , value] = v.value;
     if (name?.type !== SFSDataType.UTF_STRING || name.value !== "con") continue;
-    let consumable: string | undefined;
+    let next: EquippedObject | undefined;
     if (value?.type === SFSDataType.SFS_OBJECT) {
       const type = value.value["type"];
       const itemName = value.value["name"];
-      if (type?.type === SFSDataType.UTF_STRING && type.value === "consum" && itemName?.type === SFSDataType.UTF_STRING) {
-        consumable = itemName.value;
+      if (type?.type === SFSDataType.UTF_STRING && itemName?.type === SFSDataType.UTF_STRING) {
+        next = { type: type.value, name: itemName.value };
       }
     }
-    handleClientConChanged(ctx, consumable);
+    handleClientConChanged(ctx, next);
   }
 }

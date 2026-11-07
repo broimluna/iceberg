@@ -417,24 +417,79 @@ function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): 
   log(`${ctx.peer} - took ${tray.recipient} from ${holder.userName}'s ${trayName} (${left} left)`);
 }
 
-// The client changed its own "con" variable (equip, or put away). Putting
-// away a tray with items left sends "con.partial" {data: JSON
-// SignedResponse<UsedConsumable> {type, partialCount}}, which the client
-// stores through POST /consumable/v1/partial; the server then clears
-// "con_prop" so new arrivals don't see a stale item.
-export function handleClientConChanged(ctx: HandlerContext, newConsumable: string | undefined): void {
+// The "con" value: {type: "consum" | "dispns" | "durable" | "pgame", name}.
+export interface EquippedObject {
+  type: string;
+  name: string;
+}
+
+function objectConVar(con: EquippedObject): SFSArrayWriter {
+  const value = new SFSObjectWriter().putUtfString("type", con.type).putUtfString("name", con.name);
+  return new SFSArrayWriter().putUtfString("con").putByte(5).putSFSObject(value).putBool(false);
+}
+
+function sendUserVars(target: { send: (b: Buffer) => void }, session: Session, vars: SFSArrayWriter[]): void {
+  const vl = new SFSArrayWriter();
+  for (const v of vars) vl.putSFSArray(v);
+  target.send(encodePacket(0, 12, new SFSObjectWriter().putInt("u", session.userId).putSFSArray("vl", vl)));
+}
+
+// Drops a held tray or taken item from the session. A tray with items left
+// sends "con.partial" {data: JSON SignedResponse<UsedConsumable> {type,
+// partialCount}}, which the client stores through POST
+// /consumable/v1/partial. Returns whether anything was held.
+function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boolean {
+  const { session } = ctx;
+  const count = session.heldActionCount;
+  if (count === undefined) return false;
+  session.heldActionCount = undefined;
+  if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0) {
+    const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: count } };
+    ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));
+    log(`${ctx.peer} <- con.partial (${previous}, ${count} left)`);
+  }
+  return true;
+}
+
+// Clears "con_prop" once a held item is gone, with "con" now `next`.
+// "con_prop" can't be cleared alone while "con" is still set: the client
+// reads that as an item change and dereferences the missing "con_prop".
+// - next is null: {con_prop: NULL} to everyone (con is already gone).
+// - otherwise: the player gets {con: next, con_prop: NULL}, which fires
+//   nothing (their client equipped locally); everyone else gets
+//   {con: NULL, con_prop: NULL} (item removed), then {con: next}.
+function replaceHeldItem(ctx: HandlerContext, next: EquippedObject | undefined): void {
+  const { session } = ctx;
+  if (!next) {
+    broadcastUserVars(session, [nullUserVar("con_prop")]);
+    return;
+  }
+  sendUserVars(ctx, session, [objectConVar(next), nullUserVar("con_prop")]);
+  for (const other of getByRoomExcluding(session.roomName, session.userId)) {
+    sendUserVars(other, session, [nullUserVar("con"), nullUserVar("con_prop")]);
+    sendUserVars(other, session, [objectConVar(next)]);
+  }
+}
+
+// The client changed its own "con" variable (equip, or put away); its
+// update has already been echoed to the room.
+export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject | undefined): void {
   const { session } = ctx;
   const previous = session.equippedConsumable;
-  const previousCount = session.heldActionCount;
-  session.equippedConsumable = newConsumable;
-  if (previousCount === undefined || newConsumable === previous) return;
-  session.heldActionCount = undefined;
-  if (previous && !CONSUMABLES[previous]?.serverAdded && previousCount > 0) {
-    const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: previousCount } };
-    ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));
-    log(`${ctx.peer} <- con.partial (${previous}, ${previousCount} left)`);
-  }
-  broadcastUserVars(session, [nullUserVar("con_prop")]);
+  const nextConsumable = next?.type === "consum" ? next.name : undefined;
+  session.equippedConsumable = nextConsumable;
+  if (nextConsumable !== undefined && nextConsumable === previous) return;
+  if (releaseHeldItem(ctx, previous)) replaceHeldItem(ctx, next);
+}
+
+// The server equips gear or a dispensable ("con" = next) for the whole
+// room. A held tray or taken item is released first.
+export function equipObject(ctx: HandlerContext, next: EquippedObject): void {
+  const { session } = ctx;
+  const previous = session.equippedConsumable;
+  session.equippedConsumable = undefined;
+  if (releaseHeldItem(ctx, previous)) replaceHeldItem(ctx, next);
+  else broadcastUserVars(session, [objectConVar(next)]);
 }
 
 // "con.set" - client -> server only, no response.

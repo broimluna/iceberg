@@ -1,9 +1,7 @@
-import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
+import type { SFSObjectData } from "../sfs-wire.ts";
 import { getInt, getUtfString } from "../wire-helpers.ts";
+import { equipObject } from "./consumables.ts";
 import type { HandlerContext } from "./context.ts";
-
-const VARIABLE_TYPE_OBJECT = 5;
-const VARIABLE_TYPE_STRING = 4;
 
 // Prop id -> server name and kind, from the game's PropDefinition data
 // (ServerData 899003f22ddc395758bdcfb96f13fa5cd6721775.json).
@@ -68,28 +66,19 @@ export const PROP_CATALOG: Record<number, { nameOnServer: string; kind: "durable
   147: { nameOnServer: "SilverAcousticGuitar", kind: "dispns" },
 };
 
-// Equips a prop by setting the player's "con" (equipped object) and
-// "con_prop" (JSON string) user variables via a SetUserVariables packet
-// (controller 0, action 12). The client never sets these itself: it waits
-// for this packet, which fires DURABLE_EQUIPPED / DISPENSABLE_EQUIPPED.
-// Both variables must arrive together or the prop never loads; "con" alone
-// is the party-game shape.
+// Equips a prop by setting the player's "con" user variable ({type, name})
+// for the whole room via SetUserVariables (controller 0, action 12).
+// The equipping client has already put the prop in its own hand and
+// ignores "con" for itself; everyone else gets DURABLE_EQUIPPED /
+// DISPENSABLE_EQUIPPED. "con_prop" must NOT be sent: "con" + "con_prop"
+// makes a PlayerHeldItem, and for a prop that isn't server-added the
+// client calls onPropUsed, which clears the local player's held object
+// and puts the prop straight back away.
 export function sendEquippedObjectVariable(kind: "durable" | "dispns", nameOnServer: string, ctx: HandlerContext): void {
   // Reported back by validate.state.
   ctx.session.equippedItemName = nameOnServer;
-  // Trailing `false` = isPrivate.
-  const conValue = new SFSObjectWriter().putUtfString("type", kind).putUtfString("name", nameOnServer);
-  const conEntry = new SFSArrayWriter().putUtfString("con").putByte(VARIABLE_TYPE_OBJECT).putSFSObject(conValue).putBool(false);
-  const conPropEntry = new SFSArrayWriter()
-    .putUtfString("con_prop")
-    .putByte(VARIABLE_TYPE_STRING)
-    .putUtfString('{"actionCount":1}')
-    .putBool(false);
-  const varList = new SFSArrayWriter().putSFSArray(conEntry).putSFSArray(conPropEntry);
-  ctx.send(encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putSFSArray("vl", varList)));
-  console.log(
-    `[${new Date().toISOString()}] ${ctx.peer} <- set user variables (con={type:${kind},name:${nameOnServer}}, con_prop={"actionCount":1})`
-  );
+  equipObject(ctx, { type: kind, name: nameOnServer });
+  console.log(`[${new Date().toISOString()}] ${ctx.peer} <- set user variables to room (con={type:${kind},name:${nameOnServer}})`);
 }
 
 // "dispensable.equip" - {"type": <prop id int>}. No reply; the client
