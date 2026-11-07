@@ -2,7 +2,7 @@ import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
 import { buildResponse } from "./common.ts";
-import { filterText } from "../../services/moderation.ts";
+import { filterText, report } from "../../services/moderation.ts";
 
 const router = express.Router();
 
@@ -12,14 +12,16 @@ const router = express.Router();
 
 /**
  * PUT /moderation/reportPlayer
- * Report a player
+ * Stores a report (services/moderation.ts) for operators to triage with
+ * `bun tools/mod.ts reports`.
  */
 router.put('/moderation/reportPlayer', authenticateMix, (req, res) => {
-    const { UserId, ReportedUserId, Reason } = req.body;
-    
-    // Log the report (in production, store in database)
-    console.log(`[MODERATION] Player ${UserId} reported ${ReportedUserId} for: ${Reason}`);
-    
+    const { ReportedUserId, Reason } = req.body;
+    if (typeof ReportedUserId !== "string" || !ReportedUserId) {
+        return res.json({ Status: "INVALID_REQUEST" });
+    }
+    const id = report({ reporter: req.mixUserId, reported: ReportedUserId, reason: typeof Reason === "string" ? Reason : "", source: "mix" });
+    console.log(`[MODERATION] Report ${id}: ${req.mixUserId} reported ${ReportedUserId} (${Reason})`);
     res.json(buildResponse());
 });
 

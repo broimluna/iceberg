@@ -59,6 +59,45 @@ try {
   check(r?.Text === "****" && r?.Moderated === true, `"gosh" after the CLI add -> ${JSON.stringify(r)}`);
   const list = await $`bun ${import.meta.dir}/mod.ts rules list --db ${api.dbPath}`.nothrow().quiet();
   check(list.exitCode === 0 && /gosh/.test(list.stdout.toString()), `mod.ts rules list shows gosh`);
+
+  // Reports from both apps land in mix_reports.
+  await createPlayer(api.base, api.dbPath, "{MOD-A}", "alice");
+  await createPlayer(api.base, api.dbPath, "{MOD-B}", "bob");
+  const A = new MixClient(api.base);
+  await A.login("alice", "pw-alice");
+  await A.startSession();
+  const mr = await A.call("PUT", "/moderation/reportPlayer", { ReportedUserId: "{MOD-B}", Reason: "ChatSwearing" });
+  check(mr.http === 200 && mr.body?.Status === "OK", `Mix reportPlayer -> ${mr.http} ${JSON.stringify(mr.body)}`);
+  const cpiReport = (name: string, reason: string) => fetch(`${api.base}/moderation/v1/report/name/${encodeURIComponent(name)}`, {
+    method: "POST",
+    headers: { Authorization: "Basic " + btoa("{MOD-A}:x"), "Content-Type": "application/json" },
+    body: JSON.stringify(reason),
+  });
+  const cr = await cpiReport("bob", "Harassment");
+  check(cr.status === 200, `CPI report bob -> ${cr.status}`);
+  const ghost = await cpiReport("nobody-here", "Other");
+  check(ghost.status === 200, `CPI report of an unknown name is still 200 -> ${ghost.status}`);
+
+  const d = new Database(api.dbPath, { readonly: true });
+  const rows = d.query("SELECT reporter_swid, reported_swid, reason, source, status FROM mix_reports WHERE reported_swid = '{MOD-B}' ORDER BY id").all() as any[];
+  const unknown = d.query("SELECT reported_swid, source FROM mix_reports WHERE reported_swid LIKE 'name:%'").all() as any[];
+  d.close();
+  check(rows.length === 2 && rows.every((r) => r.status === "open" && r.reporter_swid === "{MOD-A}"), `2 open reports of bob by alice (${JSON.stringify(rows)})`);
+  check(rows[0]?.source === "mix" && rows[0]?.reason === "ChatSwearing", `Mix report row ${JSON.stringify(rows[0])}`);
+  check(rows[1]?.source === "cpi" && rows[1]?.reason === "Harassment", `CPI report row ${JSON.stringify(rows[1])}`);
+  check(unknown.length === 1 && unknown[0].reported_swid === "name:nobody-here" && unknown[0].source === "cpi", `unknown name stored as name: (${JSON.stringify(unknown)})`);
+
+  // Operators triage reports with the CLI.
+  const open = await $`bun ${import.meta.dir}/mod.ts reports --open --db ${api.dbPath}`.nothrow().quiet();
+  const openText = open.stdout.toString();
+  check(open.exitCode === 0 && /ChatSwearing/.test(openText) && /Harassment/.test(openText), `mod.ts reports --open lists both`);
+  const firstId = openText.match(/^\s*(\d+)/m)?.[1];
+  const dis = await $`bun ${import.meta.dir}/mod.ts report ${firstId ?? "0"} dismiss --db ${api.dbPath}`.nothrow().quiet();
+  check(dis.exitCode === 0, `mod.ts report ${firstId} dismiss -> ${dis.exitCode} ${dis.stderr.toString()}`);
+  const after = (await $`bun ${import.meta.dir}/mod.ts reports --open --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
+  check(!new RegExp(`^\\s*${firstId}\\s`, "m").test(after) && /Harassment/.test(after), `dismissed report leaves the open list`);
+  const all = (await $`bun ${import.meta.dir}/mod.ts reports --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
+  check(new RegExp(`^\\s*${firstId}\\s.*dismissed`, "m").test(all), `mod.ts reports shows it as dismissed`);
 } finally {
   api.stop();
 }

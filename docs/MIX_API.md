@@ -380,7 +380,7 @@ iceberg's current state.
 | Method | Path | Request type | iceberg |
 |---|---|---|---|
 | PUT | `/moderation/text` | ModerateTextRequest | ✅ shared rule filter (section 9) |
-| PUT | `/moderation/reportPlayer` | ReportPlayerRequest | ⚠️ logs only |
+| PUT | `/moderation/reportPlayer` | ReportPlayerRequest | ✅ stored in `mix_reports` |
 | PUT | `/alert/clear` | ClearAlertsRequest | ✅ |
 | POST | `/pushNotificationsSetting` | TogglePushNotificationRequest | ✅ (no-op) |
 | POST | `/pushNotificationsSetting/delete` | BaseUserRequest | ✅ (no-op) |
@@ -867,6 +867,22 @@ before showing it, and CPI's verify reply has the same "masked text plus
 
 Reports: `PUT /moderation/reportPlayer` takes `{ReportedUserId,
 Reason}`.
+
+**Reports in iceberg.** Both apps write to one table, `mix_reports`.
+- **Mix** sends the reported user's swid (`ReportedUserId`).
+- **CPI** sends `POST /moderation/v1/report/name/<displayName>`, with the
+  reason as the whole body: a bare JSON string such as `"ChatSwearing"`.
+  The server resolves the name to a swid. An unknown name still gets a
+  200 and is stored as `name:<displayName>`, so the endpoint can't be
+  used to check whether an account exists.
+  - Express's JSON parser runs in strict mode, which only accepts
+    objects and arrays. It used to reject that body with a 400 before
+    the route ran, so unencrypted CPI reports never arrived. A non-strict
+    parser now covers just that path. Encrypted CPI requests were never
+    affected, because `encryption.ts` uses a plain `JSON.parse`.
+- Operators triage with `bun tools/mod.ts reports [--open]` and
+  `bun tools/mod.ts report <id> dismiss|actioned`. Acting on a report
+  (alerts, bans) is the sanction ladder below.
 
 ---
 

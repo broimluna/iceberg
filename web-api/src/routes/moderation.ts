@@ -8,6 +8,8 @@
  */
 
 import express from "express";
+import * as db from "../database.ts";
+import { report } from "../services/moderation.ts";
 const router = express.Router();
 
 /**
@@ -20,8 +22,6 @@ const router = express.Router();
 router.post('/moderation/v1/report/name/:displayName', (req, res) => {
     const { swid, username } = req.player;
     const reportedPlayer = req.params.displayName;
-
-    console.log(req.body)
 
     let reason = req.body;
     // If body-parser failed (invalid JSON), try to recover the raw body
@@ -38,14 +38,13 @@ router.post('/moderation/v1/report/name/:displayName', (req, res) => {
         return res.status(400).json({ error: 'Invalid report body' });
     }
 
-    console.log(`[MODERATION] ${username} reported ${reportedPlayer}: ${reason}`);
+    // Resolve the name to a swid. An unknown name is still accepted (and
+    // stored as "name:<displayName>") so the reply never confirms whether
+    // an account exists.
+    const target = db.getPlayerByDisplayName(reportedPlayer);
+    const id = report({ reporter: swid, reported: target?.swid ?? `name:${reportedPlayer}`, reason: String(reason), source: "cpi" });
+    console.log(`[MODERATION] Report ${id}: ${username} reported ${reportedPlayer}: ${reason}`);
 
-    // In a full implementation, this would:
-    // 1. Log the report to a database
-    // 2. Potentially notify moderators
-    // 3. Track report frequency for abuse prevention
-
-    // For now, just acknowledge the report
     res.status(200).send();
 });
 

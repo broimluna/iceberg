@@ -47,6 +47,9 @@ app.use((req, res, next) => {
 });
 
 // Body parsing - skip for application/mix (encrypted Mix API requests) and encrypted CP requests
+// CPI's report call sends the reason as a bare JSON string ("ChatSwearing"),
+// which the strict parser below rejects with a 400 before the route runs.
+app.use('/moderation/v1/report', express.json({ strict: false }));
 app.use(express.json({
     type: (req) => {
         const contentType = req.headers['content-type'] || '';

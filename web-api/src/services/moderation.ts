@@ -78,3 +78,30 @@ export function removeRule(id: number): boolean {
     cache = null;
     return r.changes > 0;
 }
+
+// ---------------------------------------------------------------------------
+// Reports (mix_reports). Mix sends the reported user's swid; CPI sends a
+// display name, which the route resolves (unknown names are stored as
+// "name:<displayName>" so nothing reveals whether an account exists).
+
+export type ReportRow = {
+    id: number; reporter_swid: string; reported_swid: string; reason: string;
+    thread_id: number | null; message_id: number | null;
+    source: "mix" | "cpi"; status: "open" | "actioned" | "dismissed"; created_at: string;
+};
+
+export function report(r: { reporter: string; reported: string; reason: string; source: "mix" | "cpi"; threadId?: number; messageId?: number }): number {
+    const res = sql.query(`INSERT INTO mix_reports (reporter_swid, reported_swid, reason, thread_id, message_id, source)
+        VALUES (?, ?, ?, ?, ?, ?)`).run(r.reporter, r.reported, r.reason, r.threadId ?? null, r.messageId ?? null, r.source);
+    return Number(res.lastInsertRowid);
+}
+
+export function listReports(status?: ReportRow["status"]): ReportRow[] {
+    return (status
+        ? sql.query("SELECT * FROM mix_reports WHERE status = ? ORDER BY id").all(status)
+        : sql.query("SELECT * FROM mix_reports ORDER BY id").all()) as ReportRow[];
+}
+
+export function setReportStatus(id: number, status: "actioned" | "dismissed"): boolean {
+    return sql.query("UPDATE mix_reports SET status = ? WHERE id = ?").run(status, id).changes > 0;
+}
