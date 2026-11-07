@@ -510,6 +510,47 @@ has a non-original block that treats a null
 comparing against CPI's untouched copy of the SDK. A server should
 always send the counter anyway.
 
+### Live boot with the real Mix app (2026-11-07)
+
+This used the prebuilt `testing` release of OpenCPIsland/DisneyMix
+(Windows IL2CPP, Unity 6000.3.10f1, built 2026-03-16) under Wine.
+
+- **That build ignores `StreamingAssets/donotcopy/n7c4c656`.** It ships
+  Disney's original config, but all its traffic goes to
+  `http://10.0.0.77:80`, the recreation dev's LAN machine (also the
+  `player-connection-ip` in `boot.config`). The current GitHub source has
+  no such hard-code, so a fresh build from source should honor our
+  config. For testing, a local redirect works:
+  `ip addr add 10.0.0.77/32 dev lo`, plus an iptables `OUTPUT` DNAT from
+  `10.0.0.77:80` to `127.0.0.1:3000`. Paths are the same as iceberg's
+  root-mounted Mix routes.
+- It also retries `https://localhost:443` constantly. That is unrelated
+  to Mix login (most likely Unity services or analytics), and nothing
+  failed because of it.
+- Login order seen on the wire:
+  1. `POST /jgc/v5/client/DI-SPARK-PROD/api-key`
+  2. `guest/login?expand=profile,displayName,marketing`
+  3. `PUT /session/user`
+  4. `POST /state` (body has `GameStateSince`, `AvatarSince`, `ClientVersion: "2.3.0"`)
+  5. `POST /officialAccount/all` (twice)
+  6. `POST /notifications/sinceSequence`, backing off 2 s → 5 s → 10 s, matching `PollIntervals`
+- **`/officialAccount/all` must answer** with `{OfficialAccountIds: [...]}`,
+  where each entry needs `OaId`, `OaName`, `IsAvailable`, `CanUnfollow`
+  (`OfficialAccountGetter.ValidateResponse`). A 404 makes the app show
+  "Oops! Something went wrong". iceberg returns an empty list until
+  phase 5.
+- **Every user object needs an `Avatar`.** `FriendRecommender` and
+  `DisplayNameSearcher` do `Avatar.AvatarId.Value` without a null check.
+  A recommendation without one crashed the Friends screen and the app
+  logged out. iceberg gives each user a default avatar with a stable
+  `AvatarId` (48 bits of the SWID's SHA-256) until real avatars exist.
+- The avatar editor calls `PUT /avatar` with the full avatar. Its
+  `AvatarId` arrives as `-9223372036854776000`, which is `long.MinValue`
+  after losing JSON double precision, meaning "new avatar". This is
+  phase 5.
+- Logging out calls `POST /session/user/delete` (see the logout finding
+  above).
+
 ---
 
 ## 6. `/state`: the snapshot
