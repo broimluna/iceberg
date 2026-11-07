@@ -90,9 +90,14 @@ export type ReportRow = {
     source: "mix" | "cpi"; status: "open" | "actioned" | "dismissed"; created_at: string;
 };
 
+// Both clients send short reason codes ("ChatSwearing"); cap anything
+// longer so a report can't flood the table or an operator's terminal.
+const MAX_REPORT_FIELD = 500;
+const cap = (s: string) => [...String(s ?? "")].slice(0, MAX_REPORT_FIELD).join("");
+
 export function report(r: { reporter: string; reported: string; reason: string; source: "mix" | "cpi"; threadId?: number; messageId?: number }): number {
     const res = sql.query(`INSERT INTO mix_reports (reporter_swid, reported_swid, reason, thread_id, message_id, source)
-        VALUES (?, ?, ?, ?, ?, ?)`).run(r.reporter, r.reported, r.reason, r.threadId ?? null, r.messageId ?? null, r.source);
+        VALUES (?, ?, ?, ?, ?, ?)`).run(r.reporter, cap(r.reported), cap(r.reason), r.threadId ?? null, r.messageId ?? null, r.source);
     return Number(res.lastInsertRowid);
 }
 

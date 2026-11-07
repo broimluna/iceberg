@@ -98,6 +98,16 @@ try {
   check(!new RegExp(`^\\s*${firstId}\\s`, "m").test(after) && /Harassment/.test(after), `dismissed report leaves the open list`);
   const all = (await $`bun ${import.meta.dir}/mod.ts reports --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
   check(new RegExp(`^\\s*${firstId}\\s.*dismissed`, "m").test(all), `mod.ts reports shows it as dismissed`);
+
+  // Player-supplied text reaches an operator's terminal: control
+  // characters (ANSI escapes, CR) are printed escaped, and reasons are capped.
+  await A.call("PUT", "/moderation/reportPlayer", { ReportedUserId: "{MOD-B}", Reason: "\x1b[2J\x1b[31mspoof\r" + "x".repeat(5000) });
+  const esc = (await $`bun ${import.meta.dir}/mod.ts reports --db ${api.dbPath}`.nothrow().quiet()).stdout.toString();
+  check(!/[\x00-\x08\x0b-\x1f\x7f-\x9f]/.test(esc) && esc.includes("\\x1b[2J"), `reports output escapes control characters`);
+  const d2 = new Database(api.dbPath, { readonly: true });
+  const longest = (d2.query("SELECT MAX(LENGTH(reason)) AS n FROM mix_reports").get() as any).n;
+  d2.close();
+  check(longest <= 500, `stored reason capped (${longest})`);
 } finally {
   api.stop();
 }

@@ -21,6 +21,10 @@ const USAGE = `usage: bun tools/mod.ts rules list
        bun tools/mod.ts report <id> dismiss|actioned
 options: --db <file>   database (default web-api/src/cpi_data.db)`;
 
+// Reasons and names come from players. Print control characters (ANSI
+// escapes, CR, C1) as \xNN so they can't rewrite the operator's terminal.
+const safe = (v: unknown) => String(v ?? "").replace(/[\x00-\x1f\x7f-\x9f]/g, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
+
 function fail(msg: string): never {
   console.error(msg);
   process.exit(2);
@@ -61,8 +65,8 @@ if (group === "reports") {
       ${onlyOpen ? "WHERE r.status = 'open'" : ""} ORDER BY r.id`).all() as any[];
   if (rows.length === 0) console.log(onlyOpen ? "(no open reports)" : "(no reports)");
   for (const r of rows) {
-    const who = (name: string | null, swid: string) => (name ? `${name} ${swid}` : swid);
-    console.log(`${String(r.id).padStart(4)}  ${r.status.padEnd(9)}  ${r.source.padEnd(3)}  ${r.created_at}  ${who(r.reporter_name, r.reporter_swid)} -> ${who(r.reported_name, r.reported_swid)}: ${r.reason}`);
+    const who = (name: string | null, swid: string) => safe(name ? `${name} ${swid}` : swid);
+    console.log(`${String(r.id).padStart(4)}  ${safe(r.status).padEnd(9)}  ${safe(r.source).padEnd(3)}  ${safe(r.created_at)}  ${who(r.reporter_name, r.reporter_swid)} -> ${who(r.reported_name, r.reported_swid)}: ${safe(r.reason)}`);
   }
 } else if (group === "report") {
   const id = Number(cmd);
@@ -74,7 +78,7 @@ if (group === "reports") {
 } else if (cmd === "list") {
   const rows = db.query("SELECT id, pattern, kind, action, created_at FROM mix_moderation_rules ORDER BY id").all() as any[];
   if (rows.length === 0) console.log("(no rules)");
-  for (const r of rows) console.log(`${String(r.id).padStart(4)}  ${r.kind.padEnd(5)}  ${r.action.padEnd(5)}  ${r.pattern}`);
+  for (const r of rows) console.log(`${String(r.id).padStart(4)}  ${safe(r.kind).padEnd(5)}  ${safe(r.action).padEnd(5)}  ${safe(r.pattern)}`);
 } else if (cmd === "add") {
   if (!arg) fail(USAGE);
   if (isRegex) {
