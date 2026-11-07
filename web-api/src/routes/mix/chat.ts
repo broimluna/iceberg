@@ -7,6 +7,7 @@ import { buildResponse } from "./common.ts";
 import {
     createThread, addMessage, addMembers, removeMember, type MessageType,
     readPage, readRanges, readRecentPerThread, readSpecific, readSince, readSequenceNumbers,
+    clearUnread, clearHistory, setThreadNickname, removeThreadNickname,
 } from "../../services/mixChat.ts";
 import { mixRoute } from "../../services/mixErrors.ts";
 
@@ -60,5 +61,15 @@ const reads: [string, (req: any) => object][] = [
 for (const [path, read] of reads) {
     router.post(path, authenticateMix, (req, res) => mixRoute(res, () => buildResponse(read(req))));
 }
+
+// Per-member state. Each replies {Status, Notification} for the caller only.
+router.post('/chatThreadMembership/unreadMessageCount/delete', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse({ Notification: clearUnread(req.mixUserId, req.body.ChatThreadId) })));
+router.post('/chatThreadMembership/history/delete', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse({ Notification: clearHistory(req.mixUserId, req.body.ChatThreadIds) })));
+router.put('/chatThread/nickname', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse({ Notification: setThreadNickname(req.mixUserId, req.body.ChatThreadId, req.body.Nickname) })));
+router.post('/chatThread/nickname/delete', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse({ Notification: removeThreadNickname(req.mixUserId, req.body.ChatThreadId) })));
 
 export default router;

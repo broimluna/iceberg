@@ -482,3 +482,86 @@ export function readSequenceNumbers(swid: string, threadId: unknown, startTimest
         .all(...params, until) as { id: number; seq: number }[];
     return { SequenceNumbers: rows.reverse().flatMap((r) => [r.id, r.seq]) };
 }
+
+// ---------------------------------------------------------------------------
+// Per-member state: unread, history clears, thread nicknames. These
+// notifications go to the caller only.
+
+function requireMember(swid: string, threadId: unknown): number {
+    if (!Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
+    if (!isMember(threadId as number, swid)) throw new MixError("NOT_FOUND");
+    return threadId as number;
+}
+
+/** POST /chatThreadMembership/unreadMessageCount/delete: everything up to now is seen. */
+export function clearUnread(swid: string, threadId: unknown): MixNotification {
+    const tid = requireMember(swid, threadId);
+    return db.inTransaction(() => {
+        sql.query("UPDATE mix_chat_members SET last_seen_seq = ? WHERE thread_id = ? AND swid = ?").run(latestSeq(tid), tid, swid);
+        return notify(swid, "ClearUnreadMessageCount", { ChatThreadIds: [tid] });
+    });
+}
+
+/**
+ * POST /chatThreadMembership/history/delete {ChatThreadIds}: the caller
+ * stops seeing everything sent so far in each thread (others keep it).
+ */
+export function clearHistory(swid: string, threadIds: unknown): MixNotification {
+    if (!Array.isArray(threadIds) || threadIds.length === 0) throw new MixError("INVALID_REQUEST");
+    const tids = [...new Set(threadIds.map((t) => requireMember(swid, t)))];
+    return db.inTransaction(() => {
+        for (const tid of tids) {
+            const latest = latestSeq(tid);
+            sql.query("UPDATE mix_chat_members SET history_cleared_seq = ?, last_seen_seq = ? WHERE thread_id = ? AND swid = ?").run(latest, latest, tid, swid);
+        }
+        return notify(swid, "ClearMemberChatHistory", { ChatThreadIds: tids });
+    });
+}
+
+/**
+ * PUT /chatThread/nickname: the caller's own name for a thread, 1-32
+ * UTF-16 units, run through the shared filter (blocked gives
+ * MODERATION_BLOCKED, masked words are stored masked).
+ */
+export function setThreadNickname(swid: string, threadId: unknown, nickname: unknown): MixNotification {
+    const tid = requireMember(swid, threadId);
+    if (typeof nickname !== "string" || nickname.length < 1 || nickname.length > 32) throw new MixError("INVALID_REQUEST");
+    const f = filterText(nickname);
+    if (f.blocked) throw new MixError("MODERATION_BLOCKED");
+    return db.inTransaction(() => {
+        sql.query(`INSERT INTO mix_chat_nicknames (swid, thread_id, nickname) VALUES (?, ?, ?)
+            ON CONFLICT(swid, thread_id) DO UPDATE SET nickname = excluded.nickname`).run(swid, tid, f.text);
+        return notify(swid, "AddChatThreadNickname", { ChatThreadNickname: { ChatThreadId: tid, Nickname: f.text } });
+    });
+}
+
+/** POST /chatThread/nickname/delete */
+export function removeThreadNickname(swid: string, threadId: unknown): MixNotification {
+    const tid = requireMember(swid, threadId);
+    return db.inTransaction(() => {
+        sql.query("DELETE FROM mix_chat_nicknames WHERE swid = ? AND thread_id = ?").run(swid, tid);
+        return notify(swid, "RemoveChatThreadNickname", { ChatThreadId: tid });
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Trust follows friendships. Trust is what unlocks free text for kids
+// (section 7), so a thread may never keep trust its members no longer have.
+
+/**
+ * Called inside the friendship trust-removal and unfriend transactions,
+ * after the caller's own reply notification, so that reply stays the
+ * caller's next sequence. Every trusted thread containing both users
+ * becomes untrusted, and its current members get
+ * UpdateChatThreadTrustStatus {ChatThreadId, IsTrusted: false}.
+ */
+export function onFriendshipTrustRemoved(a: string, b: string): void {
+    const threads = sql.query(`SELECT t.id FROM mix_chat_threads t
+        JOIN mix_chat_members ma ON ma.thread_id = t.id AND ma.swid = ? AND ma.left_at IS NULL
+        JOIN mix_chat_members mb ON mb.thread_id = t.id AND mb.swid = ? AND mb.left_at IS NULL
+        WHERE t.is_trusted = 1`).all(a, b) as { id: number }[];
+    for (const { id } of threads) {
+        sql.query("UPDATE mix_chat_threads SET is_trusted = 0 WHERE id = ?").run(id);
+        notifyMany(currentMembers(id), "UpdateChatThreadTrustStatus", () => ({ ChatThreadId: id, IsTrusted: false }));
+    }
+}

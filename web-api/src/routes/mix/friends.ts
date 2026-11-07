@@ -4,6 +4,7 @@ import { inTransaction } from "../../database.ts";
 import { notify } from "../../services/mixNotify.ts";
 import { authenticateMix } from "./auth.ts";
 import { buildResponse, generateId, mixUser, defaultAvatar } from "./common.ts";
+import { onFriendshipTrustRemoved } from "../../services/mixChat.ts";
 const router = express.Router();
 
 // =============================================================================
@@ -95,9 +96,10 @@ router.post('/friendship/delete', authenticateMix, (req, res) => inTransaction((
     db.removeMixFriendship(FriendUserId, UserId);
     
     notify(FriendUserId, 'RemoveFriendship', { FriendUserId: UserId });
-    res.json(buildResponse({
-        Notification: notify(UserId, 'RemoveFriendship', { FriendUserId })
-    }));
+    const reply = notify(UserId, 'RemoveFriendship', { FriendUserId });
+    // Ex-friends keep their old threads, but never with trust.
+    onFriendshipTrustRemoved(UserId, FriendUserId);
+    res.json(buildResponse({ Notification: reply }));
 }));
 
 /**
@@ -237,9 +239,11 @@ router.post('/friendship/trust/delete', authenticateMix, (req, res) => inTransac
     db.db.query("UPDATE mix_friendships SET is_trusted = 0 WHERE (swid = ?1 AND friend_user_id = ?2) OR (swid = ?2 AND friend_user_id = ?1)").run(UserId, FriendUserId);
     
     notify(FriendUserId, 'RemoveFriendshipTrust', { FriendUserId: UserId });
-    res.json(buildResponse({
-        Notification: notify(UserId, 'RemoveFriendshipTrust', { FriendUserId })
-    }));
+    const reply = notify(UserId, 'RemoveFriendshipTrust', { FriendUserId });
+    // Shared trusted chat threads lose trust too (after the reply, which the
+    // SDK expects as the caller's next notification).
+    onFriendshipTrustRemoved(UserId, FriendUserId);
+    res.json(buildResponse({ Notification: reply }));
 }));
 
 

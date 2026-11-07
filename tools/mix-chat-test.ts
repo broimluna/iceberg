@@ -298,6 +298,93 @@ try {
   }
   const tooBigId = await A!.call("PUT", "/chatThread/textMessage", { ChatThreadId: t1.ChatThreadId, ClientChatMessageId: (JSON as any).rawJSON("99999999999999999999"), Text: "x" });
   check(tooBigId.http === 400 && tooBigId.body?.Status === "INVALID_REQUEST", `an id beyond 64 bits -> ${tooBigId.http} ${tooBigId.body?.Status}`);
+
+  // ---- Unread, history, nicknames, trust (Task 15) ----
+  const unreadOf = (st: any, tid: number) => st.ChatThreadUnreadMessageCount.find((u: any) => u.ChatThreadId === tid)?.UnreadMessageCount;
+  await A!.drain(); await B!.drain(); await C!.drain();
+
+  // Unread: clear, then bob sends 3.
+  const cu = await A!.call("POST", "/chatThreadMembership/unreadMessageCount/delete", { ChatThreadId: t1.ChatThreadId });
+  check(cu.http === 200 && JSON.stringify(cu.body?.Notification?.ChatThreadIds) === JSON.stringify([t1.ChatThreadId]) && A!.apply(cu.body.Notification, "ClearUnreadMessageCount"),
+    `clear unread -> ${cu.http} ${JSON.stringify(cu.body?.Notification)}`);
+  check(unreadOf(await A!.state(), t1.ChatThreadId) === undefined, "after clearing, the 1:1 has no unread count");
+  for (const t of ["u1", "u2", "u3"]) await send(B!, "text", t1.ChatThreadId, { Text: t });
+  await A!.drain(); await B!.drain();
+  check(unreadOf(await A!.state(), t1.ChatThreadId) === 3, "bob's 3 messages show as 3 unread for alice");
+  check(unreadOf(await B!.state(), t1.ChatThreadId) === undefined || unreadOf(await B!.state(), t1.ChatThreadId) > 0, "bob's own count is separate");
+  const cu2 = await A!.call("POST", "/chatThreadMembership/unreadMessageCount/delete", { ChatThreadId: t1.ChatThreadId });
+  A!.apply(cu2.body.Notification, "ClearUnreadMessageCount");
+  check(unreadOf(await A!.state(), t1.ChatThreadId) === undefined, "clearing again removes the 3");
+  const cuOut = await C!.call("POST", "/chatThreadMembership/unreadMessageCount/delete", { ChatThreadId: t1.ChatThreadId });
+  check(cuOut.http === 400 && cuOut.body?.Status === "NOT_FOUND", `carol clearing unread on the 1:1 -> ${cuOut.http} ${cuOut.body?.Status}`);
+
+  // History: alice clears the 1:1, bob still sees everything.
+  const ch = await A!.call("POST", "/chatThreadMembership/history/delete", { ChatThreadIds: [t1.ChatThreadId] });
+  check(ch.http === 200 && JSON.stringify(ch.body?.Notification?.ChatThreadIds) === JSON.stringify([t1.ChatThreadId]) && A!.apply(ch.body.Notification, "ClearMemberChatHistory"),
+    `clear history -> ${ch.http} ${JSON.stringify(ch.body?.Notification)}`);
+  const aHist = await A!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [t1.ChatThreadId, 1] });
+  check(seqsOf(aHist.body).length === 0, `alice's history is empty after clearing (${seqsOf(aHist.body).length})`);
+  const bHist = await B!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [t1.ChatThreadId, 1], MaxMessagesPerChatThread: 100 });
+  check(seqsOf(bHist.body).length > 3, `bob still sees the 1:1's messages (${seqsOf(bHist.body).length})`);
+  await send(B!, "text", t1.ChatThreadId, { Text: "after clear" });
+  const aHist2 = await A!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [t1.ChatThreadId, 1] });
+  check(aHist2.body.Text.length === 1 && aHist2.body.Text[0].Text === "after clear", "alice sees new messages after clearing");
+  await A!.drain(); await B!.drain();
+
+  // Nicknames.
+  const nn = await A!.call("PUT", "/chatThread/nickname", { ChatThreadId: t1.ChatThreadId, Nickname: "Best pals" });
+  check(nn.http === 200 && nn.body?.Notification?.ChatThreadNickname?.Nickname === "Best pals" && nn.body.Notification.ChatThreadNickname.ChatThreadId === t1.ChatThreadId && A!.apply(nn.body.Notification, "AddChatThreadNickname"),
+    `set nickname -> ${nn.http} ${JSON.stringify(nn.body?.Notification)}`);
+  check((await A!.state()).ChatThreadNicknames.some((n: any) => n.ChatThreadId === t1.ChatThreadId && n.Nickname === "Best pals"), "nickname shows in alice's /state");
+  check(!(await B!.state()).ChatThreadNicknames.some((n: any) => n.ChatThreadId === t1.ChatThreadId), "nicknames are per user: bob doesn't see it");
+  const nnMask = await A!.call("PUT", "/chatThread/nickname", { ChatThreadId: t1.ChatThreadId, Nickname: "darn crew" });
+  check(nnMask.body?.Notification?.ChatThreadNickname?.Nickname === "**** crew" && A!.apply(nnMask.body.Notification, "AddChatThreadNickname"), "a masked word is stored masked");
+  const nnBlock = await A!.call("PUT", "/chatThread/nickname", { ChatThreadId: t1.ChatThreadId, Nickname: "heck yes" });
+  check(nnBlock.http === 400 && nnBlock.body?.Status === "MODERATION_BLOCKED", `blocked nickname -> ${nnBlock.http} ${nnBlock.body?.Status}`);
+  const nnLong = await A!.call("PUT", "/chatThread/nickname", { ChatThreadId: t1.ChatThreadId, Nickname: "x".repeat(33) });
+  check(nnLong.http === 400 && nnLong.body?.Status === "INVALID_REQUEST", `33-character nickname -> ${nnLong.http} ${nnLong.body?.Status}`);
+  const nnOut = await C!.call("PUT", "/chatThread/nickname", { ChatThreadId: t1.ChatThreadId, Nickname: "mine" });
+  check(nnOut.http === 400 && nnOut.body?.Status === "NOT_FOUND", `carol naming the 1:1 -> ${nnOut.http} ${nnOut.body?.Status}`);
+  const nnDel = await A!.call("POST", "/chatThread/nickname/delete", { ChatThreadId: t1.ChatThreadId });
+  check(nnDel.http === 200 && nnDel.body?.Notification?.ChatThreadId === t1.ChatThreadId && A!.apply(nnDel.body.Notification, "RemoveChatThreadNickname"), `remove nickname -> ${nnDel.http}`);
+  check(!(await A!.state()).ChatThreadNicknames.some((n: any) => n.ChatThreadId === t1.ChatThreadId), "nickname gone from /state");
+
+  // Trust removal downgrades the shared trusted 1:1.
+  check((await A!.state()).ChatThreads.find((t: any) => t.ChatThreadId === t1.ChatThreadId)?.IsTrusted === true, "the alice-bob 1:1 starts trusted");
+  const rt = await A!.call("POST", "/friendship/trust/delete", { FriendUserId: "{CHAT-B}" });
+  check(rt.http === 200 && A!.apply(rt.body.Notification, "RemoveFriendshipTrust"), `remove trust -> ${rt.http}`);
+  for (const [name, c] of [["alice", A!], ["bob", B!]] as const) {
+    const got = await c.drain();
+    const up = got.filter((g) => g.type === "UpdateChatThreadTrustStatus").map((g) => g.n);
+    check(up.length === 1 && up[0].ChatThreadId === t1.ChatThreadId && up[0].IsTrusted === false, `${name} drains UpdateChatThreadTrustStatus for the 1:1 (${JSON.stringify(up)})`);
+  }
+  check((await B!.state()).ChatThreads.find((t: any) => t.ChatThreadId === t1.ChatThreadId)?.IsTrusted === false, "bob's /state shows the 1:1 untrusted");
+
+  // Unfriending downgrades too (ledger ruling, Task 11 security review).
+  const extra: Record<string, MixClient> = {};
+  for (const [swid, name] of [["{CHAT-D}", "dave"], ["{CHAT-E}", "erin"]] as const) {
+    await createPlayer(api.base, api.dbPath, swid, name);
+    const c = new MixClient(api.base); await c.login(name, `pw-${name}`); await c.startSession(); await c.state(); extra[name] = c;
+  }
+  const D = extra.dave!, E = extra.erin!;
+  await befriend(D, E, "erin", true);
+  const de = await D.call("PUT", "/chatThread", { ChatThreadType: "ONE_ON_ONE", MemberUserIds: ["{CHAT-E}"] });
+  const deId = de.body.Notification.ChatThread.ChatThreadId;
+  check(de.body.Notification.ChatThread.IsTrusted === true && D.apply(de.body.Notification, "AddChatThread"), "dave-erin 1:1 is trusted");
+  await E.drain();
+  const unf = await E.call("POST", "/friendship/delete", { FriendUserId: "{CHAT-D}" });
+  check(unf.http === 200 && E.apply(unf.body.Notification, "RemoveFriendship"), `erin unfriends dave -> ${unf.http}`);
+  for (const [name, c] of [["dave", D], ["erin", E]] as const) {
+    const up = (await c.drain()).filter((g) => g.type === "UpdateChatThreadTrustStatus").map((g) => g.n);
+    check(up.length === 1 && up[0].ChatThreadId === deId && up[0].IsTrusted === false, `${name} is told the 1:1 lost trust (${JSON.stringify(up)})`);
+  }
+  check((await D.state()).ChatThreads.find((t: any) => t.ChatThreadId === deId)?.IsTrusted === false, "the ex-friends' 1:1 stays untrusted in /state");
+
+  // Resync: a fresh /state agrees with what the streams built up.
+  const fin = await A!.state();
+  // One unread: bob's "after clear", received but never marked read.
+  check(unreadOf(fin, t1.ChatThreadId) === 1 && !fin.ChatThreadNicknames.some((n: any) => n.ChatThreadId === t1.ChatThreadId)
+    && fin.ChatThreads.find((t: any) => t.ChatThreadId === t1.ChatThreadId)?.IsTrusted === false, "alice's fresh /state matches her notifications");
 } finally {
   api.stop();
 }

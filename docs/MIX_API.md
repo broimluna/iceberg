@@ -349,8 +349,8 @@ iceberg's current state.
 | POST | `/chatThread` | GetChatThreadMessagesRequest | ✅ (section 7) |
 | PUT | `/chatThreadMembership` | AddChatThreadMembershipRequest | ✅ (section 7) |
 | POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ✅ (section 7) |
-| POST | `/chatThreadMembership/history/delete` | ClearMemberChatHistoryRequest | ❌ |
-| POST | `/chatThreadMembership/unreadMessageCount/delete` | ClearUnreadMessageCountRequest | ❌ |
+| POST | `/chatThreadMembership/history/delete` | ClearMemberChatHistoryRequest | ✅ (section 7) |
+| POST | `/chatThreadMembership/unreadMessageCount/delete` | ClearUnreadMessageCountRequest | ✅ (section 7) |
 | PUT | `/chatThread/textMessage` | AddChatThreadTextMessageRequest | ✅ (section 7) |
 | PUT | `/chatThread/stickerMessage` | AddChatThreadStickerMessageRequest | ✅ (section 7) |
 | PUT | `/chatThread/gagMessage` | AddChatThreadGagMessageRequest | ✅ (section 7) |
@@ -363,8 +363,8 @@ iceberg's current state.
 | POST | `/chatThread/messages/recent` | GetChatThreadsRecentMessagesRequest | ✅ (section 7) |
 | POST | `/chatThread/messages/bySequenceRange` | GetChatThreadMessagesBySequenceRangesRequest | ✅ (section 7) |
 | POST | `/chatThread/messages/sequenceNumber` | GetChatThreadSequenceNumberRequest | ✅ (section 7) |
-| PUT | `/chatThread/nickname` | AddChatThreadNicknameRequest | ❌ |
-| POST | `/chatThread/nickname/delete` | RemoveChatThreadNicknameRequest | ❌ |
+| PUT | `/chatThread/nickname` | AddChatThreadNicknameRequest | ✅ (section 7) |
+| POST | `/chatThread/nickname/delete` | RemoveChatThreadNicknameRequest | ✅ (section 7) |
 | POST | `/video/url` | GetVideoUrlRequest | ❌ |
 
 **Official accounts** (brand channels users could follow)
@@ -853,6 +853,36 @@ nothing after. Someone who was never a member gets `400 NOT_FOUND`.
 | `POST /chatThread/specificMessages` | `ChatThreadId`, `MessageIds` | By id. Ids the caller can't see are left out without an error. |
 | `POST /chatThread/recentMessages` | `MessagesSince` (ms) | Everything visible to the caller created after that time, newest 500. Never called by this SDK version. |
 | `POST /chatThread` | `ChatThreadId`, `Cursor`, `MaximumMessageCount`, `ExcludedChatMessageIds` | Pages newest first, at most 50. `Cursor` is the lowest seq returned, as a string, and `null` when nothing older is left. Never called by this SDK version; `TimestampOffset` is ignored. |
+
+### Unread counts, history clears, thread nicknames and trust
+
+These four notifications go to the caller only. The caller must be a
+current member, or `400 NOT_FOUND`.
+
+- `POST /chatThreadMembership/unreadMessageCount/delete {ChatThreadId}`
+  marks everything seen (`last_seen_seq = latest`). The reply is
+  `ClearUnreadMessageCount {ChatThreadIds: [id]}`; the notification
+  carries a list even though the request names one thread.
+- `POST /chatThreadMembership/history/delete {ChatThreadIds}` (a **list**
+  in the SDK) hides everything sent so far from the caller only
+  (`history_cleared_seq = latest`, and unread drops to 0). The reply is
+  `ClearMemberChatHistory {ChatThreadIds}`. Other members keep their
+  history, and the caller sees new messages as usual.
+- `PUT /chatThread/nickname {ChatThreadId, Nickname}`: the caller's own
+  name for a thread, which nobody else sees. It must be 1–32 UTF-16 units
+  and runs through the shared filter: blocked gives `MODERATION_BLOCKED`,
+  masked words are stored masked. The reply is
+  `AddChatThreadNickname {ChatThreadNickname: {ChatThreadId, Nickname}}`.
+  `POST /chatThread/nickname/delete` replies
+  `RemoveChatThreadNickname {ChatThreadId}`.
+- **Trust follows friendship.** When `/friendship/trust/delete` or
+  `/friendship/delete` runs, every trusted thread both users are in
+  becomes untrusted, and its members get
+  `UpdateChatThreadTrustStatus {ChatThreadId, IsTrusted: false}`. Those
+  are sent after the caller's own reply notification, so the reply stays
+  the caller's next sequence. Unfriending is included (the plan only
+  named trust removal) because ex-friends keep their old threads, and
+  those must not keep the trust that unlocks free text.
 
 ### Chat in `/state`
 
