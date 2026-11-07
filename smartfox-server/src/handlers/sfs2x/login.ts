@@ -3,6 +3,7 @@ import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } fro
 import { getUtfString, getSFSObject, extractRawJsonValue } from "../../wire-helpers.ts";
 import { JOIN_DELAY_MS } from "../../config.ts";
 import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
+import { sendConsumableItemsSnapshot } from "../consumables.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
 import { buildUserVariablesArray } from "../../user-variables.ts";
 import { buildProximityUserEntry, sendExistingOccupantsToJoiner, broadcastNewJoinerToRoom } from "../proximity.ts";
@@ -100,6 +101,8 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     sendInitialUserVariables(ctx);
     // Geysers, blinking lights, etc. (world-objects.ts).
     sendWorldObjectsSnapshot(ctx, roomName);
+    // Party blasters etc. already in the room (consumables.ts).
+    sendConsumableItemsSnapshot(ctx, roomName);
     // ctx has the same shape as a RegisteredSession.
     sendExistingOccupantsToJoiner(ctx, roomName);
     broadcastNewJoinerToRoom(roomName, session);

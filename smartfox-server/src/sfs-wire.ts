@@ -3,7 +3,7 @@
 // SFSProtocolCodec and DefaultSFSDataSerializer, and was checked against
 // captured traffic.
 //
-// Supported types: NULL, BOOL, BYTE, SHORT, INT, LONG, UTF_STRING, TEXT,
+// Supported types: NULL, BOOL, BYTE, SHORT, INT, LONG, DOUBLE, UTF_STRING, TEXT,
 // SFS_OBJECT, SFS_ARRAY, FLOAT_ARRAY, INT_ARRAY. Add others as needed.
 
 export const enum SFSDataType {
@@ -30,6 +30,7 @@ export type SFSValue =
   | { type: SFSDataType.SHORT; value: number }
   | { type: SFSDataType.INT; value: number }
   | { type: SFSDataType.LONG; value: bigint }
+  | { type: SFSDataType.DOUBLE; value: number }
   | { type: SFSDataType.UTF_STRING; value: string }
   | { type: SFSDataType.INT_ARRAY; value: number[] }
   | { type: SFSDataType.FLOAT_ARRAY; value: number[] }
@@ -108,6 +109,8 @@ function decodeValue(buf: Buffer, offset: number): { value: SFSValue; next: numb
       return { value: { type, value: buf.readInt32BE(pos) }, next: pos + 4 };
     case SFSDataType.LONG:
       return { value: { type, value: buf.readBigInt64BE(pos) }, next: pos + 8 };
+    case SFSDataType.DOUBLE:
+      return { value: { type, value: buf.readDoubleBE(pos) }, next: pos + 8 };
     case SFSDataType.UTF_STRING: {
       const len = buf.readUInt16BE(pos);
       pos += 2;
@@ -193,6 +196,12 @@ export function encodeSFSValue(v: SFSValue): Buffer {
       const b = Buffer.alloc(9);
       b[0] = SFSDataType.LONG;
       b.writeBigInt64BE(v.value, 1);
+      return b;
+    }
+    case SFSDataType.DOUBLE: {
+      const b = Buffer.alloc(9);
+      b[0] = SFSDataType.DOUBLE;
+      b.writeDoubleBE(v.value, 1);
       return b;
     }
     case SFSDataType.UTF_STRING: {
@@ -400,6 +409,16 @@ export class SFSArrayWriter {
 
   putByte(value: number): this {
     this.elements.push(() => Buffer.from([SFSDataType.BYTE, value & 0xff]));
+    return this;
+  }
+
+  putDouble(value: number): this {
+    this.elements.push(() => encodeSFSValue({ type: SFSDataType.DOUBLE, value }));
+    return this;
+  }
+
+  putNull(): this {
+    this.elements.push(() => Buffer.from([SFSDataType.NULL]));
     return this;
   }
 

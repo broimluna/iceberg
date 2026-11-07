@@ -53,9 +53,14 @@ variables.
   and state validation.
 - The whole WebAPI.
 
+**Implemented, not yet checked with the real client:**
+- Using consumables where other players can see it (`con.use` /
+  `con.reuse`): one-shot props, and party blasters and pinatas as MMO
+  items with a countdown and coin rewards for nearby players.
+
 **Not done yet:**
-- Using and reusing consumables where other players can see it
-  (`con.use` / `con.reuse`), igloo update broadcasts, room transfer data.
+- Held and shareable consumables (trays, glowstick packs), igloo update
+  broadcasts, room transfer data.
 - Daily challenges and task progress (`task.c` / `task.r`).
 - Party games (Dance Battle, Find Four, Fish Bucket, Scavenger Hunt, Tube
   Race).

@@ -77,6 +77,12 @@ interface RoomState {
 const rooms = new Map<string, RoomState>();
 let nextItemId = 1;
 
+// MMO item ids share one counter with consumables (handlers/consumables.ts),
+// since they live in the same room item list on the client.
+export function allocateItemId(): number {
+  return nextItemId++;
+}
+
 // ==================== Room -> default object defs ====================
 
 function individualDefsForRoom(roomName: string): WorldObjectDef[] {
@@ -191,7 +197,7 @@ function scheduleIndividualTransition(roomName: string, state: RoomState, item: 
 
 function createIndividualObject(roomName: string, state: RoomState, def: WorldObjectDef): void {
   const item: LiveItem = {
-    itemId: nextItemId++,
+    itemId: allocateItemId(),
     path: def.path,
     position: def.position,
     state: def.startActive ? STATE_ACTIVE : STATE_INACTIVE,
@@ -232,7 +238,7 @@ function shuffle<T>(arr: T[]): T[] {
 function createGroup(roomName: string, state: RoomState, group: GroupDef): void {
   const order: LiveItem[] = group.members.map((member) => {
     const item: LiveItem = {
-      itemId: nextItemId++,
+      itemId: allocateItemId(),
       path: member.path,
       position: member.position,
       state: STATE_INACTIVE,

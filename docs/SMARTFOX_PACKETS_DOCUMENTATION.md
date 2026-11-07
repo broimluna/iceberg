@@ -213,10 +213,10 @@ signature can be any string for a private server).
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
 | `con.set` | `SET_CONSUMABLE_INVENTORY` | OUT | `data` = JSON `SignedResponse<ConsumableInventory>`. |
-| `con.use` | `USE_CONSUMABLE` | BOTH | OUT: `type` = JSON `SignedResponse<UsedConsumable>`, `prop` = JSON caller-defined properties object. IN: `type` = plain string (consumable type name) + sender session ID - the IN shape is much simpler than OUT, not symmetric. |
-| `con.reuse` | `REUSE_CONSUMABLE` | OUT | `type` = string, `prop` = JSON properties object. |
+| `con.use` | `USE_CONSUMABLE` | BOTH | OUT: `type` = JSON `SignedResponse<UsedConsumable>` (`type`, `partialCount`), `prop` = JSON caller-defined properties (a Vector3 drop point for world consumables). IN: `senderId` + `type` string. The client passes the IN `type` to `UsePropCMD` as the experience instance id, not as a consumable name; for one-shot props that id is the user's session id. Only one-shot consumables get an IN `con.use`; world consumables are driven by `con.mmoitemdeployed` and the MMO item. |
+| `con.reuse` | `REUSE_CONSUMABLE` | OUT | `type` = string, `prop` = JSON properties object. Sent only for `QuestOnly` consumables when not on the prototype quest; nothing is spent. |
 | `con.reuse_error` | `REUSE_FAILED` | IN | `type` = string, `prop` -> `LitJson`-parsed properties. |
-| `con.mmoitemdeployed` | `CONSUMABLE_MMO_DEPLOYED` | IN | `ownerId` + `senderId` (both ints) -> resolved to `SessionId`/`ExperienceId`. Requires both keys present or the event is silently dropped. An MMO-space deployed item (e.g. a thrown snowball) - ties to `Sfs2X.Requests.MMO`. |
+| `con.mmoitemdeployed` | `CONSUMABLE_MMO_DEPLOYED` | IN | `ownerId` (user id) + `senderId` (the MMO item id, not a user) -> `SessionId`/`ExperienceId`. Both keys required or the event is dropped. Must arrive before the owner's `con` user variable is cleared, so the owner's prop isn't stored on dequip. |
 | `con.partial` | `SET_CONSUMABLE_PARTIAL_COUNT` | IN | `data` -> JSON `SignedResponse<UsedConsumable>`. |
 
 ### Rewards

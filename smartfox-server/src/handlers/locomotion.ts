@@ -1,6 +1,7 @@
 import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getFloatArray, getByte, getUtfString } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
+import { handleConsumableInteraction } from "./consumables.ts";
 import type { HandlerContext } from "./context.ts";
 
 // "l.a" - player movement, the most frequent packet. Echo "p" (position) and
@@ -31,4 +32,6 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   const packet = encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", "l.a").putSFSObject("p", locomotionResponseP));
   ctx.send(packet);
   for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
+  // Pinata hits.
+  handleConsumableInteraction(action, object);
 }

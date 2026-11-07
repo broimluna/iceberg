@@ -11,7 +11,7 @@ import { handleValidateState } from "./validation.ts";
 import { handleMembershipRefresh } from "./membership.ts";
 import { handlePlayerLocation } from "./player-location.ts";
 import { handlePickup } from "./pickup.ts";
-import { handleConsumableSet } from "./consumables.ts";
+import { handleConsumableSet, handleConsumableUse, handleConsumableReuse } from "./consumables.ts";
 
 export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext) => void;
 
@@ -37,5 +37,7 @@ export const extensionHandlers: Record<string, ExtensionHandler> = {
   "zone.player_location": handlePlayerLocation,
   "task.p": handlePickup,
   "con.set": handleConsumableSet,
+  "con.use": handleConsumableUse,
+  "con.reuse": handleConsumableReuse,
   "reward.broadcast": handleRewardBroadcast,
 };
