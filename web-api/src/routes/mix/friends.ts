@@ -3,7 +3,7 @@ import * as db from "../../database.ts";
 import { inTransaction } from "../../database.ts";
 import { notify } from "../../services/mixNotify.ts";
 import { authenticateMix } from "./auth.ts";
-import { buildResponse, generateId, mixUser } from "./common.ts";
+import { buildResponse, generateId, mixUser, defaultAvatar } from "./common.ts";
 const router = express.Router();
 
 // =============================================================================
@@ -117,7 +117,8 @@ router.post('/friendship/recommend', authenticateMix, (req, res) => {
         .slice(0, 5)
         .map(p => ({
             DisplayName: p.display_name || p.username,
-            FirstName: null
+            FirstName: null,
+            Avatar: defaultAvatar(p.swid)
         }));
     
     res.json(buildResponse({

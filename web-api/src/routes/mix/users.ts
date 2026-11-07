@@ -1,7 +1,7 @@
 import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
-import { hashUserId, buildResponse } from "./common.ts";
+import { hashUserId, buildResponse, defaultAvatar } from "./common.ts";
 
 const router = express.Router();
 
@@ -26,6 +26,7 @@ router.post('/users/byDisplayName', authenticateMix, (req, res) => {
                     HashedUserId: hashUserId(player.swid),
                     DisplayName: player.displayName || player.username,
                     FirstName: null,
+                    Avatar: defaultAvatar(player.swid),
                     Status: 'ACTIVE'
                 });
             }
@@ -51,6 +52,7 @@ router.post('/users/byUserId', authenticateMix, (req, res) => {
                 HashedUserId: hashUserId(player.swid),
                 DisplayName: player.displayName || player.username,
                 FirstName: null,
+                Avatar: defaultAvatar(player.swid),
                 Status: 'ACTIVE'
             });
         }
@@ -84,7 +86,8 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
     } else if (player) {
         const response = buildResponse({
             DisplayName: player.displayName || player.username,
-            FirstName: null
+            FirstName: null,
+            Avatar: defaultAvatar(player.swid)
         });
         console.log(`[SEARCH] Found player, responding with:`, JSON.stringify(response));
         res.json(response);

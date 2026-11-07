@@ -1,7 +1,7 @@
 import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
-import { hashUserId, buildResponse, getTimestamp, presenceState } from "./common.ts";
+import { hashUserId, buildResponse, getTimestamp, presenceState, defaultAvatar } from "./common.ts";
 
 const router = express.Router();
 
@@ -45,6 +45,7 @@ router.post('/state', authenticateMix, (req, res) => {
             HashedUserId: hashUserId(UserId),
             DisplayName: displayName,
             FirstName: null,
+            Avatar: defaultAvatar(UserId),
             Status: 'ACTIVE'
         });
     } else {
@@ -60,6 +61,7 @@ router.post('/state', authenticateMix, (req, res) => {
                 HashedUserId: hashUserId(friendship.friendUserId),
                 DisplayName: player.displayName || player.username,
                 FirstName: null,
+                Avatar: defaultAvatar(friendship.friendUserId),
                 Status: 'ACTIVE'
             });
         }

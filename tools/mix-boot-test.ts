@@ -53,6 +53,25 @@ try {
   const oa = loggedIn ? await M.call("POST", "/officialAccount/all") : { http: 0, body: null };
   check(oa.http === 200 && oa.body?.Status === "OK" && Array.isArray(oa.body?.OfficialAccountIds) && oa.body.OfficialAccountIds.length === 0,
     `/officialAccount/all -> ${oa.http} ${JSON.stringify(oa.body)}`);
+
+  // Every user object the Mix app receives needs a complete Avatar: the
+  // client dereferences it (FriendRecommender, DisplayNameSearcher), and a
+  // missing one crashed the Friends screen and logged the app out.
+  const avatarOk = (av: any) => !!av && Number.isSafeInteger(av.AvatarId)
+    && ["Accessory", "Brow", "Costume", "Eyes", "Hair", "Hat", "Nose", "Mouth", "Skin"].every((k) => typeof av[k]?.SelectionKey === "string");
+  await createPlayer(api.base, api.dbPath, "{EEEE-5}", "erin");
+  const rec = loggedIn ? await M.call("POST", "/friendship/recommend") : { body: null };
+  const recs = rec.body?.FriendRecommendations ?? [];
+  check(recs.length > 0 && recs.every((r: any) => avatarOk(r.Avatar)), `recommendations carry avatars (${JSON.stringify(recs[0]?.Avatar?.AvatarId)})`);
+  const found = loggedIn ? await M.call("POST", "/search/displayname", { DisplayName: "erin" }) : { body: null };
+  check(found.body?.DisplayName === "erin" && avatarOk(found.body?.Avatar), "display name search result carries an avatar");
+  const byId = loggedIn ? await M.call("POST", "/users/byUserId", { UserIds: ["{EEEE-5}"] }) : { body: null };
+  check(avatarOk(byId.body?.Users?.[0]?.Avatar), "users/byUserId carries an avatar");
+  const byName = loggedIn ? await M.call("POST", "/users/byDisplayName", { DisplayNames: ["erin"] }) : { body: null };
+  check(avatarOk(byName.body?.Users?.[0]?.Avatar), "users/byDisplayName carries an avatar");
+  const st2 = loggedIn ? await M.state() : {};
+  check((st2.Users ?? []).length > 0 && st2.Users.every((u: any) => avatarOk(u.Avatar)), "/state Users carry avatars");
+  check(byId.body?.Users?.[0]?.Avatar?.AvatarId === byName.body?.Users?.[0]?.Avatar?.AvatarId, "a user's default AvatarId is stable across calls");
 } finally {
   api.stop();
 }

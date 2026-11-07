@@ -44,7 +44,7 @@ export function mixUser(swid, player) {
         HashedUserId: hashUserId(swid),
         DisplayName: name,
         FirstName: name,
-        Avatar: generateDefaultAvatar(),
+        Avatar: defaultAvatar(swid),
         Status: null,
         Nickname: null
     };
@@ -64,4 +64,14 @@ export function generateDefaultAvatar() {
         Mouth: { SelectionKey: "194", TintIndex: 0, XOffset: -0.001, YOffset: 0.0 },
         Skin: { SelectionKey: "123", TintIndex: 9, XOffset: 0.0, YOffset: 0.0 }
     };
+}
+
+// A user's avatar until real avatars exist (PUT /avatar, phase 5). The
+// Mix app dereferences Avatar on every user it receives (FriendRecommender,
+// DisplayNameSearcher, chat members) and keys its local avatar store by
+// AvatarId, so the id is stable per user: 48 bits of the SWID's hash,
+// which stays a safe JSON integer.
+export function defaultAvatar(swid) {
+    const id = parseInt(crypto.createHash('sha256').update(String(swid)).digest('hex').slice(0, 12), 16);
+    return { ...generateDefaultAvatar(), AvatarId: id };
 }
