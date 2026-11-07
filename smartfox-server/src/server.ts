@@ -45,8 +45,19 @@ const connectionHandler = (socket: net.Socket) => {
   // speak SFS3. The first packet decides.
   let protocolDetected = false;
 
+  // A packet that can't be encoded for this recipient (e.g. an echoed
+  // SFSObject key too long for SFS3) is skipped for them, not thrown into
+  // the sender's handler.
   function send(packet: OutgoingPacket) {
-    const data = packet.encode(session.protocol);
+    let data: Buffer;
+    try {
+      data = packet.encode(session.protocol);
+    } catch (err) {
+      console.log(
+        `[${new Date().toISOString()}] ${peer} - couldn't encode c=${packet.controllerId} a=${packet.actionId}, not sent: ${(err as Error).message}`
+      );
+      return;
+    }
     socket.write(transportMode === "websocket" ? encodeWebSocketFrame(data) : data);
   }
   const ctx: HandlerContext = { session, peer, send };
@@ -89,27 +100,38 @@ const connectionHandler = (socket: net.Socket) => {
         )}`
       );
 
-      if (controllerId === 0 && actionId === 0) {
-        handleHandshake(ctx);
-      } else if (controllerId === 0 && actionId === 1) {
-        handleLogin(params, ctx, socket);
-        // Registered after login, once name, swid and room are known.
-        register({ session, peer, send });
-      } else if (controllerId === 0 && actionId === 29) {
-        handlePingPong(ctx);
-      } else if (controllerId === 0 && actionId === 12) {
-        handleSetUserVariables(params, ctx);
-      } else if (controllerId === 1 && actionId === 13) {
-        const cmd = params["c"]?.type === SFSDataType.UTF_STRING ? params["c"].value : undefined;
-        const handler = cmd ? findExtensionHandler(cmd) : undefined;
-        if (handler) {
-          handler(getSFSObject(params, "p"), ctx);
-        } else {
-          console.log(`[${new Date().toISOString()}] ${peer} - no handler for extension cmd "${cmd}", not responding`);
-        }
-      } else {
-        console.log(`[${new Date().toISOString()}] ${peer} - no handler for c=${controllerId} a=${actionId}, not responding`);
+      // One bad packet must not take the whole server down.
+      try {
+        dispatch(controllerId, actionId, params);
+      } catch (err) {
+        console.log(
+          `[${new Date().toISOString()}] ${peer} - handler for c=${controllerId} a=${actionId} threw: ${(err as Error).stack ?? err}`
+        );
       }
+    }
+  }
+
+  function dispatch(controllerId: number | undefined, actionId: number | undefined, params: SFSObjectData) {
+    if (controllerId === 0 && actionId === 0) {
+      handleHandshake(ctx);
+    } else if (controllerId === 0 && actionId === 1) {
+      handleLogin(params, ctx, socket);
+      // Registered after login, once name, swid and room are known.
+      register({ session, peer, send });
+    } else if (controllerId === 0 && actionId === 29) {
+      handlePingPong(ctx);
+    } else if (controllerId === 0 && actionId === 12) {
+      handleSetUserVariables(params, ctx);
+    } else if (controllerId === 1 && actionId === 13) {
+      const cmd = params["c"]?.type === SFSDataType.UTF_STRING ? params["c"].value : undefined;
+      const handler = cmd ? findExtensionHandler(cmd) : undefined;
+      if (handler) {
+        handler(getSFSObject(params, "p"), ctx);
+      } else {
+        console.log(`[${new Date().toISOString()}] ${peer} - no handler for extension cmd "${cmd}", not responding`);
+      }
+    } else {
+      console.log(`[${new Date().toISOString()}] ${peer} - no handler for c=${controllerId} a=${actionId}, not responding`);
     }
   }
 
