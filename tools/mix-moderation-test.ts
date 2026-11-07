@@ -171,6 +171,14 @@ try {
   const sanctions = d4.query("SELECT type, level FROM mix_sanctions WHERE swid = '{MOD-B}' ORDER BY id").all();
   d4.close();
   check(JSON.stringify(sanctions) === JSON.stringify([{ type: "TROLL", level: 1 }, { type: "TROLL", level: 2 }, { type: "VULNERABLE_PERSON", level: 3 }]), `sanction history ${JSON.stringify(sanctions)}`);
+
+  // A name that matches more than one player is refused, never guessed:
+  // "BOB" (another player's display name) vs bob.
+  await createPlayer(api.base, api.dbPath, "{MOD-C}", "BOB");
+  const amb = await cli("sanction", "bob", "TROLL", "1");
+  check(amb.exitCode !== 0 && /\{MOD-B\}/.test(amb.stderr.toString()) && /\{MOD-C\}/.test(amb.stderr.toString()), `ambiguous name refused, candidates listed (${amb.exitCode} ${amb.stderr.toString().trim()})`);
+  const bySwid = await cli("sanction", "{MOD-C}", "TROLL", "1");
+  check(bySwid.exitCode === 0 && /MOD-C/.test(bySwid.stdout.toString()), `sanction by swid still works (${bySwid.stdout.toString().trim()})`);
 } finally {
   api.stop();
 }

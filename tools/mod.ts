@@ -69,13 +69,20 @@ const table = group === "rules" ? "mix_moderation_rules" : group.startsWith("rep
 const hasTable = db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
 if (!hasTable) fail(`${dbPath} has no ${table} table (start the web API once to create it)`);
 
-// A swid, or a display name / username (case-insensitive).
+// A swid (exact), or a display name / username (case-insensitive). A name
+// that matches more than one player is refused with the candidates listed,
+// so a lookalike name can never redirect a sanction; use the swid then.
 function resolveSwid(who: string): { swid: string; name: string | null } {
-  const row = db.query(`SELECT swid, display_name FROM player_identity
-      WHERE swid = ?1 OR display_name = ?1 COLLATE NOCASE OR username = ?1 COLLATE NOCASE
-      ORDER BY (swid = ?1) DESC LIMIT 1`).get(who) as { swid: string; display_name: string | null } | null;
-  if (!row) fail(`no player ${safe(who)}`);
-  return { swid: row.swid, name: row.display_name };
+  const exact = db.query("SELECT swid, display_name FROM player_identity WHERE swid = ?").get(who) as { swid: string; display_name: string | null } | null;
+  if (exact) return { swid: exact.swid, name: exact.display_name };
+  const rows = db.query(`SELECT DISTINCT swid, display_name, username FROM player_identity
+      WHERE display_name = ?1 COLLATE NOCASE OR username = ?1 COLLATE NOCASE`).all(who) as { swid: string; display_name: string | null; username: string | null }[];
+  if (rows.length === 0) fail(`no player ${safe(who)}`);
+  if (rows.length > 1) {
+    fail(`"${safe(who)}" matches ${rows.length} players; use the swid:\n` +
+      rows.map((r) => `  ${safe(r.swid)}  display name ${safe(r.display_name)}, username ${safe(r.username)}`).join("\n"));
+  }
+  return { swid: rows[0].swid, name: rows[0].display_name };
 }
 
 async function service() {
