@@ -16,6 +16,10 @@ import { filterText } from "./moderation.ts";
 const sql = db.db;
 
 export type ThreadType = "ONE_ON_ONE" | "GROUP";
+
+// FriendSelectorPanel.MAX_GROUP_CHAT: 20 people, counting yourself. The
+// SDK maps MAX_MEMBER_COUNT_EXCEEDED to its own result type.
+const MAX_THREAD_MEMBERS = 20;
 type ThreadRow = { id: number; type: string; is_trusted: number; official_account_id: string | null };
 
 // ---------------------------------------------------------------------------
@@ -49,6 +53,16 @@ export function threadDto(threadId: number) {
     };
 }
 
+/** True when every pair of these users are trusted friends. */
+function allPairsTrusted(members: string[]): boolean {
+    for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+            if (friendshipTrust(members[i]!, members[j]!) !== true) return false;
+        }
+    }
+    return true;
+}
+
 function existingOneOnOne(a: string, b: string): number | null {
     const row = sql.query(`SELECT t.id FROM mix_chat_threads t
         JOIN mix_chat_members ma ON ma.thread_id = t.id AND ma.swid = ? AND ma.left_at IS NULL
@@ -62,7 +76,9 @@ function existingOneOnOne(a: string, b: string): number | null {
 
 /**
  * Creates a ONE_ON_ONE or GROUP thread. Members are deduplicated and the
- * creator is always one. Every other member must be the creator's friend.
+ * creator is always one. Every other member must be the creator's friend
+ * (FORBIDDEN_NOT_FRIENDS), and a thread holds at most 20 people
+ * (MAX_MEMBER_COUNT_EXCEEDED).
  * A 1:1 that already exists is returned again, to the creator only.
  * IsTrusted mirrors friendship trust: for a group, every pair of members
  * must be trusted friends.
@@ -72,7 +88,9 @@ export function createThread(creator: string, type: string, memberIds: unknown):
     if (!Array.isArray(memberIds) || !memberIds.every((m) => typeof m === "string")) throw new MixError("INVALID_REQUEST");
     const others = [...new Set(memberIds as string[])].filter((m) => m !== creator);
     if (others.length === 0 || (type === "ONE_ON_ONE" && others.length !== 1)) throw new MixError("INVALID_REQUEST");
-    for (const m of others) if (friendshipTrust(creator, m) === null) throw new MixError("USER_NOT_FRIEND");
+    if (others.length + 1 > MAX_THREAD_MEMBERS) throw new MixError("MAX_MEMBER_COUNT_EXCEEDED");
+    // FORBIDDEN_NOT_FRIENDS is the SDK's string (ChatThreadMemberAdder).
+    for (const m of others) if (friendshipTrust(creator, m) === null) throw new MixError("FORBIDDEN_NOT_FRIENDS");
 
     return db.inTransaction(() => {
         if (type === "ONE_ON_ONE") {
@@ -82,12 +100,7 @@ export function createThread(creator: string, type: string, memberIds: unknown):
             }
         }
         const members = [creator, ...others];
-        let trusted = true;
-        for (let i = 0; i < members.length && trusted; i++) {
-            for (let j = i + 1; j < members.length; j++) {
-                if (friendshipTrust(members[i]!, members[j]!) !== true) { trusted = false; break; }
-            }
-        }
+        const trusted = allPairsTrusted(members);
         const threadId = Number(sql.query("INSERT INTO mix_chat_threads (type, is_trusted, created_by) VALUES (?, ?, ?)")
             .run(type, trusted ? 1 : 0, creator).lastInsertRowid);
         const add = sql.query("INSERT INTO mix_chat_members (thread_id, swid) VALUES (?, ?)");
@@ -139,10 +152,11 @@ export function stateFor(swid: string) {
 // Messages
 
 export type MessageType = "TEXT" | "STICKER" | "GAG";
-const NOTIFICATION_TYPE: Record<MessageType, string> = {
+const NOTIFICATION_TYPE: Record<string, string> = {
     TEXT: "AddChatThreadTextMessage",
     STICKER: "AddChatThreadStickerMessage",
     GAG: "AddChatThreadGagMessage",
+    MEMBER_LIST_CHANGED: "AddChatThreadMemberListChangedMessage",
 };
 const MAX_TEXT_UNITS = 1000;
 
@@ -161,7 +175,9 @@ export function toMessageDto(row: MessageRow) {
     return {
         Created: Date.parse(row.created_at),
         ChatMessageId: row.id,
-        ClientChatMessageId: row.client_message_id,
+        // System messages have no client id; they're stored with a negative
+        // one only to keep (sender, client_message_id) unique.
+        ClientChatMessageId: row.client_message_id < 0 ? 0 : row.client_message_id,
         ChatThreadId: row.thread_id,
         SenderUserId: row.sender_swid,
         SequenceNumber: row.seq,
@@ -223,11 +239,97 @@ export function addMessage(sender: string, threadId: unknown, clientMessageId: u
         }
 
         // 5. Store and fan out.
-        const seq = latestSeq(tid) + 1;
-        const id = Number(sql.query(`INSERT INTO mix_chat_messages (thread_id, seq, sender_swid, client_message_id, type, payload, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`).run(tid, seq, sender, cid, type, JSON.stringify(payload), new Date().toISOString()).lastInsertRowid);
-        const message = toMessageDto(sql.query("SELECT * FROM mix_chat_messages WHERE id = ?").get(id) as MessageRow);
-        const sent = notifyMany(currentMembers(tid), NOTIFICATION_TYPE[type], () => ({ Message: message }));
-        return sent.get(sender)!;
+        return storeMessage(sender, tid, cid, type, payload, currentMembers(tid)).get(sender)!;
     });
 }
+
+/**
+ * Inserts a message at the thread's next seq and sends its notification to
+ * `recipients`, each at their own next notification sequence. Call inside
+ * inTransaction.
+ */
+function storeMessage(sender: string, tid: number, cid: number, type: string, payload: object, recipients: string[]): Map<string, MixNotification> {
+    const seq = latestSeq(tid) + 1;
+    const id = Number(sql.query(`INSERT INTO mix_chat_messages (thread_id, seq, sender_swid, client_message_id, type, payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`).run(tid, seq, sender, cid, type, JSON.stringify(payload), new Date().toISOString()).lastInsertRowid);
+    const message = toMessageDto(sql.query("SELECT * FROM mix_chat_messages WHERE id = ?").get(id) as MessageRow);
+    return notifyMany(recipients, NOTIFICATION_TYPE[type]!, () => ({ Message: message }));
+}
+
+/** A MEMBER_LIST_CHANGED system message (MemberListChangedChatMessage). */
+function storeMemberListChanged(actor: string, tid: number, memberIds: string[], isAdded: boolean, recipients: string[]) {
+    const cid = -((sql.query("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM mix_chat_messages").get() as { n: number }).n);
+    return storeMessage(actor, tid, cid, "MEMBER_LIST_CHANGED", { MemberUserIds: memberIds, IsAdded: isAdded }, recipients);
+}
+
+// ---------------------------------------------------------------------------
+// Membership (group threads only; ChatThreadMemberAdder / GroupChatThread)
+
+function groupThread(threadId: unknown): ThreadRow & { created_by: string } {
+    if (!Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
+    const t = sql.query("SELECT id, type, is_trusted, official_account_id, created_by FROM mix_chat_threads WHERE id = ?").get(threadId as number) as (ThreadRow & { created_by: string }) | null;
+    if (!t) throw new MixError("NOT_FOUND");
+    if (t.type !== "GROUP") throw new MixError("INVALID_REQUEST");
+    return t;
+}
+
+/**
+ * Adds friends of the actor to a group. New members start at the current
+ * seq (they don't see older messages) and get AddChatThread first. Then
+ * everyone gets AddChatThreadMembership {Members: the added users} and a
+ * MEMBER_LIST_CHANGED message. If an added user isn't trusted with every
+ * member, a trusted group becomes untrusted, and the existing members get
+ * UpdateChatThreadTrustStatus last, so the actor's two reply notifications
+ * stay consecutive.
+ */
+export function addMembers(actor: string, threadId: unknown, userIds: unknown) {
+    const t = groupThread(threadId);
+    if (!Array.isArray(userIds) || userIds.length === 0 || !userIds.every((u) => typeof u === "string")) throw new MixError("INVALID_REQUEST");
+    return db.inTransaction(() => {
+        const existing = currentMembers(t.id);
+        if (!existing.includes(actor)) throw new MixError("USER_NOT_THREAD_MEMBER");
+        const added = [...new Set(userIds as string[])];
+        if (added.some((u) => existing.includes(u))) throw new MixError("USER_ALREADY_THREAD_MEMBER");
+        if (existing.length + added.length > MAX_THREAD_MEMBERS) throw new MixError("MAX_MEMBER_COUNT_EXCEEDED");
+        if (added.some((u) => friendshipTrust(actor, u) === null)) throw new MixError("FORBIDDEN_NOT_FRIENDS");
+
+        const latest = latestSeq(t.id);
+        const join = sql.query(`INSERT INTO mix_chat_members (thread_id, swid, joined_seq, last_seen_seq, history_cleared_seq)
+            VALUES (?1, ?2, ?3, ?3, ?3)
+            ON CONFLICT(thread_id, swid) DO UPDATE SET left_at = NULL, joined_seq = ?3, last_seen_seq = ?3, history_cleared_seq = ?3`);
+        for (const u of added) join.run(t.id, u, latest);
+
+        const everyone = currentMembers(t.id);
+        const lostTrust = t.is_trusted === 1 && !allPairsTrusted(everyone);
+        if (lostTrust) sql.query("UPDATE mix_chat_threads SET is_trusted = 0 WHERE id = ?").run(t.id);
+
+        const thread = threadDto(t.id);
+        notifyMany(added, "AddChatThread", () => ({ ChatThread: thread, WelcomingUserId: actor }));
+        const addedUsers = added.map((u) => mixUser(u, db.getPlayerBySwid(u)));
+        const membership = notifyMany(everyone, "AddChatThreadMembership", () => ({ ChatThreadId: t.id, Members: addedUsers, WelcomingUserId: actor }));
+        const message = storeMemberListChanged(actor, t.id, added, true, everyone);
+        if (lostTrust) notifyMany(existing, "UpdateChatThreadTrustStatus", () => ({ ChatThreadId: t.id, IsTrusted: false }));
+        return { MembershipNotification: membership.get(actor)!, ChatMessageNotification: message.get(actor)! };
+    });
+}
+
+/**
+ * Removes a member from a group. Anyone may leave; removing someone else
+ * takes the thread's creator. The removed user and the remaining members
+ * get RemoveChatThreadMembership and the MEMBER_LIST_CHANGED message, then
+ * the removed user's membership ends (left_at).
+ */
+export function removeMember(actor: string, threadId: unknown, userId: unknown) {
+    const t = groupThread(threadId);
+    if (typeof userId !== "string") throw new MixError("INVALID_REQUEST");
+    return db.inTransaction(() => {
+        const members = currentMembers(t.id);
+        if (!members.includes(actor) || !members.includes(userId)) throw new MixError("USER_NOT_THREAD_MEMBER");
+        if (userId !== actor && actor !== t.created_by) throw new MixError("USER_NOT_THREAD_MEMBER");
+        const membership = notifyMany(members, "RemoveChatThreadMembership", () => ({ ChatThreadId: t.id, MemberUserId: userId }));
+        const message = storeMemberListChanged(actor, t.id, [userId], false, members);
+        sql.query("UPDATE mix_chat_members SET left_at = ? WHERE thread_id = ? AND swid = ?").run(new Date().toISOString(), t.id, userId);
+        return { MembershipNotification: membership.get(actor)!, ChatMessageNotification: message.get(actor)! };
+    });
+}
+

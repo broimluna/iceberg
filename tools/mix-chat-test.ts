@@ -62,7 +62,9 @@ try {
 
   // Bad requests.
   const notFriends = await B!.call("PUT", "/chatThread", { ChatThreadType: "GROUP", MemberUserIds: ["{CHAT-A}", "{CHAT-C}"] });
-  check(notFriends.http === 400 && notFriends.body?.Status === "USER_NOT_FRIEND", `bob's group with carol (not a friend) -> ${notFriends.http} ${notFriends.body?.Status}`);
+  check(notFriends.http === 400 && notFriends.body?.Status === "FORBIDDEN_NOT_FRIENDS", `bob's group with carol (not a friend) -> ${notFriends.http} ${notFriends.body?.Status}`);
+  const tooBig = await A!.call("PUT", "/chatThread", { ChatThreadType: "GROUP", MemberUserIds: Array.from({ length: 20 }, (_, i) => `{FAKE-${i}}`) });
+  check(tooBig.http === 400 && tooBig.body?.Status === "MAX_MEMBER_COUNT_EXCEEDED", `a 21-person group -> ${tooBig.http} ${tooBig.body?.Status}`);
   const twoInOne = await A!.call("PUT", "/chatThread", { ChatThreadType: "ONE_ON_ONE", MemberUserIds: ["{CHAT-B}", "{CHAT-C}"] });
   check(twoInOne.http === 400 && twoInOne.body?.Status === "INVALID_REQUEST", `1:1 with two others -> ${twoInOne.http} ${twoInOne.body?.Status}`);
   const badType = await A!.call("PUT", "/chatThread", { ChatThreadType: "OFFICIAL_ACCOUNT", MemberUserIds: ["{CHAT-B}"] });
@@ -166,6 +168,59 @@ try {
   const st2 = await A!.state();
   const latest2 = pairs(st2.ChatThreadLatestMessageSequenceNumbers);
   check(latest2.get(t1.ChatThreadId) === 2 && latest2.get(t2.ChatThreadId) === 22, `/state latest seqs follow the messages (${JSON.stringify(st2.ChatThreadLatestMessageSequenceNumbers)})`);
+
+  // ---- Members (Task 13) ----
+  const mk = await A!.call("PUT", "/chatThread", { ChatThreadType: "GROUP", MemberUserIds: ["{CHAT-B}"] });
+  const g3 = mk.body.Notification.ChatThread;
+  check(g3.IsTrusted === true && A!.apply(mk.body.Notification, "AddChatThread"), "alice+bob group is trusted");
+  await B!.drain();
+
+  const addC = await A!.call("PUT", "/chatThreadMembership", { ChatThreadId: g3.ChatThreadId, AddedUserIds: ["{CHAT-C}"] });
+  const mn = addC.body?.MembershipNotification, cmn = addC.body?.ChatMessageNotification;
+  check(addC.http === 200 && addC.body?.Status === "OK" && mn?.ChatThreadId === g3.ChatThreadId && mn?.Members?.length === 1 && mn.Members[0].UserId === "{CHAT-C}" && mn.WelcomingUserId === "{CHAT-A}",
+    `alice adds carol -> ${addC.http} ${JSON.stringify(mn)?.slice(0, 160)}`);
+  const lm = cmn?.Message;
+  check(lm?.MessageType === "MEMBER_LIST_CHANGED" && lm?.IsAdded === true && JSON.stringify(lm?.MemberUserIds) === JSON.stringify(["{CHAT-C}"]) && lm?.SenderUserId === "{CHAT-A}" && lm?.SequenceNumber === 1,
+    `system message ${JSON.stringify(lm)}`);
+  check(!!mn && !!cmn && A!.apply(mn, "AddChatThreadMembership") && A!.apply(cmn, "AddChatThreadMemberListChangedMessage"), "alice's two copies are her next two notifications");
+  const cGot = (await C!.drain()).map((g) => g.type);
+  check(JSON.stringify(cGot) === JSON.stringify(["AddChatThread", "AddChatThreadMembership", "AddChatThreadMemberListChangedMessage"]), `carol drains thread, membership, message (${cGot})`);
+  const bGot2 = (await B!.drain()).map((g) => g.type);
+  check(JSON.stringify(bGot2) === JSON.stringify(["AddChatThreadMembership", "AddChatThreadMemberListChangedMessage", "UpdateChatThreadTrustStatus"]), `bob drains membership, message, trust drop (${bGot2})`);
+  const aTrust = (await A!.drain()).find((g) => g.type === "UpdateChatThreadTrustStatus")?.n;
+  check(aTrust?.ChatThreadId === g3.ChatThreadId && aTrust?.IsTrusted === false, "adding an untrusted friend makes the group untrusted for alice too");
+  const cState = await C!.state();
+  const cThread = cState.ChatThreads.find((t: any) => t.ChatThreadId === g3.ChatThreadId);
+  check(cThread?.IsTrusted === false && cThread?.Members?.length === 3, "carol's /state shows the 3-person untrusted group");
+
+  const again2 = await A!.call("PUT", "/chatThreadMembership", { ChatThreadId: g3.ChatThreadId, AddedUserIds: ["{CHAT-C}"] });
+  check(again2.http === 400 && again2.body?.Status === "USER_ALREADY_THREAD_MEMBER", `adding carol again -> ${again2.http} ${again2.body?.Status}`);
+  const bobAdds = await B!.call("PUT", "/chatThreadMembership", { ChatThreadId: t2.ChatThreadId, AddedUserIds: ["{CHAT-X}"] });
+  check(bobAdds.http === 400 && bobAdds.body?.Status === "FORBIDDEN_NOT_FRIENDS", `adding a non-friend -> ${bobAdds.http} ${bobAdds.body?.Status}`);
+  const to1on1 = await A!.call("PUT", "/chatThreadMembership", { ChatThreadId: t1.ChatThreadId, AddedUserIds: ["{CHAT-C}"] });
+  check(to1on1.http === 400 && to1on1.body?.Status === "INVALID_REQUEST", `adding to the 1:1 -> ${to1on1.http} ${to1on1.body?.Status}`);
+  const bobKicks = await B!.call("POST", "/chatThreadMembership/delete", { ChatThreadId: g3.ChatThreadId, RemovedUserId: "{CHAT-C}" });
+  check(bobKicks.http === 400 && bobKicks.body?.Status === "USER_NOT_THREAD_MEMBER", `bob (not the creator) removing carol -> ${bobKicks.http} ${bobKicks.body?.Status}`);
+
+  // Carol leaves.
+  const leave = await C!.call("POST", "/chatThreadMembership/delete", { ChatThreadId: g3.ChatThreadId, RemovedUserId: "{CHAT-C}" });
+  const rn = leave.body?.MembershipNotification, rcm = leave.body?.ChatMessageNotification;
+  check(leave.http === 200 && rn?.MemberUserId === "{CHAT-C}" && rcm?.Message?.IsAdded === false && C!.apply(rn, "RemoveChatThreadMembership") && C!.apply(rcm, "AddChatThreadMemberListChangedMessage"),
+    `carol leaves -> ${leave.http} ${JSON.stringify(rn)}`);
+  for (const [name, c] of [["alice", A!], ["bob", B!]] as const) {
+    const got = (await c.drain()).map((g) => g.type);
+    check(JSON.stringify(got) === JSON.stringify(["RemoveChatThreadMembership", "AddChatThreadMemberListChangedMessage"]), `${name} drains the removal and the system message (${got})`);
+  }
+  const carolSends = await send(C!, "text", g3.ChatThreadId, { Text: "still here?" });
+  check(carolSends.http === 400 && carolSends.body?.Status === "NOT_FOUND", `carol sending after leaving -> ${carolSends.http} ${carolSends.body?.Status}`);
+  check(!(await C!.state()).ChatThreads.some((t: any) => t.ChatThreadId === g3.ChatThreadId), "carol's /state no longer lists the group");
+  const leave1on1 = await A!.call("POST", "/chatThreadMembership/delete", { ChatThreadId: t1.ChatThreadId, RemovedUserId: "{CHAT-A}" });
+  check(leave1on1.http === 400 && leave1on1.body?.Status === "INVALID_REQUEST", `leaving a 1:1 -> ${leave1on1.http} ${leave1on1.body?.Status}`);
+
+  // The creator can remove someone else.
+  const kick = await A!.call("POST", "/chatThreadMembership/delete", { ChatThreadId: g3.ChatThreadId, RemovedUserId: "{CHAT-B}" });
+  check(kick.http === 200 && A!.apply(kick.body.MembershipNotification, "RemoveChatThreadMembership") && A!.apply(kick.body.ChatMessageNotification, "AddChatThreadMemberListChangedMessage"), `alice (creator) removes bob -> ${kick.http}`);
+  check((await B!.drain()).map((g) => g.type).join() === "RemoveChatThreadMembership,AddChatThreadMemberListChangedMessage", "bob is told he was removed");
 } finally {
   api.stop();
 }

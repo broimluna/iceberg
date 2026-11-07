@@ -4,7 +4,7 @@
 import express from "express";
 import { authenticateMix } from "./auth.ts";
 import { buildResponse } from "./common.ts";
-import { createThread, addMessage, type MessageType } from "../../services/mixChat.ts";
+import { createThread, addMessage, addMembers, removeMember, type MessageType } from "../../services/mixChat.ts";
 import { mixRoute } from "../../services/mixErrors.ts";
 
 const router = express.Router();
@@ -29,5 +29,18 @@ for (const [path, type] of [["textMessage", "TEXT"], ["stickerMessage", "STICKER
         buildResponse({ Notification: addMessage(req.mixUserId, req.body.ChatThreadId, req.body.ClientChatMessageId, type as MessageType, req.body) })
     ));
 }
+
+/**
+ * PUT /chatThreadMembership {ChatThreadId, AddedUserIds}
+ * POST /chatThreadMembership/delete {ChatThreadId, RemovedUserId}
+ * -> {Status, MembershipNotification, ChatMessageNotification}. The SDK
+ * dispatches both through the caller's queue, so they are consecutive.
+ */
+router.put('/chatThreadMembership', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse(addMembers(req.mixUserId, req.body.ChatThreadId, req.body.AddedUserIds))
+));
+router.post('/chatThreadMembership/delete', authenticateMix, (req, res) => mixRoute(res, () =>
+    buildResponse(removeMember(req.mixUserId, req.body.ChatThreadId, req.body.RemovedUserId))
+));
 
 export default router;

@@ -347,8 +347,8 @@ iceberg's current state.
 |---|---|---|---|
 | PUT | `/chatThread` | AddChatThreadRequest | ✅ (section 7) |
 | POST | `/chatThread` | GetChatThreadMessagesRequest | ❌ |
-| PUT | `/chatThreadMembership` | AddChatThreadMembershipRequest | ❌ |
-| POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ❌ |
+| PUT | `/chatThreadMembership` | AddChatThreadMembershipRequest | ✅ (section 7) |
+| POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ✅ (section 7) |
 | POST | `/chatThreadMembership/history/delete` | ClearMemberChatHistoryRequest | ❌ |
 | POST | `/chatThreadMembership/unreadMessageCount/delete` | ClearUnreadMessageCountRequest | ❌ |
 | PUT | `/chatThread/textMessage` | AddChatThreadTextMessageRequest | ✅ (section 7) |
@@ -715,10 +715,12 @@ All message types extend `BaseChatMessage`:
   `GROUP` can be created: `OFFICIAL_ACCOUNT` channels belong to the
   server.
 - Every other member must be the creator's friend, or
-  `400 USER_NOT_FRIEND`. **The client has no specific creation failure
-  statuses.** `ChatThreadCreator` sends any error to the same failure
-  callback, so the status string is iceberg's choice (the same holds for
-  `INVALID_REQUEST`).
+  `400 FORBIDDEN_NOT_FRIENDS`. A thread holds at most **20 people**,
+  counting the creator, or `400 MAX_MEMBER_COUNT_EXCEEDED`.
+  `ChatThreadCreator` itself sends every error to one failure callback,
+  but `ChatThreadMemberAdder` names these exact strings (below), so
+  iceberg uses them for creation too. The 20 comes from the UI's
+  `FriendSelectorPanel.MAX_GROUP_CHAT` (`RemoteMembers + 1`).
 - Creating a 1:1 that already exists returns the existing thread, in a
   fresh `AddChatThread` for the creator only. The other member already
   has it.
@@ -763,6 +765,47 @@ All message types extend `BaseChatMessage`:
 - `Created` is the message's stored timestamp (ISO-8601 with
   milliseconds), so history reads return the same value as the live
   notification.
+
+### Adding and removing members
+
+`PUT /chatThreadMembership {ChatThreadId, AddedUserIds}` and
+`POST /chatThreadMembership/delete {ChatThreadId, RemovedUserId}` both
+reply with `{Status, MembershipNotification, ChatMessageNotification}`.
+The SDK validates and dispatches both through the caller's queue, so
+they are the caller's next two notifications, in that order.
+
+- **Statuses** (`ChatThreadMemberAdder` maps each one to its own result
+  type): `NOT_FOUND`, `USER_NOT_THREAD_MEMBER` (the actor isn't in the
+  thread), `USER_ALREADY_THREAD_MEMBER`, `FORBIDDEN_NOT_FRIENDS` (each
+  added user must be the actor's friend) and `MAX_MEMBER_COUNT_EXCEEDED`.
+  `ChatThreadMemberRemover` has no specific statuses.
+- Only `GROUP` threads change membership. Only `GroupChatThread`
+  exposes removal in the SDK, so iceberg answers `INVALID_REQUEST` for a
+  1:1.
+- **Adding:**
+  - New members get `AddChatThread` first.
+  - Then every member, new ones included, gets
+    `AddChatThreadMembership {ChatThreadId, Members, WelcomingUserId}`.
+    `Members` lists only the **added** users: `HandleChatMembersAdded`
+    inserts each one into the thread.
+  - Then everyone gets a `MEMBER_LIST_CHANGED` message
+    (`{MemberUserIds, IsAdded: true}`, sent by the actor).
+  - New members start at the thread's current seq, so they see the
+    system message but not older history.
+- **Trust drops when needed.** If an added user isn't a trusted friend of
+  every member, a trusted group becomes untrusted, and the existing
+  members get `UpdateChatThreadTrustStatus {ChatThreadId, IsTrusted:
+  false}`. It's sent last, so the actor's two reply notifications stay
+  consecutive. (The plan left this out, but trust is what unlocks free
+  text, so a group must never keep trust it no longer has.)
+- **Removing:** anyone may leave. Removing someone else takes the
+  thread's creator (`USER_NOT_THREAD_MEMBER` otherwise, an iceberg
+  choice). The removed user and the remaining members get
+  `RemoveChatThreadMembership {ChatThreadId, MemberUserId}` and the
+  `MEMBER_LIST_CHANGED` message (`IsAdded: false`). Then the membership
+  ends, and the user's `/state` and sends stop seeing the thread.
+- System messages have no client message id, so they show
+  `ClientChatMessageId: 0`.
 
 ### Chat in `/state`
 
