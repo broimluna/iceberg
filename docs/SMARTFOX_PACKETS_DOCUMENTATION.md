@@ -126,7 +126,7 @@ key + SFS2X value type via `[SocketUserVar(key, type)]`:
 | `proto` | `PROTOTYPE` | STRING | `PrototypeSetState(object)` |
 | `con` | `EQUIPPED_OBJECT` | OBJECT | `EquipConsumable(string type)` / `DequipeHeldObject()` (sic - typo in client) |
 | `bubble` | `AIR_BUBBLE` | OBJECT | `SetAirBubble(float, int)` / `RemoveAirBubble()` |
-| `con_prop` | `EQUIPPED_OBJECT_PROPERTIES` | STRING | (declared; no direct setter call site found - may be set alongside `con`) |
+| `con_prop` | `EQUIPPED_OBJECT_PROPERTIES` | STRING | Server-set JSON `{"actionCount": n}`. With `con` it makes a `PlayerHeldItem` (a held tray or an item taken from one): `con` and `con_prop` changed together = item added, `con_prop` alone = item changed, both NULL = item removed. |
 | `sess` | `SESSION_ID` | STRING | Not set by this client code - read-only here (`getSessionId(User)` reads it back via `user.GetVariable(...)`); almost certainly set server-side per-connection |
 | `loc` | `LOCOMOTION_STATE` | INT | `SetLocomotionState(LocomotionState)` |
 | `colour` | `PROFILE` | STRING | `SetProfile(SignedResponse<Profile>)` - note the wire key is `colour` despite the C# name being generic `PROFILE` |
@@ -217,7 +217,7 @@ signature can be any string for a private server).
 | `con.reuse` | `REUSE_CONSUMABLE` | OUT | `type` = string, `prop` = JSON properties object. Sent only for `QuestOnly` consumables when not on the prototype quest; nothing is spent. |
 | `con.reuse_error` | `REUSE_FAILED` | IN | `type` = string, `prop` -> `LitJson`-parsed properties. |
 | `con.mmoitemdeployed` | `CONSUMABLE_MMO_DEPLOYED` | IN | `ownerId` (user id) + `senderId` (the MMO item id, not a user) -> `SessionId`/`ExperienceId`. Both keys required or the event is dropped. Must arrive before the owner's `con` user variable is cleared, so the owner's prop isn't stored on dequip. |
-| `con.partial` | `SET_CONSUMABLE_PARTIAL_COUNT` | IN | `data` -> JSON `SignedResponse<UsedConsumable>`. |
+| `con.partial` | `SET_CONSUMABLE_PARTIAL_COUNT` | IN | `data` -> JSON `SignedResponse<UsedConsumable>` (`type`, `partialCount`). Sent when a player puts away a tray that still has items; the client stores it with `POST /consumable/v1/partial` and sends it back as `partialCount` in the next `con.use`. |
 
 ### Rewards
 

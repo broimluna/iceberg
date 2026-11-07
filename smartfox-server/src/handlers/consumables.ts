@@ -1,6 +1,7 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString } from "../wire-helpers.ts";
 import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
+import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
 import type { HandlerContext } from "./context.ts";
@@ -19,8 +20,9 @@ const VARIABLE_TYPE_STRING = 4;
 // RewardSource.WORLD_OBJECT.
 const REWARD_SOURCE_WORLD_OBJECT = 1;
 
-// Client ObjectType.SERVER and LocomotionAction.Interact.
+// Client ObjectType.SERVER / PLAYER and LocomotionAction.Interact.
 const OBJECT_TYPE_SERVER = 1;
+const OBJECT_TYPE_PLAYER = 2;
 const LOCOMOTION_ACTION_INTERACT = 2;
 
 // Same single room id as login.ts.
@@ -79,6 +81,7 @@ function broadcastDequip(ctx: HandlerContext): void {
   sendToRoom(ctx.session.roomName, encodePacket(0, 12, params));
   ctx.session.equippedItemName = undefined;
   ctx.session.equippedConsumable = undefined;
+  ctx.session.heldActionCount = undefined;
 }
 
 // ==================== MMO item encoding ====================
@@ -248,9 +251,11 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
     case "world":
       deployWorldConsumable(ctx, type, def, partialCount, propJson);
       break;
+    case "playerHeld":
+      usePlayerHeldConsumable(ctx, type, def, partialCount);
+      break;
     default:
-      // TODO: playerHeld (con_prop actionCount, sharing, con.partial) and
-      // partyGameLobby (party games).
+      // TODO: partyGameLobby, with party games.
       log(`${ctx.peer} - ${cmd}: ${type} is a ${def.experience} consumable, not implemented yet`);
   }
 }
@@ -292,23 +297,144 @@ export function handleConsumableReuse(innerParams: SFSObjectData, ctx: HandlerCo
   useConsumable(ctx, "con.reuse", type, 0, propJson);
 }
 
-// Called from l.a. Interacting with an actioned item (a pinata hit)
-// decrements its actioncount. The item still lasts its full ttl.
-// "o" is a JSON ActionedObject {type, id, tag}.
-export function handleConsumableInteraction(action: number, objectJson: string | undefined): void {
+// Called from l.a with "o", a JSON ActionedObject {type, id, tag}. Only
+// Interact actions matter: on a world item (a pinata hit) or on a player
+// (taking from a tray, or eating what you took).
+export function handleConsumableInteraction(ctx: HandlerContext, action: number, objectJson: string | undefined): void {
   if (action !== LOCOMOTION_ACTION_INTERACT || !objectJson) return;
-  let itemId: number;
+  let obj: { type?: unknown; id?: unknown };
   try {
-    const obj = JSON.parse(objectJson);
-    if (obj?.type !== OBJECT_TYPE_SERVER && obj?.type !== "SERVER") return;
-    itemId = Number(obj.id);
+    obj = JSON.parse(objectJson);
   } catch {
     return;
   }
+  if (typeof obj?.id !== "string") return;
+  if (obj.type === OBJECT_TYPE_PLAYER || obj.type === "PLAYER") {
+    handlePlayerInteraction(ctx, obj.id);
+  } else if (obj.type === OBJECT_TYPE_SERVER || obj.type === "SERVER") {
+    handleWorldItemInteraction(Number(obj.id));
+  }
+}
+
+function handleWorldItemInteraction(itemId: number): void {
   const item = liveItems.get(itemId);
   if (!item || item.actionCount === undefined || item.actionCount <= 0) return;
   item.actionCount -= 1;
   broadcastItemVariable(item, intVar("actioncount", item.actionCount));
+}
+
+// ==================== Held and shared consumables ====================
+//
+// A held consumable is a PLAYER-parented item built from two user
+// variables: "con" ({type: "consum", name}) and "con_prop" (JSON
+// {"actionCount": n}). Both must change in the same update for the client
+// to add the item; "con_prop" alone is an item change, and both NULL
+// removes it. Every playerHeld consumable is a shareable tray: other
+// players take its `recipient` consumable (a server-added item) by
+// interacting with the holder, and eat it by interacting with themselves.
+
+// Time a player must wait between takes, matching the client's
+// per-recipient cooldown on the tray.
+const TAKE_COOLDOWN_MS = 2000;
+// How long an eaten item stays (at actionCount 0) before it's removed, so
+// every client gets to play the eat animation.
+const EATEN_ITEM_REMOVE_DELAY_MS = 4000;
+
+function conVar(name: string): SFSArrayWriter {
+  const value = new SFSObjectWriter().putUtfString("type", "consum").putUtfString("name", name);
+  return new SFSArrayWriter().putUtfString("con").putByte(5).putSFSObject(value).putBool(false);
+}
+function conPropVar(actionCount: number): SFSArrayWriter {
+  return new SFSArrayWriter().putUtfString("con_prop").putByte(VARIABLE_TYPE_STRING).putUtfString(`{"actionCount":${actionCount}}`).putBool(false);
+}
+function nullUserVar(name: string): SFSArrayWriter {
+  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_NULL).putNull().putBool(false);
+}
+
+function broadcastUserVars(session: Session, vars: SFSArrayWriter[]): void {
+  const vl = new SFSArrayWriter();
+  for (const v of vars) vl.putSFSArray(v);
+  sendToRoom(session.roomName, encodePacket(0, 12, new SFSObjectWriter().putInt("u", session.userId).putSFSArray("vl", vl)));
+}
+
+function setHeldItem(session: Session, name: string, actionCount: number): void {
+  session.equippedConsumable = name;
+  session.heldActionCount = actionCount;
+  broadcastUserVars(session, [conVar(name), conPropVar(actionCount)]);
+}
+
+function setHeldActionCount(session: Session, actionCount: number): void {
+  session.heldActionCount = actionCount;
+  broadcastUserVars(session, [conPropVar(actionCount)]);
+}
+
+function removeHeldItem(session: Session): void {
+  session.equippedConsumable = undefined;
+  session.heldActionCount = undefined;
+  broadcastUserVars(session, [nullUserVar("con"), nullUserVar("con_prop")]);
+}
+
+// A tray (con.use / con.reuse). partialCount is what was left the last
+// time this tray was put away.
+function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: ConsumableDef, partialCount: number): void {
+  const count = partialCount > 0 ? partialCount : def.totalItemQuantity ?? 1;
+  setHeldItem(ctx.session, type, count);
+  log(`${ctx.peer} - ${type} held out with ${count} to share`);
+}
+
+function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): void {
+  const { session } = ctx;
+  // Interacting with yourself while holding a taken item eats it.
+  if (targetSessionId === session.playerSessionId) {
+    const name = session.equippedConsumable;
+    if (!name || !CONSUMABLES[name]?.serverAdded || !session.heldActionCount) return;
+    setHeldActionCount(session, 0);
+    setTimeout(() => {
+      if (session.equippedConsumable === name && session.heldActionCount === 0) removeHeldItem(session);
+    }, EATEN_ITEM_REMOVE_DELAY_MS);
+    log(`${ctx.peer} - ate ${name}`);
+    return;
+  }
+  const holder = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId)?.session;
+  const trayName = holder?.equippedConsumable;
+  const tray = trayName ? CONSUMABLES[trayName] : undefined;
+  if (!holder || !tray || tray.experience !== "playerHeld" || tray.serverAdded || !holder.heldActionCount) return;
+  // Hands must be free, and the recipient type must be a real prop or the
+  // client throws on the unknown prop.
+  if (session.equippedConsumable || !tray.recipient || !CONSUMABLES[tray.recipient]?.serverAdded) return;
+  const now = Date.now();
+  if (now - session.lastTakeAt < TAKE_COOLDOWN_MS) return;
+  session.lastTakeAt = now;
+
+  const left = holder.heldActionCount - 1;
+  if (left > 0) setHeldActionCount(holder, left);
+  else {
+    // The tray experience closes itself when it sees 0, then the item goes.
+    setHeldActionCount(holder, 0);
+    removeHeldItem(holder);
+  }
+  setHeldItem(session, tray.recipient, 1);
+  log(`${ctx.peer} - took ${tray.recipient} from ${holder.userName}'s ${trayName} (${left} left)`);
+}
+
+// The client changed its own "con" variable (equip, or put away). Putting
+// away a tray with items left sends "con.partial" {data: JSON
+// SignedResponse<UsedConsumable> {type, partialCount}}, which the client
+// stores through POST /consumable/v1/partial; the server then clears
+// "con_prop" so new arrivals don't see a stale item.
+export function handleClientConChanged(ctx: HandlerContext, newConsumable: string | undefined): void {
+  const { session } = ctx;
+  const previous = session.equippedConsumable;
+  const previousCount = session.heldActionCount;
+  session.equippedConsumable = newConsumable;
+  if (previousCount === undefined || newConsumable === previous) return;
+  session.heldActionCount = undefined;
+  if (previous && !CONSUMABLES[previous]?.serverAdded && previousCount > 0) {
+    const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: previousCount } };
+    ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));
+    log(`${ctx.peer} <- con.partial (${previous}, ${previousCount} left)`);
+  }
+  broadcastUserVars(session, [nullUserVar("con_prop")]);
 }
 
 // "con.set" - client -> server only, no response.

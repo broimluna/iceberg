@@ -1,5 +1,6 @@
 import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData, type SFSValue } from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
+import { handleClientConChanged } from "../consumables.ts";
 import type { HandlerContext } from "../context.ts";
 
 // RequestType.SetUserVariables = 12. The request carries only "vl"; the
@@ -9,11 +10,13 @@ import type { HandlerContext } from "../context.ts";
 export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContext): void {
   const vl = params["vl"];
   if (vl?.type === SFSDataType.SFS_ARRAY) {
-    trackEquippedConsumable(vl.value, ctx);
     const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", vl));
     ctx.send(packet);
     for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
     console.log(`[${new Date().toISOString()}] ${ctx.peer} <- set user variables broadcast (u=${ctx.session.userId})`);
+    // After the echo, so any follow-up (con.partial, clearing con_prop)
+    // arrives after the client's own change.
+    trackEquippedConsumable(vl.value, ctx);
   } else {
     console.log(`[${new Date().toISOString()}] ${ctx.peer} - SetUserVariables with no "vl" array, not responding`);
   }
@@ -27,13 +30,14 @@ function trackEquippedConsumable(vars: SFSValue[], ctx: HandlerContext): void {
     if (v.type !== SFSDataType.SFS_ARRAY) continue;
     const [name, , value] = v.value;
     if (name?.type !== SFSDataType.UTF_STRING || name.value !== "con") continue;
+    let consumable: string | undefined;
     if (value?.type === SFSDataType.SFS_OBJECT) {
       const type = value.value["type"];
       const itemName = value.value["name"];
-      const isConsumable = type?.type === SFSDataType.UTF_STRING && type.value === "consum";
-      ctx.session.equippedConsumable = isConsumable && itemName?.type === SFSDataType.UTF_STRING ? itemName.value : undefined;
-    } else {
-      ctx.session.equippedConsumable = undefined;
+      if (type?.type === SFSDataType.UTF_STRING && type.value === "consum" && itemName?.type === SFSDataType.UTF_STRING) {
+        consumable = itemName.value;
+      }
     }
+    handleClientConChanged(ctx, consumable);
   }
 }

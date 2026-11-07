@@ -29,6 +29,10 @@ export function buildUserVariablesArray(session: Session): SFSArrayWriter {
   if (session.equippedConsumable) {
     const con = new SFSObjectWriter().putUtfString("type", "consum").putUtfString("name", session.equippedConsumable);
     varList.putSFSArray(new SFSArrayWriter().putUtfString("con").putByte(VARIABLE_TYPE_OBJECT).putSFSObject(con).putBool(false));
+    // A held tray or taken item ("con" + "con_prop" makes a PlayerHeldItem).
+    if (session.heldActionCount !== undefined) {
+      varList.putSFSArray(stringVar("con_prop", `{"actionCount":${session.heldActionCount}}`));
+    }
   }
   return varList;
 }

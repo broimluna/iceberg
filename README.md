@@ -55,13 +55,13 @@ variables.
 
 **Implemented, not yet checked with the real client:**
 - Using consumables where other players can see it (`con.use` /
-  `con.reuse`): one-shot props, and party blasters and pinatas as MMO
-  items with a countdown and coin rewards for nearby players.
+  `con.reuse`): one-shot props, party blasters and pinatas as MMO items
+  with a countdown and coin rewards for nearby players, and trays that
+  other players can take from.
 - Igloo update broadcasts (`room.igloo_updated`) and room transient data
   (`zone.transfer`), which carries a held consumable into the next room.
 
 **Not done yet:**
-- Held and shareable consumables (trays, glowstick packs).
 - Daily challenges and task progress (`task.c` / `task.r`).
 - Party games (Dance Battle, Find Four, Fish Bucket, Scavenger Hunt, Tube
   Race).

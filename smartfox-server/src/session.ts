@@ -27,6 +27,11 @@ export class Session {
   // Consumable the client equipped through its own "con" user variable
   // ({type: "consum", name}). Carried across rooms by transient-data.ts.
   equippedConsumable: string | undefined;
+  // actionCount in the "con_prop" variable, set while holding a tray or an
+  // item taken from one.
+  heldActionCount: number | undefined;
+  // When this player last took an item from someone's tray (ms).
+  lastTakeAt = 0;
 
   // See sendStarterRewards in handlers/quest.ts.
   starterRewardsSent = false;

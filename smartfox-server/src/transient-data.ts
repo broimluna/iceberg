@@ -6,8 +6,8 @@
 // per SWID and restores from that instead.
 //
 // TransientData fields: equippedConsumable, equippedConsumableProperties,
-// questCurrentObjectiveData, questObjectiveState. Only the equipped
-// consumable is tracked so far.
+// questCurrentObjectiveData, questObjectiveState. The quest fields aren't
+// tracked yet.
 
 import { SFSObjectWriter, encodePacket } from "./sfs-wire.ts";
 import type { Session } from "./session.ts";
@@ -15,6 +15,8 @@ import type { HandlerContext } from "./handlers/context.ts";
 
 interface TransientData {
   equippedConsumable?: string;
+  // The "con_prop" JSON of a held tray or taken item, e.g. {"actionCount":3}.
+  equippedConsumableProperties?: string;
 }
 
 // A room change reconnects within seconds; anything older is stale.
@@ -24,6 +26,9 @@ const saved = new Map<string, { data: TransientData; savedAt: number }>();
 function collect(session: Session): TransientData {
   const data: TransientData = {};
   if (session.equippedConsumable) data.equippedConsumable = session.equippedConsumable;
+  if (session.equippedConsumable && session.heldActionCount !== undefined) {
+    data.equippedConsumableProperties = JSON.stringify({ actionCount: session.heldActionCount });
+  }
   return data;
 }
 
@@ -45,4 +50,11 @@ export function restoreTransientData(session: Session): void {
   saved.delete(session.swid);
   if (!entry || Date.now() - entry.savedAt > TTL_MS) return;
   session.equippedConsumable = entry.data.equippedConsumable;
+  try {
+    const props = entry.data.equippedConsumableProperties;
+    const count = props ? JSON.parse(props)?.actionCount : undefined;
+    if (session.equippedConsumable && typeof count === "number") session.heldActionCount = count;
+  } catch {
+    // Written by collect(), always valid.
+  }
 }
