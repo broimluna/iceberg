@@ -27,6 +27,7 @@ import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
+import { releaseRoomIfEmpty } from "./world-objects.ts";
 
 // Per connection: detect the transport (raw BitSwarm or WebSocket) and the
 // protocol (SFS2X or SFS3), frame packets, and dispatch them to system
@@ -193,6 +194,8 @@ const connectionHandler = (socket: net.Socket) => {
     if (session.playerSessionId) void reportSessionEnded(session.playerSessionId);
     // Remove the avatar for everyone else in the room.
     broadcastUserLeftRoom(session.roomName, session);
+    // Last one out stops the room's geyser/light timers.
+    releaseRoomIfEmpty(session.roomName);
     console.log(`[${new Date().toISOString()}] ${peer} closed (error=${hadError})`);
   });
 

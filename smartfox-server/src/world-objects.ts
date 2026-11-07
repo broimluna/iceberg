@@ -16,7 +16,8 @@
 // positions are from game data, the rest are placeholders. Rooms are
 // matched by substring, so "Alpine:Town" falls under "Town".
 //
-// State is tracked per room, so several rooms can run at once.
+// State is tracked per room, so several rooms can run at once. A room's
+// timers stop when its last player leaves (releaseRoomIfEmpty).
 
 import { SFSObjectWriter, SFSArrayWriter, encodePacket } from "./sfs-wire.ts";
 import { getByRoom } from "./session-registry.ts";
@@ -184,6 +185,7 @@ function broadcastItemStateChange(roomName: string, item: LiveItem): void {
 
 function scheduleIndividualTransition(roomName: string, state: RoomState, item: LiveItem, delaySeconds: number): void {
   const timer = setTimeout(() => {
+    state.timers.delete(timer);
     item.state = item.state === STATE_ACTIVE ? STATE_INACTIVE : STATE_ACTIVE;
     broadcastItemStateChange(roomName, item);
     scheduleIndividualTransition(roomName, state, item, item.state === STATE_ACTIVE ? item.activeSeconds : item.inactiveSeconds);
@@ -247,7 +249,9 @@ function createGroup(roomName: string, state: RoomState, group: GroupDef): void 
   let shuffled = group.selectionBehaviour === "nonRepeatingRandom" ? shuffle(order) : order;
   const indexRef = { i: -1 };
 
+  let timer: NodeJS.Timeout | undefined;
   const cycleNext = () => {
+    if (timer) state.timers.delete(timer);
     const currentPath = state.groupActive.get(group.groupId);
     if (currentPath) {
       const current = state.items.get(currentPath);
@@ -261,10 +265,31 @@ function createGroup(roomName: string, state: RoomState, group: GroupDef): void 
     state.groupActive.set(group.groupId, next.path);
     broadcastItemStateChange(roomName, next);
     const durationSeconds = next.activeSeconds > 0 ? next.activeSeconds : group.cycleTimeSeconds;
-    const timer = setTimeout(cycleNext, durationSeconds * 1000);
+    timer = setTimeout(cycleNext, durationSeconds * 1000);
     state.timers.add(timer);
   };
   cycleNext();
+}
+
+// Stops a room's timers and forgets its objects once nobody is in it.
+// Rooms are per world, language, zone, client version and day, so without
+// this every room ever visited kept its timers running forever. The next
+// player to join gets fresh objects; clients sync from statetimestamp.
+export function releaseRoomIfEmpty(roomName: string): void {
+  const state = rooms.get(roomName);
+  if (!state || getByRoom(roomName).length > 0) return;
+  for (const timer of state.timers) clearTimeout(timer);
+  rooms.delete(roomName);
+  if (state.items.size > 0) {
+    console.log(`[${new Date().toISOString()}] world objects released for empty room "${roomName}"`);
+  }
+}
+
+// Live room and timer counts, for tests and diagnostics.
+export function worldObjectStats(): { rooms: number; timers: number } {
+  let timers = 0;
+  for (const state of rooms.values()) timers += state.timers.size;
+  return { rooms: rooms.size, timers };
 }
 
 // Creates a room's objects and timers once, when the first player joins.
