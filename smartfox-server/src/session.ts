@@ -24,6 +24,10 @@ export class Session {
   // Name of the last equipped item, for validate.state.
   equippedItemName: string | undefined;
 
+  // Consumable the client equipped through its own "con" user variable
+  // ({type: "consum", name}). Carried across rooms by transient-data.ts.
+  equippedConsumable: string | undefined;
+
   // See sendStarterRewards in handlers/quest.ts.
   starterRewardsSent = false;
 

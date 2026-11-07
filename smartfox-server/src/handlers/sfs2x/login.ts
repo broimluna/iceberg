@@ -6,6 +6,7 @@ import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
 import { sendConsumableItemsSnapshot } from "../consumables.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
 import { buildUserVariablesArray } from "../../user-variables.ts";
+import { restoreTransientData } from "../../transient-data.ts";
 import { buildProximityUserEntry, sendExistingOccupantsToJoiner, broadcastNewJoinerToRoom } from "../proximity.ts";
 import type { HandlerContext } from "../context.ts";
 
@@ -43,6 +44,9 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     session.outfitJson = extractRawJsonValue(joinRoomDataStr, "outfit");
   }
   session.roomName = roomName;
+  // The client also sends p.transientData, but that copy is unsigned; the
+  // server restores its own.
+  restoreTransientData(session);
 
   // The room array must have exactly 14 elements: that size is how the
   // client tells an MMORoom from a plain room.

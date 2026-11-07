@@ -78,6 +78,7 @@ function broadcastDequip(ctx: HandlerContext): void {
   const params = new SFSObjectWriter().putInt("u", ctx.session.userId).putSFSArray("vl", new SFSArrayWriter().putSFSArray(conEntry));
   sendToRoom(ctx.session.roomName, encodePacket(0, 12, params));
   ctx.session.equippedItemName = undefined;
+  ctx.session.equippedConsumable = undefined;
 }
 
 // ==================== MMO item encoding ====================

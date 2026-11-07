@@ -233,10 +233,10 @@ signature can be any string for a private server).
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `room.igloo_updated` | `IGLOO_UPDATED` | BOTH | **Asymmetric keys, not a typo**: OUT uses `igloo_data` (JSON `SignedResponse<IglooData>`, sent `asText: true`); IN uses a *different* key, `igloo_id` (plain string) - the client sends full data but only receives an ID to react to (presumably re-fetching details via the Gameplay API's igloo endpoints, not over SFS2X). |
+| `room.igloo_updated` | `IGLOO_UPDATED` | BOTH | **Asymmetric keys**: OUT uses `igloo_data` (JSON `SignedResponse<IglooData>`, sent `asText: true`) after the owner saves through the WebAPI. IN uses `igloo_id` (plain string), which the client passes to `POST /igloo/v1/iglooId/layout/active` before reloading the igloo scene. The igloo id is the owner's SWID (the igloo ZoneId's `instanceId`). Only other players in the igloo need the IN packet. |
 | `room.force_leave` | `FORCE_LEAVE` | IN | `zone_id` -> JSON-deserialized `ZoneId`. Server-forced room eviction. |
 | `zone.logout` | `LEAVE_ROOM` | OUT | No payload - bare notification before leaving. |
-| `zone.transfer` | `ROOM_TRANSIENT_DATA` | IN | `d` -> JSON `SignedResponse<TransientData>`, stored as `mt.LastRoomTransientData`. No confirmed OUT call site - looks purely server-pushed. |
+| `zone.transfer` | `ROOM_TRANSIENT_DATA` | IN | `d` -> JSON `SignedResponse<TransientData>` (`equippedConsumable`, `equippedConsumableProperties`, `questCurrentObjectiveData`, `questObjectiveState`), stored as `mt.LastRoomTransientData`. Server-pushed when the player leaves a room; the client sends it back as `transientData` (UTF string) in the next Login request's params and clears it once that room join completes or fails. |
 | `zone.player_location` | `GET_PLAYER_LOCATION` | BOTH | OUT: `swid` = the target player's SWID (string) - a *lookup by SWID*, not a broadcast. IN: `pos` -> a Vec3 (`deserializeVec3`), no session/SWID echoed back in the payload itself - correlate by request order, not a response ID. |
 | `zone.player_notfound` | `PLAYER_NOT_FOUND` | IN | No payload - error response to the above when the SWID lookup misses. |
 

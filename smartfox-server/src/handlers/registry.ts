@@ -11,6 +11,7 @@ import { handleValidateState } from "./validation.ts";
 import { handleMembershipRefresh } from "./membership.ts";
 import { handlePlayerLocation } from "./player-location.ts";
 import { handlePickup } from "./pickup.ts";
+import { handleIglooUpdated } from "./igloo.ts";
 import { handleConsumableSet, handleConsumableUse, handleConsumableReuse } from "./consumables.ts";
 
 export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext) => void;
@@ -40,4 +41,5 @@ export const extensionHandlers: Record<string, ExtensionHandler> = {
   "con.use": handleConsumableUse,
   "con.reuse": handleConsumableReuse,
   "reward.broadcast": handleRewardBroadcast,
+  "room.igloo_updated": handleIglooUpdated,
 };
