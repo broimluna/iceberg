@@ -75,8 +75,12 @@ router.put('/session/user', authenticateMix, (req, res) => {
 router.post('/session/user/delete', authenticateMix, (req, res) => {
     const { UserId } = req.body;
     
-    // Clear all Mix data for user from database
-    db.clearAllMixDataForUser(UserId);
+    // This is the SDK's logout: end the session and go offline. It must
+    // not touch the user's friendships, invitations, alerts or pending
+    // notifications; it used to delete them all, so every logout (CPI or
+    // Mix) erased that player's half of their friends list.
+    db.deleteMixSession(UserId);
+    db.deleteMixPresenceState(UserId);
     
     res.json(buildResponse());
 });

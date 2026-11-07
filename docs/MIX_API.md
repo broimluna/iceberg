@@ -478,6 +478,30 @@ reproduces the old behavior with an SDK-faithful client, and
 `tools/mix-friends-test.ts` had been written to the bug (polling with
 `latest`) and now polls with `latest + 1` like the SDK.
 
+### ⚠️ Finding (fixed 2026-11-07): logout deleted the user's friends
+
+`POST /session/user/delete` is the SDK's **logout**. CPI calls it too.
+iceberg answered it with `clearAllMixDataForUser()`, which deleted the
+caller's rows in:
+
+- `mix_friendships`
+- `mix_friendship_invitations`
+- `mix_alerts`
+- `mix_pending_notifications`
+
+So every logout erased that player's half of each friendship and left
+the friend's half dangling (one-sided). It was found live when a Mix
+client crash-logout emptied `tboskk`'s friends list.
+
+Logout now only deletes the Mix session and the presence state. Data
+damaged before the fix can be found with:
+
+```sql
+SELECT f.swid, f.friend_user_id FROM mix_friendships f
+WHERE NOT EXISTS (SELECT 1 FROM mix_friendships r
+                  WHERE r.swid = f.friend_user_id AND r.friend_user_id = f.swid);
+```
+
 ### Community modifications in the recreation
 
 The recreation's `NotificationPoller.HandleGetNotificationsResponse`

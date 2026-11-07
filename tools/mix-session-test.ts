@@ -29,6 +29,21 @@ try {
   let got: { type: string; n: any }[] = [];
   try { got = await B.drain(); } catch (e) { check(false, `bob drain: ${(e as Error).message}`); }
   check(got.length === 1 && got[0].type === "AddFriendshipInvitation", `bob drains one AddFriendshipInvitation (${got.map((g) => g.type).join(",") || "none"})`);
+
+  // Logging out (POST /session/user/delete, the SDK's logout) ends the
+  // session only. It used to delete the user's friendships, invitations
+  // and alerts, so every logout erased that player's half of their friends.
+  const inviteId = got[0]?.n?.Invitation?.FriendshipInvitationId;
+  const acc = await B.call("PUT", "/friendship", { InvitationId: inviteId, IsTrusted: false });
+  check(acc.http === 200 && acc.body?.Status === "OK", `bob accepts -> ${acc.http} ${acc.body?.Status}`);
+  const out = await A.call("POST", "/session/user/delete");
+  check(out.http === 200, `alice logs out -> ${out.http}`);
+  const A2 = new MixClient(api.base);
+  await A2.login("alice", "pw-alice"); await A2.startSession();
+  const after = await A2.state();
+  check((after.Friendships ?? []).some((f: any) => f.FriendUserId === B.swid), `alice still friends with bob after logout (${JSON.stringify(after.Friendships)})`);
+  const bobView = await B.state();
+  check((bobView.Friendships ?? []).some((f: any) => f.FriendUserId === A.swid), "bob still friends with alice");
 } finally {
   api.stop();
 }

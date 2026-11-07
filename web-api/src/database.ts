@@ -2405,19 +2405,6 @@ function cleanupOldMixNotifications(swid, maxAgeSeconds = 3600) {
     `).run(swid, `-${Math.floor(maxAgeSeconds)} seconds`);
 }
 
-/**
- * Clear all Mix data for a user (on logout)
- * @param {string} swid - The player's SWID
- */
-function clearAllMixDataForUser(swid) {
-    deleteMixSession(swid);
-    db.prepare('DELETE FROM mix_friendships WHERE swid = ?').run(swid);
-    db.prepare('DELETE FROM mix_friendship_invitations WHERE swid = ?').run(swid);
-    db.prepare('DELETE FROM mix_alerts WHERE swid = ?').run(swid);
-    deleteMixPresenceState(swid);
-    db.prepare('DELETE FROM mix_pending_notifications WHERE swid = ?').run(swid);
-}
-
 // ========== FULL PLAYER DATA RETRIEVAL ==========
 
 /**
@@ -2658,7 +2645,6 @@ export {
     addMixPendingNotification,
     getMixNotificationSequence,
     cleanupOldMixNotifications,
-    clearAllMixDataForUser,
     
     // Full data
     getFullPlayerData
