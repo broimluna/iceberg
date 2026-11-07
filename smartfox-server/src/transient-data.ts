@@ -6,8 +6,9 @@
 // per SWID and restores from that instead.
 //
 // TransientData fields: equippedConsumable, equippedConsumableProperties,
-// questCurrentObjectiveData, questObjectiveState. The quest fields aren't
-// tracked yet.
+// questCurrentObjectiveData, questObjectiveState. The client never reads
+// these. Quest progress is rebuilt from the quest.set the client sends on
+// every room join (handlers/quest.ts), so the quest fields stay empty.
 
 import { SFSObjectWriter, encodePacket } from "./sfs-wire.ts";
 import type { Session } from "./session.ts";

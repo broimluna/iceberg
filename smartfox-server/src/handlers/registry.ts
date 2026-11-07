@@ -24,7 +24,7 @@ export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext)
 // logged by server.ts. Scheduled world objects aren't extension commands;
 // see world-objects.ts.
 export const extensionHandlers: Record<string, ExtensionHandler> = {
-  "quest.set": (_p, ctx) => handleQuestSet(ctx),
+  "quest.set": handleQuestSet,
   "chat.msg": handleChatMsg,
   "chat.activity": (_p, ctx) => handleChatActivity("chat.activity", ctx),
   "chat.activity_cancel": (_p, ctx) => handleChatActivity("chat.activity_cancel", ctx),

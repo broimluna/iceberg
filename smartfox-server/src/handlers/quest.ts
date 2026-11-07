@@ -56,7 +56,26 @@ export function handleRewardBroadcast(innerParams: SFSObjectData, ctx: HandlerCo
 // leaving it out throws a NullReferenceException and stalls the quest
 // request queue until its 35s timeout. The same applies to every
 // extension response.
-export function handleQuestSet(ctx: HandlerContext): void {
+//
+// The client sends quest.set with data = JSON
+// SignedResponse<QuestStateCollection> on every room join. The active
+// quest's (status 1) completedObjectives seed the list that quest.s_obj
+// reports, so progress survives a room change.
+const QUEST_STATUS_ACTIVE = 1;
+export function handleQuestSet(innerParams: SFSObjectData, ctx: HandlerContext): void {
+  const json = getUtfString(innerParams, "data");
+  if (json) {
+    try {
+      const quests = JSON.parse(json)?.data;
+      if (Array.isArray(quests)) {
+        const active = quests.find((q) => q?.status === QUEST_STATUS_ACTIVE || q?.status === "ACTIVE");
+        const objectives: unknown[] = Array.isArray(active?.completedObjectives) ? active.completedObjectives : [];
+        ctx.session.completedObjectives.splice(0, Infinity, ...objectives.filter((o): o is string => typeof o === "string"));
+      }
+    } catch (err) {
+      console.log(`[${new Date().toISOString()}] ${ctx.peer} - quest.set: failed to parse "data" JSON: ${(err as Error).message}`);
+    }
+  }
   ctx.send(encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", "quest.set").putSFSObject("p", new SFSObjectWriter())));
   console.log(`[${new Date().toISOString()}] ${ctx.peer} <- extension ack (c=quest.set)`);
   sendStarterRewards(ctx);
