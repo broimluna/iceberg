@@ -542,9 +542,10 @@ This used the prebuilt `testing` release of OpenCPIsland/DisneyMix
   `ip addr add 10.0.0.77/32 dev lo`, plus an iptables `OUTPUT` DNAT from
   `10.0.0.77:80` to `127.0.0.1:3000`. Paths are the same as iceberg's
   root-mounted Mix routes.
-- It also retries `https://localhost:443` constantly. That is unrelated
-  to Mix login (most likely Unity services or analytics), and nothing
-  failed because of it.
+- It also retries `https://localhost:443` constantly. **Correction
+  (2026-11-07): these are the asset downloads** (sticker, gag, game and
+  avatar bundles), not analytics. See "Content delivery in source
+  builds" below. Login doesn't depend on them.
 - Login order seen on the wire:
   1. `POST /jgc/v5/client/DI-SPARK-PROD/api-key`
   2. `guest/login?expand=profile,displayName,marketing`
@@ -1191,6 +1192,52 @@ Wayback bundles are Unity 5-era Android builds. The recreation runs
 on Unity 6, which can't load them directly. Anything recovered has to
 be extracted (e.g. AssetRipper) and rebuilt, which is presumably how
 the recreation's `windows64` bundles were made.
+
+### Content delivery in source builds (found live, 2026-11-07)
+
+Chat text works end to end in a native Linux build of
+OpenCPIsland/DisneyMix, but the sticker, gag, game and "recents" panels
+show nothing, or a warning icon per item. There are three causes, all on
+the content side rather than the chat API:
+
+1. **The catalog path uses a Windows separator.** `Mix/Data/ContentData.cs:71`
+   (recreation code, not Disney's) does
+   `zipFileBasePath = Application.StreamingAssetsPath + "\\"`, so on Linux
+   or macOS it reads `…/StreamingAssets\contentdata.joe`, a file that
+   doesn't exist. The catalog (sticker packs, gags, games) never loads,
+   and `StickerPackSelector.PackIconLoader` throws an index-out-of-range
+   error. The fix is
+   `Path.Combine(Application.streamingAssetsPath, "contentdata.joe")`
+   (worth upstreaming). Verified by symlinking the backslash path: the
+   packs appeared.
+2. **Asset URLs end up at `https://localhost:443`.**
+   - On desktop, `SettingsManager.GetDeviceString()` returns `"iphone"`
+     (anything but Android), so asset paths are `AssetBundles/iphone/hd/…`.
+   - `CpipeFileManifest.TranslateFileUrl` makes them
+     `cdnRoot + "/" + v + "/" + path`. The bundled first-run manifest
+     (`StreamingAssets/1123402340.txt`) has `cdnRoot: ""`, so the URL is a
+     bare `/…` path. Unity's web request resolves that against
+     `https://localhost`. `AssetManager.GetStreamingFilePath` only maps
+     URLs containing the platform's `BundleFolder` (`AssetBundles/windows64/`
+     on Windows, `AssetBundles/standalonelinux/` on Linux) to
+     `file://…/StreamingAssets`, and its fallback drops `file://`.
+   - In this run the app never requested iceberg's `/cpipe` manifest, so
+     it kept the empty `cdnRoot` (inferred: it only refetches under
+     conditions not yet traced).
+3. **Nothing serves the bundles under the manifest's paths.** The
+   recreation's rebuilt bundles ship only in the build's
+   `StreamingAssets/AssetBundles/windows64/hd/…`. Both manifests (bundled
+   and iceberg's `00134`) list only `android` and `iphone` paths, and no
+   code maps `iphone` to `windows64`. The recreation's own dev server
+   presumably served the rebuilt bundles under the `iphone` paths
+   (inferred).
+
+**What it would take** (a content-delivery task, not chat):
+- serve the rebuilt bundles from `web-api/data/mix/cpipe/<v>/AssetBundles/iphone/hd/…`
+- make sure the app actually adopts iceberg's manifest, with its
+  `cdnRoot`
+- fix the two Linux path bugs above in the client
+- check that Windows-built bundles load on a Linux player
 
 ### Better leads than Wayback
 
