@@ -247,6 +247,13 @@ invite as bob. Now (`routes/mix/auth.ts`):
 
 `tools/mix-auth-test.ts` covers all three.
 
+**Live check (2026-11-07, real CPI Windows client, two accounts):**
+- login, session start, `/state`, friend search, invite, accept, remove,
+  and 31 polls, with **zero** auth failures
+- one `guest/refresh-auth` during the session, handled normally
+- only 2 `/state` calls (one per login), so the resync loop from the
+  `sinceSequence` bug (§5) is gone in practice
+
 ---
 
 ## 4. Endpoint inventory
@@ -578,7 +585,13 @@ across both apps. This matches how Disney ran it: your CPI friends
 *were* your Mix friends.
 
 The apps identify themselves with different Guest Controller client
-IDs (Mix uses `DI-SPARK-PROD`) and different cellophane client tokens.
+IDs:
+
+- Mix uses `DI-SPARK-PROD`.
+- The CPI Windows client uses `DI-CLUBPENGUINISLANDWIN.GC.SERVER-PROD`
+  (seen live in `/jgc/v5/client/<id>/guest/login`).
+
+They also send different cellophane client tokens.
 
 ---
 
