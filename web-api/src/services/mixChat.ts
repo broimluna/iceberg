@@ -333,3 +333,140 @@ export function removeMember(actor: string, threadId: unknown, userId: unknown) 
     });
 }
 
+
+// ---------------------------------------------------------------------------
+// Reading history (ChatMessageRetriever, docs/MIX_API.md section 7)
+//
+// A reader sees messages with seq > max(joined_seq, history_cleared_seq).
+// After leaving, they keep seeing what was sent up to their left_at (which
+// includes the system message announcing the departure). Someone who was
+// never a member gets NOT_FOUND.
+
+const HISTORY_LISTS: Record<string, string> = {
+    TEXT: "Text", STICKER: "Sticker", GAG: "Gag", VIDEO: "Video", PHOTO: "Photo",
+    GAME_STATE: "GameState", GAME_EVENT: "GameEvent", MEMBER_LIST_CHANGED: "MemberListChanged",
+};
+const MAX_READ = 500;
+
+type Visibility = { floor: number; leftAt: string | null };
+
+function visibility(swid: string, threadId: unknown): Visibility {
+    if (!Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
+    const m = sql.query("SELECT joined_seq, history_cleared_seq, left_at FROM mix_chat_members WHERE thread_id = ? AND swid = ?")
+        .get(threadId as number, swid) as { joined_seq: number; history_cleared_seq: number; left_at: string | null } | null;
+    if (!m) throw new MixError("NOT_FOUND");
+    return { floor: Math.max(m.joined_seq, m.history_cleared_seq), leftAt: m.left_at };
+}
+
+/** The visible-message condition for one thread, as SQL plus its parameters. */
+function visibleWhere(threadId: number, v: Visibility): [string, any[]] {
+    return v.leftAt
+        ? ["thread_id = ? AND seq > ? AND created_at <= ?", [threadId, v.floor, v.leftAt]]
+        : ["thread_id = ? AND seq > ?", [threadId, v.floor]];
+}
+
+/** Messages grouped as GetChatThreadMessagesResponse: every list present. */
+export function groupMessages(rows: MessageRow[]) {
+    const out: Record<string, object[]> = Object.fromEntries(Object.values(HISTORY_LISTS).map((k) => [k, []]));
+    for (const r of rows) out[HISTORY_LISTS[r.type] ?? "Text"]!.push(toMessageDto(r));
+    return out;
+}
+
+/**
+ * POST /chatThread: newest first, 50 per page. Cursor is the lowest seq
+ * returned (as a string); the next page continues below it, and a null
+ * Cursor means there's nothing older. (This SDK version never calls it.)
+ */
+export function readPage(swid: string, threadId: unknown, cursor: unknown, maxCount: unknown, excluded: unknown) {
+    const v = visibility(swid, threadId);
+    const [where, params] = visibleWhere(threadId as number, v);
+    const below = typeof cursor === "string" && /^\d+$/.test(cursor) ? Number(cursor) : Number.MAX_SAFE_INTEGER;
+    const size = Number.isSafeInteger(maxCount) && (maxCount as number) > 0 ? Math.min(maxCount as number, 50) : 50;
+    const skip = new Set(Array.isArray(excluded) ? excluded.filter((x) => Number.isSafeInteger(x)) : []);
+    const rows = (sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq < ? ORDER BY seq DESC LIMIT ?`)
+        .all(...params, below, size + 1) as MessageRow[]);
+    const page = rows.slice(0, size);
+    const more = rows.length > size;
+    return {
+        Cursor: more && page.length ? String(page[page.length - 1]!.seq) : null,
+        ...groupMessages(page.filter((r) => !skip.has(r.id))),
+    };
+}
+
+/** POST /chatThread/messages/bySequenceRange: inclusive [start, end] pairs. */
+export function readRanges(swid: string, threadId: unknown, ranges: unknown) {
+    const v = visibility(swid, threadId);
+    if (!Array.isArray(ranges) || ranges.length % 2 === 1 || !ranges.every((x) => Number.isSafeInteger(x))) throw new MixError("INVALID_REQUEST");
+    const [where, params] = visibleWhere(threadId as number, v);
+    const rows: MessageRow[] = [];
+    const seen = new Set<number>();
+    for (let i = 0; i < ranges.length && rows.length < MAX_READ; i += 2) {
+        for (const r of sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq BETWEEN ? AND ? ORDER BY seq LIMIT ?`)
+            .all(...params, ranges[i], ranges[i + 1], MAX_READ - rows.length) as MessageRow[]) {
+            if (!seen.has(r.id)) { seen.add(r.id); rows.push(r); }
+        }
+    }
+    return { Cursor: null, ...groupMessages(rows) };
+}
+
+/**
+ * POST /chatThread/messages/recent: LowerBoundSequenceNumbers is flat
+ * [threadId, lowerSeq, ...] pairs (inclusive); returns the newest
+ * MaxMessagesPerChatThread (default 20) at or above each bound. Threads
+ * the caller can't read are skipped.
+ */
+export function readRecentPerThread(swid: string, lowerBounds: unknown, maxPerThread: unknown) {
+    if (!Array.isArray(lowerBounds) || lowerBounds.length % 2 === 1 || !lowerBounds.every((x) => Number.isSafeInteger(x))) throw new MixError("INVALID_REQUEST");
+    const n = Number.isSafeInteger(maxPerThread) && (maxPerThread as number) > 0 ? Math.min(maxPerThread as number, 100) : 20;
+    const rows: MessageRow[] = [];
+    for (let i = 0; i < lowerBounds.length && rows.length < MAX_READ; i += 2) {
+        let v: Visibility;
+        try { v = visibility(swid, lowerBounds[i]); } catch { continue; }
+        const [where, params] = visibleWhere(lowerBounds[i], v);
+        const newest = sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND seq >= ? ORDER BY seq DESC LIMIT ?`)
+            .all(...params, lowerBounds[i + 1], n) as MessageRow[];
+        rows.push(...newest.reverse());
+    }
+    return { Cursor: null, ...groupMessages(rows) };
+}
+
+/** POST /chatThread/specificMessages: by ChatMessageId; invisible ones are left out. */
+export function readSpecific(swid: string, threadId: unknown, messageIds: unknown) {
+    const v = visibility(swid, threadId);
+    if (!Array.isArray(messageIds)) throw new MixError("INVALID_REQUEST");
+    const ids = [...new Set(messageIds.filter((x) => Number.isSafeInteger(x)))].slice(0, MAX_READ);
+    const [where, params] = visibleWhere(threadId as number, v);
+    const rows = ids.length === 0 ? [] : sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND id IN (${ids.map(() => "?").join(",")}) ORDER BY seq`)
+        .all(...params, ...ids) as MessageRow[];
+    return groupMessages(rows);
+}
+
+/** POST /chatThread/recentMessages: everything visible to the caller created after MessagesSince (ms), newest 500. */
+export function readSince(swid: string, since: unknown) {
+    const after = new Date(Number.isFinite(since) ? (since as number) : 0).toISOString();
+    const memberships = sql.query("SELECT thread_id FROM mix_chat_members WHERE swid = ?").all(swid) as { thread_id: number }[];
+    const rows: MessageRow[] = [];
+    for (const { thread_id } of memberships) {
+        const [where, params] = visibleWhere(thread_id, visibility(swid, thread_id));
+        rows.push(...(sql.query(`SELECT * FROM mix_chat_messages WHERE ${where} AND created_at > ?`).all(...params, after) as MessageRow[]));
+    }
+    rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return groupMessages(rows.slice(0, MAX_READ).reverse());
+}
+
+/**
+ * POST /chatThread/messages/sequenceNumber: flat [ChatMessageId, seq]
+ * pairs for visible messages created up to StartMessageTimestamp (the
+ * client sends its current time). The client uses them to fill in
+ * sequence numbers for messages it stored locally with seq 0
+ * (UserDatabase.UpdateChatMessageSequenceNumbers), and rejects an odd
+ * length or a seq <= 0.
+ */
+export function readSequenceNumbers(swid: string, threadId: unknown, startTimestamp: unknown) {
+    const v = visibility(swid, threadId);
+    const until = new Date(Number.isFinite(startTimestamp) ? (startTimestamp as number) : Date.now()).toISOString();
+    const [where, params] = visibleWhere(threadId as number, v);
+    const rows = sql.query(`SELECT id, seq FROM mix_chat_messages WHERE ${where} AND created_at <= ? ORDER BY seq DESC LIMIT 1000`)
+        .all(...params, until) as { id: number; seq: number }[];
+    return { SequenceNumbers: rows.reverse().flatMap((r) => [r.id, r.seq]) };
+}

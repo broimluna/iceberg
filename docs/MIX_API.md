@@ -346,7 +346,7 @@ iceberg's current state.
 | Method | Path | Request type | iceberg |
 |---|---|---|---|
 | PUT | `/chatThread` | AddChatThreadRequest | ✅ (section 7) |
-| POST | `/chatThread` | GetChatThreadMessagesRequest | ❌ |
+| POST | `/chatThread` | GetChatThreadMessagesRequest | ✅ (section 7) |
 | PUT | `/chatThreadMembership` | AddChatThreadMembershipRequest | ✅ (section 7) |
 | POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ✅ (section 7) |
 | POST | `/chatThreadMembership/history/delete` | ClearMemberChatHistoryRequest | ❌ |
@@ -358,11 +358,11 @@ iceberg's current state.
 | PUT | `/chatThread/videoMessage` | AddChatThreadVideoMessageRequest | ❌ |
 | PUT | `/chatThread/gameStateMessage` | AddChatThreadGameStateMessageRequest | ❌ |
 | POST | `/chatThread/gameStateMessage` | UpdateChatThreadGameStateMessageRequest | ❌ |
-| POST | `/chatThread/recentMessages` | GetRecentChatThreadMessagesRequest | ❌ |
-| POST | `/chatThread/specificMessages` | GetSpecificChatThreadMessagesRequest | ❌ |
-| POST | `/chatThread/messages/recent` | GetChatThreadsRecentMessagesRequest | ❌ |
-| POST | `/chatThread/messages/bySequenceRange` | GetChatThreadMessagesBySequenceRangesRequest | ❌ |
-| POST | `/chatThread/messages/sequenceNumber` | GetChatThreadSequenceNumberRequest | ❌ |
+| POST | `/chatThread/recentMessages` | GetRecentChatThreadMessagesRequest | ✅ (section 7) |
+| POST | `/chatThread/specificMessages` | GetSpecificChatThreadMessagesRequest | ✅ (section 7) |
+| POST | `/chatThread/messages/recent` | GetChatThreadsRecentMessagesRequest | ✅ (section 7) |
+| POST | `/chatThread/messages/bySequenceRange` | GetChatThreadMessagesBySequenceRangesRequest | ✅ (section 7) |
+| POST | `/chatThread/messages/sequenceNumber` | GetChatThreadSequenceNumberRequest | ✅ (section 7) |
 | PUT | `/chatThread/nickname` | AddChatThreadNicknameRequest | ❌ |
 | POST | `/chatThread/nickname/delete` | RemoveChatThreadNicknameRequest | ❌ |
 | POST | `/video/url` | GetVideoUrlRequest | ❌ |
@@ -806,6 +806,27 @@ they are the caller's next two notifications, in that order.
   ends, and the user's `/state` and sends stop seeing the thread.
 - System messages have no client message id, so they show
   `ClientChatMessageId: 0`.
+
+### Reading history
+
+Every read replies with all eight message lists (`Text`, `Sticker`,
+`Gag`, `Video`, `Photo`, `GameState`, `GameEvent`, `MemberListChanged`),
+empty when there's nothing of that type. `ChatMessageRetriever` rejects a
+reply with any list missing.
+
+**Who sees what:** a reader sees `seq > max(joined_seq,
+history_cleared_seq)`. After leaving a group they still see what was sent
+up to their departure, including the system message announcing it, and
+nothing after. Someone who was never a member gets `400 NOT_FOUND`.
+
+| Route | Request | Behavior |
+|---|---|---|
+| `POST /chatThread/messages/recent` | `LowerBoundSequenceNumbers` (flat `[threadId, lowerSeq, ...]` pairs, inclusive), `MaxMessagesPerChatThread` | The newest N (default 20) at or above each bound. **This is what the app calls when a chat opens**: lower bound 1 with nothing cached, otherwise its last message's seq − 1. Threads the caller can't read are skipped. |
+| `POST /chatThread/messages/bySequenceRange` | `ChatThreadId`, `Ranges` (flat inclusive `[start, end, ...]`) | Fills gaps in the local cache (`GetSequenceRanges`). An odd-length list gives `INVALID_REQUEST`. |
+| `POST /chatThread/messages/sequenceNumber` | `ChatThreadId`, `StartMessageTimestamp` (the client's current time) | **Not a single number.** `SequenceNumbers` is flat `[ChatMessageId, seq, ...]` pairs. The client uses them to backfill seqs on messages it cached with seq 0 (`UpdateChatMessageSequenceNumbers`), and rejects an odd length or any seq ≤ 0. |
+| `POST /chatThread/specificMessages` | `ChatThreadId`, `MessageIds` | By id. Ids the caller can't see are left out without an error. |
+| `POST /chatThread/recentMessages` | `MessagesSince` (ms) | Everything visible to the caller created after that time, newest 500. Never called by this SDK version. |
+| `POST /chatThread` | `ChatThreadId`, `Cursor`, `MaximumMessageCount`, `ExcludedChatMessageIds` | Pages newest first, at most 50. `Cursor` is the lowest seq returned, as a string, and `null` when nothing older is left. Never called by this SDK version; `TimestampOffset` is ignored. |
 
 ### Chat in `/state`
 

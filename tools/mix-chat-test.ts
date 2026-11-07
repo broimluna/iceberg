@@ -221,6 +221,64 @@ try {
   const kick = await A!.call("POST", "/chatThreadMembership/delete", { ChatThreadId: g3.ChatThreadId, RemovedUserId: "{CHAT-B}" });
   check(kick.http === 200 && A!.apply(kick.body.MembershipNotification, "RemoveChatThreadMembership") && A!.apply(kick.body.ChatMessageNotification, "AddChatThreadMemberListChangedMessage"), `alice (creator) removes bob -> ${kick.http}`);
   check((await B!.drain()).map((g) => g.type).join() === "RemoveChatThreadMembership,AddChatThreadMemberListChangedMessage", "bob is told he was removed");
+
+  // ---- History (Task 14) ----
+  const LISTS = ["Text", "Sticker", "Gag", "Video", "Photo", "GameState", "GameEvent", "MemberListChanged"];
+  const allLists = (b: any) => LISTS.every((k) => Array.isArray(b?.[k]));
+  const seqsOf = (b: any) => LISTS.flatMap((k) => (b?.[k] ?? []).map((m: any) => m.SequenceNumber)).sort((x: number, y: number) => x - y);
+  const g4n = await A!.call("PUT", "/chatThread", { ChatThreadType: "GROUP", MemberUserIds: ["{CHAT-B}"] });
+  const g4 = g4n.body.Notification.ChatThread.ChatThreadId;
+  A!.apply(g4n.body.Notification, "AddChatThread");
+  for (let i = 1; i <= 60; i++) await send(B!, "text", g4, { Text: `m${i}` });
+  await A!.drain(); await B!.drain();
+
+  const p1 = await A!.call("POST", "/chatThread", { ChatThreadId: g4 });
+  check(p1.http === 200 && allLists(p1.body) && p1.body.Text.length === 50 && typeof p1.body.Cursor === "string", `page 1: ${p1.body?.Text?.length} messages, cursor ${p1.body?.Cursor}`);
+  check(JSON.stringify(seqsOf(p1.body)) === JSON.stringify(Array.from({ length: 50 }, (_, i) => i + 11)), "page 1 is the newest 50 (11..60)");
+  const p2 = await A!.call("POST", "/chatThread", { ChatThreadId: g4, Cursor: p1.body.Cursor });
+  check(p2.http === 200 && p2.body.Text.length === 10 && p2.body.Cursor === null && JSON.stringify(seqsOf(p2.body)) === JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), `page 2: ${p2.body?.Text?.length}, cursor ${p2.body?.Cursor}`);
+  check(p1.body.Text.every((m: any) => m.MessageType === "TEXT" && typeof m.Created === "number" && m.SenderUserId === "{CHAT-B}" && m.IsModerated === false), "history messages are complete text messages");
+
+  const rng = await A!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: g4, Ranges: [1, 3, 5, 5] });
+  check(rng.http === 200 && allLists(rng.body) && JSON.stringify(seqsOf(rng.body)) === "[1,2,3,5]", `ranges [1,3,5,5] -> ${JSON.stringify(seqsOf(rng.body))}`);
+  const odd = await A!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: g4, Ranges: [1, 3, 5] });
+  check(odd.http === 400 && odd.body?.Status === "INVALID_REQUEST", `odd-length ranges -> ${odd.http} ${odd.body?.Status}`);
+
+  const rec = await A!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [g4, 55], MaxMessagesPerChatThread: 20 });
+  check(rec.http === 200 && allLists(rec.body) && JSON.stringify(seqsOf(rec.body)) === "[55,56,57,58,59,60]", `recent from seq 55 -> ${JSON.stringify(seqsOf(rec.body))}`);
+  const recDefault = await A!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [g4, 1] });
+  check(seqsOf(recDefault.body).length === 20 && seqsOf(recDefault.body)[0] === 41, "recent defaults to the newest 20");
+
+  const sn = await A!.call("POST", "/chatThread/messages/sequenceNumber", { ChatThreadId: g4, StartMessageTimestamp: Date.now() + 1000 });
+  const snl = sn.body?.SequenceNumbers ?? [];
+  check(sn.http === 200 && snl.length === 120 && snl.length % 2 === 0 && snl[snl.length - 1] === 60 && snl.every((v: number) => v > 0), `sequenceNumber gives [messageId, seq] pairs up to 60 (${snl.length})`);
+
+  const firstId = p2.body.Text.find((m: any) => m.SequenceNumber === 1).ChatMessageId;
+  const spec = await A!.call("POST", "/chatThread/specificMessages", { ChatThreadId: g4, MessageIds: [firstId, 999999] });
+  check(spec.http === 200 && allLists(spec.body) && spec.body.Text.length === 1 && spec.body.Text[0].ChatMessageId === firstId, "specificMessages returns the visible id and skips the unknown one");
+  const since = await A!.call("POST", "/chatThread/recentMessages", { MessagesSince: 0 });
+  check(since.http === 200 && allLists(since.body) && since.body.Text.filter((m: any) => m.ChatThreadId === g4).length === 60, "recentMessages since 0 covers the group's 60 texts");
+
+  // Late joiner: carol, added at seq 60, sees only from 61 on.
+  const addC4 = await A!.call("PUT", "/chatThreadMembership", { ChatThreadId: g4, AddedUserIds: ["{CHAT-C}"] });
+  A!.apply(addC4.body.MembershipNotification, "AddChatThreadMembership"); A!.apply(addC4.body.ChatMessageNotification, "AddChatThreadMemberListChangedMessage");
+  await A!.drain(); await B!.drain(); await C!.drain();
+  const cPage = await C!.call("POST", "/chatThread", { ChatThreadId: g4 });
+  check(cPage.http === 200 && JSON.stringify(seqsOf(cPage.body)) === "[61]" && cPage.body.MemberListChanged.length === 1, `carol's history is just her join message (${JSON.stringify(seqsOf(cPage.body))})`);
+  const cRng = await C!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: g4, Ranges: [1, 61] });
+  check(JSON.stringify(seqsOf(cRng.body)) === "[61]", "carol's range read hides seqs 1..60");
+  const cRec = await C!.call("POST", "/chatThread/messages/recent", { LowerBoundSequenceNumbers: [g4, 1] });
+  check(JSON.stringify(seqsOf(cRec.body)) === "[61]", "carol's recent read hides seqs 1..60");
+  const cSpec = await C!.call("POST", "/chatThread/specificMessages", { ChatThreadId: g4, MessageIds: [firstId] });
+  check(cSpec.http === 200 && cSpec.body.Text.length === 0, "carol can't fetch an old message by id");
+
+  // Outsider and former member.
+  const out1 = await C!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: t1.ChatThreadId, Ranges: [1, 10] });
+  check(out1.http === 400 && out1.body?.Status === "NOT_FOUND", `carol reading the alice-bob 1:1 -> ${out1.http} ${out1.body?.Status}`);
+  const out2 = await C!.call("POST", "/chatThread", { ChatThreadId: t1.ChatThreadId });
+  check(out2.http === 400 && out2.body?.Status === "NOT_FOUND", `carol paging the 1:1 -> ${out2.http} ${out2.body?.Status}`);
+  const formerly = await C!.call("POST", "/chatThread/messages/bySequenceRange", { ChatThreadId: g3.ChatThreadId, Ranges: [1, 10] });
+  check(formerly.http === 200 && JSON.stringify(seqsOf(formerly.body)) === "[1,2]", `carol, who left g3 at seq 2, sees 1..2 but not bob's removal at 3 (${JSON.stringify(seqsOf(formerly.body))})`);
 } finally {
   api.stop();
 }

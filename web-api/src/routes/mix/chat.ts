@@ -4,7 +4,10 @@
 import express from "express";
 import { authenticateMix } from "./auth.ts";
 import { buildResponse } from "./common.ts";
-import { createThread, addMessage, addMembers, removeMember, type MessageType } from "../../services/mixChat.ts";
+import {
+    createThread, addMessage, addMembers, removeMember, type MessageType,
+    readPage, readRanges, readRecentPerThread, readSpecific, readSince, readSequenceNumbers,
+} from "../../services/mixChat.ts";
 import { mixRoute } from "../../services/mixErrors.ts";
 
 const router = express.Router();
@@ -42,5 +45,20 @@ router.put('/chatThreadMembership', authenticateMix, (req, res) => mixRoute(res,
 router.post('/chatThreadMembership/delete', authenticateMix, (req, res) => mixRoute(res, () =>
     buildResponse(removeMember(req.mixUserId, req.body.ChatThreadId, req.body.RemovedUserId))
 ));
+
+// History reads (ChatMessageRetriever). Each replies with every message list
+// (Text, Sticker, Gag, Video, Photo, GameState, GameEvent, MemberListChanged),
+// empty when there's nothing of that type.
+const reads: [string, (req: any) => object][] = [
+    ['/chatThread', (req) => readPage(req.mixUserId, req.body.ChatThreadId, req.body.Cursor, req.body.MaximumMessageCount, req.body.ExcludedChatMessageIds)],
+    ['/chatThread/messages/bySequenceRange', (req) => readRanges(req.mixUserId, req.body.ChatThreadId, req.body.Ranges)],
+    ['/chatThread/messages/recent', (req) => readRecentPerThread(req.mixUserId, req.body.LowerBoundSequenceNumbers, req.body.MaxMessagesPerChatThread)],
+    ['/chatThread/specificMessages', (req) => readSpecific(req.mixUserId, req.body.ChatThreadId, req.body.MessageIds)],
+    ['/chatThread/recentMessages', (req) => readSince(req.mixUserId, req.body.MessagesSince)],
+    ['/chatThread/messages/sequenceNumber', (req) => readSequenceNumbers(req.mixUserId, req.body.ChatThreadId, req.body.StartMessageTimestamp)],
+];
+for (const [path, read] of reads) {
+    router.post(path, authenticateMix, (req, res) => mixRoute(res, () => buildResponse(read(req))));
+}
 
 export default router;
