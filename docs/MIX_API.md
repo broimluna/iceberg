@@ -691,8 +691,6 @@ the recreation's `windows64` bundles were made.
 - How does photo/video **upload** work? Where does `UgcMediaId` come from?
   Trace `ChatMessageSender.cs` / `IChatMessageSender.cs`.
 - What exactly does `PilCheck` ("PIL") gate?
-- The exact query parameters cpipe sends (`CpipeManifestApi.cs`) and
-  the manifest response format the client accepts.
 - Client-side trust gating: which message types are allowed in an
   untrusted thread?
 - The CPI client's copy of `SessionResumer`: does it read
