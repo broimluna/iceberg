@@ -379,7 +379,7 @@ iceberg's current state.
 
 | Method | Path | Request type | iceberg |
 |---|---|---|---|
-| PUT | `/moderation/text` | ModerateTextRequest | ⚠️ placeholder filter |
+| PUT | `/moderation/text` | ModerateTextRequest | ✅ shared rule filter (section 9) |
 | PUT | `/moderation/reportPlayer` | ReportPlayerRequest | ⚠️ logs only |
 | PUT | `/alert/clear` | ClearAlertsRequest | ✅ |
 | POST | `/pushNotificationsSetting` | TogglePushNotificationRequest | ✅ (no-op) |
@@ -838,6 +838,32 @@ Two consequences:
 `PUT /moderation/text` takes `{Text, ChatThreadId, ModerationPolicy}`
 and returns `{Text, Moderated}`. The client asks *before* sending, and
 gets back possibly-masked text plus a flag.
+
+**In iceberg** (`services/moderation.ts`), Mix's `/moderation/text` and
+CPI's `POST /chat/v1/message/verify` share one filter. That way, a word
+masked in CPI chat is also masked in Mix. Disney ran both through one
+moderation service too (inferred: both apps send text to the server
+before showing it, and CPI's verify reply has the same "masked text plus
+`moderated` flag" shape).
+- Rules live in `mix_moderation_rules` as `(pattern, kind, action)`.
+  - A `word` rule is a whole word, case-insensitive. Its edges are
+    Unicode letters and digits (`\p{L}\p{N}`), so `darn` doesn't hit
+    `darned`, and accented or emoji text passes untouched.
+  - A `regex` rule is used as given, with flags `giu`.
+  - `mask` replaces each match with one `*` per code point, so the
+    length on screen matches.
+  - `block` masks the whole message.
+  - `Moderated` (CPI: `moderated`) is true for either action.
+- A new database is seeded once with three masked words (the most common
+  English swear words). Operators manage the list with
+  `bun tools/mod.ts rules list | add <pattern> [--regex] [--block] |
+  remove <id>`, and `--db <file>` picks another database.
+- **Live edits without a restart:** the server caches compiled rules and
+  rechecks `PRAGMA data_version` on every call. SQLite changes that
+  value whenever *another* connection commits, such as the CLI, so a
+  rule the CLI adds applies on the next message. The server's own
+  writes don't change it, so `addRule`/`removeRule` drop the cache
+  directly.
 
 Reports: `PUT /moderation/reportPlayer` takes `{ReportedUserId,
 Reason}`.

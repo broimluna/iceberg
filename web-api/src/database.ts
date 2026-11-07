@@ -538,8 +538,65 @@ function initializeDatabase() {
             SELECT swid, MAX(sequence) FROM mix_pending_notifications GROUP BY swid;
     `);
 
+    // Moderation (Mix and CPI). The text filter rules are read by
+    // services/moderation.ts and edited live with tools/mod.ts.
+    const rulesExisted = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'mix_moderation_rules'").get();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_moderation_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('word', 'regex')),
+            action TEXT NOT NULL CHECK (action IN ('mask', 'block')),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    if (!rulesExisted) {
+        // Starter list, seeded once when the table is first created: the
+        // three most common English swear words, masked. Operators extend
+        // it with `bun tools/mod.ts rules add`.
+        const seed = db.prepare("INSERT INTO mix_moderation_rules (pattern, kind, action) VALUES (?, 'word', 'mask')");
+        for (const word of ["fuck", "shit", "bitch"]) seed.run(word);
+    }
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reporter_swid TEXT NOT NULL,
+            reported_swid TEXT NOT NULL,
+            reason TEXT,
+            thread_id INTEGER NULL,
+            message_id INTEGER NULL,
+            source TEXT NOT NULL CHECK (source IN ('mix', 'cpi')),
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'actioned', 'dismissed')),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_sanctions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            swid TEXT NOT NULL,
+            type TEXT NOT NULL,
+            level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 5),
+            alert_id INTEGER,
+            moderator TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_bans (
+            swid TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('ban', 'lock')),
+            until TEXT NULL,
+            sanction_id INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            lifted_at TEXT NULL
+        )
+    `);
+
     // Create indexes for performance
     db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_mix_reports_status ON mix_reports(status);
+        CREATE INDEX IF NOT EXISTS idx_mix_sanctions_swid ON mix_sanctions(swid);
+        CREATE INDEX IF NOT EXISTS idx_mix_bans_swid ON mix_bans(swid);
         CREATE INDEX IF NOT EXISTS idx_quests_username ON quests(username);
         CREATE INDEX IF NOT EXISTS idx_daily_tasks_username ON daily_tasks(username);
         CREATE INDEX IF NOT EXISTS idx_equipment_username ON equipment(username);

@@ -8,6 +8,7 @@
  */
 
 import express from "express";
+import { filterText } from "../services/moderation.ts";
 const router = express.Router();
 
 /**
@@ -35,14 +36,15 @@ router.post('/chat/v1/message/verify', (req, res) => {
     
     console.log(`[CHAT] ${username} verifying message: "${chatMessage.message}"`);
     
-    // For a private server, we can pass through messages unmodified
-    // In production, this would check against a word filter
-    
+    // The shared filter (services/moderation.ts) masks matched words; a
+    // blocked message comes back fully masked.
+    const { text, moderated, blocked } = filterText(typeof chatMessage.message === "string" ? chatMessage.message : "");
+
     const verifiedMessage = {
         senderSessionId: chatMessage.senderSessionId,
-        message: chatMessage.message,
+        message: text,
         emotion: chatMessage.emotion || 0,
-        moderated: false, // Not moderated - message is allowed
+        moderated: moderated || blocked,
         questId: chatMessage.questId || '',
         objective: chatMessage.objective || ''
     };
