@@ -510,7 +510,83 @@ IDs (Mix uses `DI-SPARK-PROD`) and different cellophane client tokens.
 
 ---
 
-## 9. Open questions
+## 9. Content preservation status (checked 2026-11-07)
+
+### Where the content lived
+
+- `cpipe_url` (`dicpipe.disney.io/serve/mix/prod`) only served
+  **manifests**.
+- The files themselves came from `cdnRoot`. Archived manifest `00053`
+  (2016-06-18) has
+  `cdnRoot: http://7e65011e-d1aa-935a-265a-3f36f7c14c51.disney.io`.
+  The client's own test helper
+  (`Mix/Test/AssetManagerLoadTextIntegrationTestHelper.cs`) uses the
+  same host.
+- That host was a **Google Cloud Storage bucket** named after the
+  domain. It was publicly listable: the archived root returns a GCS
+  `ListBucketResult` with `Generation`/`MetaGeneration` fields.
+- Files sat under a version-timestamp prefix:
+  `/<v>/AssetBundles/<platform>/...`. Manifests sat under
+  `/manifests/__manifest_mix_prod.<version>.json`.
+- **Today the bucket is deleted.** `storage.googleapis.com` answers
+  `NoSuchBucket`, and `dicpipe.disney.io` doesn't resolve.
+
+### What the Wayback Machine has
+
+- The **first page of the bucket listing** only: 1,000 keys, truncated
+  at `.../would_you_rather/.../316_hd.unity3d`. It was captured
+  2017-06-01 and 2018-03-08. The crawler never followed `?marker=` to
+  the next pages.
+- About 1,000 files from that first page, all from the **2016-01-08
+  build prefix `1452223917`**, **Android HD only**:
+  - avatar thumbs (266)
+  - Would You Rather (247)
+  - Meme Generator (103)
+  - avatar parts (~240)
+  - a handful of other game bundles
+- Manifest `00053` (4,506 paths), captured four times in 2016.
+
+### What the recreation has vs. the final manifest
+
+The recreation's bundled manifest is version `00134` (2017-02-15).
+Counting logical files once (Android and iPhone duplicates merged,
+compared against the recreation's rebuilt `windows64` bundles):
+**1,302 present and 1,428 missing.**
+
+| Area | Present | Missing | Notes |
+|---|---|---|---|
+| `hd/gogs` (in-chat games) | 611 | 455 | |
+| `hd/stickers` | 142 | 412 | |
+| `sd/avatar` + `sd/avatar_multiplane` | 0 | 422 | Low-res duplicates of HD. Likely not needed. |
+| `hd/avatar_thumbs` | 293 | 19 | |
+| `hd/avatar_multiplane` | 172 | 34 | |
+| `hd/gags` | 28 | 24 | |
+| `hd/official_accounts` | 0 | 30 | |
+| `hd/stickerpack_thumbs` | 16 | 10 | |
+| game data (`Drop`, `Friendzy`, `CardsOfDoom`, `Writers_Block`, `Fireworks`) | 1 | ~9 | |
+
+Of the 1,428 missing, **Wayback covers only 54** (18 gags, 36 game
+bundles), and those are from the January 2016 build, not the final
+one.
+
+Wayback bundles are Unity 5-era Android builds. The recreation runs
+on Unity 6, which can't load them directly. Anything recovered has to
+be extracted (e.g. AssetRipper) and rebuilt, which is presumably how
+the recreation's `windows64` bundles were made.
+
+### Better leads than Wayback
+
+- **On-device caches.** Mix downloaded bundles into Unity's cache on
+  the device. Old phones and tablets that ever ran Mix, and backups of
+  them, may still hold the final-version files.
+- **APK/IPA archives** of different Mix versions. Each one bundles a
+  `StreamingAssets` snapshot.
+- Other crawls (Common Crawl, community scrapes) of the bucket's
+  later listing pages.
+
+---
+
+## 10. Open questions
 
 - How does photo/video **upload** work? Where does `UgcMediaId` come from?
   Trace `ChatMessageSender.cs` / `IChatMessageSender.cs`.
