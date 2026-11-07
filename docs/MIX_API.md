@@ -146,8 +146,8 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
   - `paths` has 5,459 entries, including all three
     `donotcopy/n7c4c656{,_dev,_qa}` configs. Each entry is a CRC32 plus
     a Unix-time version.
-  - `unique` 1487182197 is **2017-02-15**, so this is a snapshot of the
-    content from Mix's final months. The service shut down in 2018.
+  - `unique` 1487182197 is **2017-02-15**, so this is a snapshot of
+    the content as of that date. (Shutdown date: to confirm and cite.)
   - Because `cdnRoot` is empty, the client resolves everything against
     its bundled `StreamingAssets`. That is why the recreation boots
     with no CDN at all.
