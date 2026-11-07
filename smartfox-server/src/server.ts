@@ -21,7 +21,7 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT } from "./config.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP } from "./config.ts";
 import { register, unregister } from "./session-registry.ts";
 import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
@@ -29,11 +29,34 @@ import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
 
+// Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
+const connectionsByIp = new Map<string, number>();
+
 // Per connection: detect the transport (raw BitSwarm or WebSocket) and the
 // protocol (SFS2X or SFS3), frame packets, and dispatch them to system
 // handlers (controller 0) or to extension commands (controller 1, action 13).
+//
+// Input limits (reported with WPE Pro): a packet may not exceed
+// MAX_MESSAGE_SIZE, unparsed input may not grow past it, a connection may
+// send at most MAX_PACKETS_PER_SEC packets per second, and one address may
+// hold at most MAX_CONNECTIONS_PER_IP connections. Breaking a limit closes
+// the connection. Before this, a client could make the receive buffer grow
+// without bound until the process ran out of memory.
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
+  const ip = socket.remoteAddress ?? "?";
+  const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
+  connectionsByIp.set(ip, openFromIp);
+  socket.once("close", () => {
+    const n = (connectionsByIp.get(ip) ?? 1) - 1;
+    if (n <= 0) connectionsByIp.delete(ip);
+    else connectionsByIp.set(ip, n);
+  });
+  if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
+    console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${ip}, closing`);
+    socket.destroy();
+    return;
+  }
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
   let buffered = Buffer.alloc(0);
@@ -45,6 +68,21 @@ const connectionHandler = (socket: net.Socket) => {
   // Retail and older OpenCPI clients speak SFS2X; newer OpenCPI builds
   // speak SFS3. The first packet decides.
   let protocolDetected = false;
+  // One login per connection, like SFS2X; a repeat is ignored.
+  let loggedIn = false;
+  // Packets in the current one-second window.
+  let windowStart = Date.now();
+  let packetsInWindow = 0;
+  let closing = false;
+
+  function dropConnection(reason: string) {
+    if (closing) return;
+    closing = true;
+    console.log(`[${new Date().toISOString()}] ${peer} - ${reason}, closing`);
+    buffered = Buffer.alloc(0);
+    wsBuffered = Buffer.alloc(0);
+    socket.destroy();
+  }
 
   // A packet that can't be encoded for this recipient (e.g. an echoed
   // SFSObject key too long for SFS3) is skipped for them, not thrown into
@@ -70,8 +108,22 @@ const connectionHandler = (socket: net.Socket) => {
       console.log(`[${new Date().toISOString()}] ${peer} - speaks ${session.protocol === "sfs3" ? "SFS3" : "SFS2X"}`);
     }
     for (;;) {
+      if (closing) return;
       const header = tryReadHeader(buffered, session.protocol);
+      if (header && header.bodyLength > MAX_MESSAGE_SIZE) {
+        dropConnection(`packet claims ${header.bodyLength} bytes (max ${MAX_MESSAGE_SIZE})`);
+        return;
+      }
       if (!header || buffered.length < header.totalLength) break;
+      const now = Date.now();
+      if (now - windowStart >= 1000) {
+        windowStart = now;
+        packetsInWindow = 0;
+      }
+      if (++packetsInWindow > MAX_PACKETS_PER_SEC && MAX_PACKETS_PER_SEC > 0) {
+        dropConnection(`more than ${MAX_PACKETS_PER_SEC} packets in one second`);
+        return;
+      }
       const body = buffered.subarray(header.headerLength, header.totalLength);
       buffered = buffered.subarray(header.totalLength);
 
@@ -91,7 +143,8 @@ const connectionHandler = (socket: net.Socket) => {
         ({ controllerId, actionId, params } = decodePacketBody(body, session.protocol));
       } catch (err) {
         console.log(`[${new Date().toISOString()}] ${peer} - failed to decode packet: ${(err as Error).message}`);
-        console.log(body.toString("hex").match(/../g)?.join(" ") ?? "");
+        // At most the first 256 bytes: a junk packet may be megabytes.
+        console.log(body.subarray(0, 256).toString("hex").match(/../g)?.join(" ") ?? "");
         continue;
       }
 
@@ -116,7 +169,12 @@ const connectionHandler = (socket: net.Socket) => {
     if (controllerId === 0 && actionId === 0) {
       handleHandshake(ctx);
     } else if (controllerId === 0 && actionId === 1) {
-      handleLogin(params, ctx, socket);
+      if (loggedIn) {
+        console.log(`[${new Date().toISOString()}] ${peer} - already logged in, ignoring another login`);
+        return;
+      }
+      if (!handleLogin(params, ctx, socket)) return;
+      loggedIn = true;
       // Registered after login, once name, swid and room are known.
       register({ session, peer, send });
     } else if (controllerId === 0 && actionId === 29) {
@@ -136,18 +194,32 @@ const connectionHandler = (socket: net.Socket) => {
     }
   }
 
+  // Unparsed input never needs more room than one maximal packet plus its
+  // header (raw: 5 bytes, WebSocket: 14).
+  const overLimit = (buf: Buffer, header: number) => buf.length > MAX_MESSAGE_SIZE + header;
+
   function handleWebSocketBytes(chunk: Buffer) {
+    if (closing) return;
     wsBuffered = Buffer.concat([wsBuffered, chunk]);
+    if (overLimit(wsBuffered, 14)) {
+      dropConnection(`over ${MAX_MESSAGE_SIZE} bytes of unparsed WebSocket input`);
+      return;
+    }
     for (;;) {
       const frame = tryReadWebSocketFrame(wsBuffered);
       if (!frame) break;
       wsBuffered = wsBuffered.subarray(frame.consumed);
       buffered = Buffer.concat([buffered, frame.payload]);
+      if (overLimit(buffered, 5)) {
+        dropConnection(`over ${MAX_MESSAGE_SIZE} bytes of unparsed input`);
+        return;
+      }
     }
     parseBufferedPackets();
   }
 
   socket.on("data", (chunk: Buffer) => {
+    if (closing) return;
     if (transportMode === "unknown") {
       handshakeBuffer = Buffer.concat([handshakeBuffer, chunk]);
       if (!looksLikeHttpRequest(handshakeBuffer)) {
@@ -184,6 +256,10 @@ const connectionHandler = (socket: net.Socket) => {
       handleWebSocketBytes(chunk);
     } else {
       buffered = Buffer.concat([buffered, chunk]);
+      if (overLimit(buffered, 5)) {
+        dropConnection(`over ${MAX_MESSAGE_SIZE} bytes of unparsed input`);
+        return;
+      }
       parseBufferedPackets();
     }
   });

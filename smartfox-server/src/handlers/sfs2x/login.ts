@@ -1,7 +1,8 @@
 import net from "node:net";
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../../sfs-wire.ts";
 import { getUtfString, getSFSObject, extractRawJsonValue, fitsBytes, MAX_NAME_BYTES, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
-import { JOIN_DELAY_MS } from "../../config.ts";
+import { JOIN_DELAY_MS, ALLOW_UNSIGNED_LOGIN } from "../../config.ts";
+import { checkJoinSignature } from "../../join-signature.ts";
 import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
 import { sendConsumableItemsSnapshot } from "../consumables.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
@@ -11,37 +12,55 @@ import { buildProximityUserEntry, sendExistingOccupantsToJoiner, broadcastNewJoi
 import type { HandlerContext } from "../context.ts";
 
 // RequestType.Login = 1. Params: {zn, un, pw, p: {joinRoomData: <JSON text>}}.
-// joinRoomData decides the room and the player's appearance.
-export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: net.Socket): void {
+// joinRoomData decides the room and the player's appearance. It's the web
+// API's SignedResponse, passed through by the client; its signature is
+// checked (join-signature.ts) before the swid, sessionId and room in it are
+// trusted. Returns false, after closing the connection, when it's refused.
+export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: net.Socket): boolean {
   const { session } = ctx;
   const zoneName = getUtfString(params, "zn") ?? "ClubPenguin";
-  session.zoneName = zoneName;
   const userName = getUtfString(params, "un");
-  session.userName = fitsBytes(userName, MAX_NAME_BYTES) ? userName : "guest";
   const innerParams = getSFSObject(params, "p");
   const joinRoomDataStr = getUtfString(innerParams, "joinRoomData");
 
-  let roomName = "ClubPenguin_default_room";
-  // sessionId is a 64-bit value beyond Number.MAX_SAFE_INTEGER; JSON.parse
-  // would round it, so it's pulled out of the raw text with a regex.
+  let parsed: any = null;
   if (joinRoomDataStr) {
     try {
-      const parsed = JSON.parse(joinRoomDataStr);
-      if (typeof parsed?.data?.room === "string" && fitsBytes(parsed.data.room, MAX_NAME_BYTES)) roomName = parsed.data.room;
-      if (typeof parsed?.data?.playerRoomData?.profile?.colour === "number") {
-        session.colour = parsed.data.playerRoomData.profile.colour;
-      }
-      if (typeof parsed?.data?.selectedTubeId === "number") {
-        session.selectedTubeId = parsed.data.selectedTubeId;
-      }
-      // swid sits beside "data" on the SignedResponse wrapper.
-      if (typeof parsed?.swid === "string" && fitsBytes(parsed.swid, MAX_NAME_BYTES)) session.swid = parsed.swid;
+      parsed = JSON.parse(joinRoomDataStr);
     } catch (err) {
       console.log(`[${new Date().toISOString()}] ${ctx.peer} - failed to parse joinRoomData JSON: ${(err as Error).message}`);
     }
-    // A 64-bit id is at most 20 digits.
+  }
+  const claims = {
+    swid: typeof parsed?.swid === "string" ? parsed.swid : "",
+    sessionId: Number.isSafeInteger(parsed?.data?.sessionId) ? String(parsed.data.sessionId) : "",
+    room: typeof parsed?.data?.room === "string" ? parsed.data.room : "",
+    goodUntil: parsed?.goodUntil,
+    signature: parsed?.signature,
+  };
+  const refused = checkJoinSignature(claims);
+  if (refused && !ALLOW_UNSIGNED_LOGIN) {
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - login refused (${refused}, swid=${JSON.stringify(claims.swid).slice(0, 60)}), closing`);
+    socket.destroy();
+    return false;
+  }
+
+  session.zoneName = zoneName;
+  session.userName = fitsBytes(userName, MAX_NAME_BYTES) ? userName : "guest";
+  let roomName = "ClubPenguin_default_room";
+  if (fitsBytes(claims.room, MAX_NAME_BYTES) && claims.room) roomName = claims.room;
+  if (claims.swid && fitsBytes(claims.swid, MAX_NAME_BYTES)) session.swid = claims.swid;
+  if (claims.sessionId) {
+    session.playerSessionId = claims.sessionId;
+  } else if (joinRoomDataStr && ALLOW_UNSIGNED_LOGIN) {
+    // Unsigned development logins may carry a 64-bit sessionId (beyond
+    // Number.MAX_SAFE_INTEGER), so take it from the raw text.
     const sessionIdMatch = joinRoomDataStr.match(/"sessionId"\s*:\s*(\d{1,20})\b/);
     if (sessionIdMatch) session.playerSessionId = sessionIdMatch[1];
+  }
+  if (typeof parsed?.data?.playerRoomData?.profile?.colour === "number") session.colour = parsed.data.playerRoomData.profile.colour;
+  if (typeof parsed?.data?.selectedTubeId === "number") session.selectedTubeId = parsed.data.selectedTubeId;
+  if (joinRoomDataStr) {
     // The outfit also contains a sessionId, so it's kept as raw JSON text.
     const outfit = extractRawJsonValue(joinRoomDataStr, "outfit");
     if (fitsBytes(outfit, MAX_OUTFIT_BYTES)) session.outfitJson = outfit;
@@ -129,6 +148,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
   } else {
     sendJoin();
   }
+  return true;
 }
 
 // Right after JoinRoom, a single SetUserVariables packet (c=0, a=12) carries

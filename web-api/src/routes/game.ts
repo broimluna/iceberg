@@ -18,6 +18,7 @@ import * as db from "../database.ts";
 import config from "../config.ts";
 import { saveSessionForUser, generateSessionId } from "../utils/session.ts";
 import { QuestStatus } from "../utils/response.ts";
+import { signJoin } from "../utils/joinSignature.ts";
 
 // ========== CONSTANTS ==========
 
@@ -238,6 +239,21 @@ function signedResponse(data, swid) {
     };
 }
 
+/**
+ * SignedResponse for joinRoomData. The client passes it unchanged to the
+ * SmartFox login, and SmartFox checks this signature (utils/joinSignature.ts)
+ * before trusting the swid, sessionId and room in it.
+ */
+function signedJoinResponse(joinRoomData, swid) {
+    const goodUntil = Date.now() + 3600000; // 1 hour
+    return {
+        goodUntil,
+        swid,
+        data: joinRoomData,
+        signature: signJoin(swid, joinRoomData.sessionId, joinRoomData.room, goodUntil)
+    };
+}
+
 // ========== ROUTES ==========
 
 /**
@@ -349,7 +365,7 @@ router.post('/game/v1/worlds/:world/language/:language/rooms/:room/players', (re
         playerProgress
     );
 
-    res.json(signedResponse(joinRoomData, swid));
+    res.json(signedJoinResponse(joinRoomData, swid));
 });
 
 /**
@@ -448,7 +464,7 @@ router.post('/game/v1/igloos/language/:language/players', (req, res) => {
         }
     );
 
-    res.json(signedResponse(joinRoomData, swid));
+    res.json(signedJoinResponse(joinRoomData, swid));
 });
 
 /**

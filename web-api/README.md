@@ -19,7 +19,8 @@ on first run.
 |---|---|---|
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | HTTP listen address. |
 | `GAME_SERVER_IP` / `GAME_SERVER_PORT` | `127.0.0.1` / `9933` | The game server address handed to clients on room join. |
-| `DB_PATH` | `cpi_data.db` | SQLite database file. |
+| `ICEBERG_DB_PATH` | `src/cpi_data.db` | SQLite database file. (`DB_PATH` is read into `config.ts` but has never been used, so it has no effect.) |
+| `JOIN_SIGNING_KEY` | *(auto)* | Key that signs `joinRoomData` for the SmartFox login. Must match `smartfox-server`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
 | `INTERNAL_API_SECRET` | *(empty)* | Optional shared secret for the internal bridge with `smartfox-server`. |
 
 ## Talking to the game server
