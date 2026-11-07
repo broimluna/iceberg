@@ -18,7 +18,7 @@ Sources used so far:
   `Disney/Mix/SDK/` and the app UI in `Mix/`.
 - **CPI client:** the same Mix SDK ships inside CPI as `MixSDK`. See
   `client-build/clients/android/decompiled/`.
-- **iceberg:** `web-api/src/routes/mix.ts` and `guestcontroller.ts`.
+- **iceberg:** `web-api/src/routes/mix/` (one file per area), `services/mixNotify.ts`, and `routes/guestcontroller.ts`.
 
 ---
 
@@ -202,8 +202,8 @@ end. Encrypting with the per-session key kept chat content in push
 notifications unreadable to the push providers. **(inferred from the
 key reuse)**
 
-iceberg implements this in `mix.ts` (`mixEncryptionMiddleware`,
-`buildRsaPublicKey`).
+iceberg implements this in `routes/mix/auth.ts` (`mixEncryptionMiddleware`)
+and `routes/mix/session.ts` (`buildRsaPublicKey`).
 
 ### HTTP status semantics (`MixWebCall`)
 
@@ -419,8 +419,7 @@ resync. It is harmless while every notification is written atomically
 with its sequence number. It becomes a problem once chat fan-out
 creates many notifications at once.
 
-**Action:** set this to several seconds once chat lands, and confirm
-against the CPI client's copy of `SessionResumer`.
+**Fixed in iceberg (2026-11-07):** `/state` now sends `10000` (10 s). Notifications are written through `services/mixNotify.ts` inside one SQLite transaction (`inTransaction`), so a sequence number is never handed out without its row. Whether the CPI client's own copy of `SessionResumer` reads it the same way is still an open question (§11).
 
 ### ⚠️ Finding (fixed 2026-11-07): `sinceSequence` is inclusive
 

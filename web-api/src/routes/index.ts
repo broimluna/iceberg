@@ -26,7 +26,7 @@ import eventRoutes from "./event.ts";
 import encryptionRoutes from "./encryption.ts";
 import membershipRoutes from "./membership.ts";
 import guestcontrollerRoutes from "./guestcontroller.ts";
-import mixRoutes from "./mix.ts";
+import mixRoutes from "./mix/index.ts";
 import diagnosticsRoutes from "./diagnostics.ts";
 
 export {

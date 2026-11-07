@@ -17,6 +17,19 @@ const db = new Database(DB_PATH);
 // Enable WAL mode for better performance
 db.exec("PRAGMA journal_mode = WAL");
 
+// Runs fn in one SQLite transaction. Re-entrant: inside another
+// inTransaction it just calls fn, so the outer transaction covers it.
+let transactionDepth = 0;
+function inTransaction<T>(fn: () => T): T {
+    if (transactionDepth > 0) return fn();
+    transactionDepth++;
+    try {
+        return db.transaction(fn)();
+    } finally {
+        transactionDepth--;
+    }
+}
+
 /**
  * Initialize all database tables
  */
@@ -2472,6 +2485,7 @@ initializeDatabase();
 
 // Export all functions
 export {
+    inTransaction,
     db,
     initializeDatabase,
     closeDatabase,

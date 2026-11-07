@@ -20,6 +20,7 @@ try {
   check(s?.Status === "OK", `/state decrypts with Status OK (${s?.Status})`);
   check(JSON.stringify(s.PollIntervals) === "[2,5,10]", `PollIntervals ${JSON.stringify(s.PollIntervals)}`);
   check(s.NotificationSequenceCounter === 0, `fresh user counter ${s.NotificationSequenceCounter}`);
+  check(s.NotificationSequenceThreshold === 10000, `threshold is 10 s in ms (${s.NotificationSequenceThreshold})`);
 
   const inv = await A.call("PUT", "/friendship/invitation", { InviteeDisplayName: "bob", IsTrusted: false });
   check(inv.http === 200 && inv.body?.Status === "OK", `invite -> ${inv.http} ${inv.body?.Status}`);
