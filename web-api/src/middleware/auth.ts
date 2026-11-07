@@ -53,8 +53,16 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
             }
         }
 
-        // If not a token, treat as a SWID directly (for backward compatibility)
+        // Unknown or expired access token: 401 with ErrorResponse code 3, which
+        // makes the client refresh its token through the guest controller.
+        // Treating the value as a SWID instead would let anyone act as any
+        // player (SWIDs are visible to others), and turned expired tokens into
+        // new auto-created accounts. Test tools can opt back in.
         if (!swid) {
+            if (process.env.ALLOW_SWID_AUTH !== '1') {
+                console.log(`[AUTH] ${req.method} ${req.path}: unknown or expired access token, 401 (client refreshes)`);
+                return res.status(401).json({ code: 3 });
+            }
             swid = authValue;
         }
 

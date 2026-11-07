@@ -875,15 +875,14 @@ function updateSessionLocation(sessionId, worldName, roomName) {
  * @returns {object[]} Array of room populations
  */
 function getRoomPopulationsForWorld(worldName, roomNames) {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
     // Get counts for each room
     const populations = [];
     for (const roomName of roomNames) {
         const row = db.prepare(`
             SELECT COUNT(*) as count FROM player_sessions 
-            WHERE room_name = ? AND last_activity > ?
-        `).get(roomName, fiveMinutesAgo);
+            WHERE room_name = ? AND last_activity > datetime('now', ?)
+        `).get(roomName, SESSION_ONLINE_WINDOW);
         
         populations.push({
             roomName: roomName,
@@ -901,14 +900,13 @@ function getRoomPopulationsForWorld(worldName, roomNames) {
  * @returns {object[]} Array of world populations
  */
 function getRoomPopulationAcrossWorlds(roomName, worldNames) {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
     // Currently we track by room name, not world - for now return zero population for each world
     // In a full implementation, we'd store world info in the session
     const row = db.prepare(`
         SELECT COUNT(*) as count FROM player_sessions 
-        WHERE room_name = ? AND last_activity > ?
-    `).get(roomName, fiveMinutesAgo);
+        WHERE room_name = ? AND last_activity > datetime('now', ?)
+    `).get(roomName, SESSION_ONLINE_WINDOW);
     
     const totalCount = row?.count || 0;
     
@@ -924,13 +922,12 @@ function getRoomPopulationAcrossWorlds(roomName, worldNames) {
  * @returns {object} Map of room name to player count
  */
 function getActiveSessionsByRoom() {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
     const rows = db.prepare(`
         SELECT room_name, COUNT(*) as count FROM player_sessions 
-        WHERE last_activity > ?
+        WHERE last_activity > datetime('now', ?)
         GROUP BY room_name
-    `).all(fiveMinutesAgo);
+    `).all(SESSION_ONLINE_WINDOW);
     
     const result = {};
     rows.forEach(row => {
@@ -1961,7 +1958,7 @@ function storeEncryptionKey(keyId, symmetricKey, ttlSeconds = 3600) {
 function getEncryptionKey(keyId) {
     const row = db.prepare(`
         SELECT symmetric_key FROM encryption_keys 
-        WHERE key_id = ? AND expires_at > datetime('now')
+        WHERE key_id = ? AND datetime(expires_at) > datetime('now')
     `).get(keyId);
     return row ? row.symmetric_key : null;
 }
@@ -1978,7 +1975,7 @@ function deleteEncryptionKey(keyId) {
  * Clean up expired encryption keys
  */
 function cleanupExpiredEncryptionKeys() {
-    const result = db.prepare(`DELETE FROM encryption_keys WHERE expires_at <= datetime('now')`).run();
+    const result = db.prepare(`DELETE FROM encryption_keys WHERE datetime(expires_at) <= datetime('now')`).run();
     if (result.changes > 0) {
         console.log(`[DATABASE] Cleaned up ${result.changes} expired encryption keys`);
     }
@@ -2009,7 +2006,7 @@ function storeGuestToken(token, tokenType, swid, ttlSeconds) {
 function getGuestToken(token) {
     const row = db.prepare(`
         SELECT * FROM guest_controller_tokens 
-        WHERE token = ? AND expires_at > datetime('now')
+        WHERE token = ? AND datetime(expires_at) > datetime('now')
     `).get(token);
     
     if (!row) return null;
@@ -2042,7 +2039,7 @@ function deleteGuestTokensBySwid(swid) {
  * Clean up expired guest tokens
  */
 function cleanupExpiredGuestTokens() {
-    const result = db.prepare(`DELETE FROM guest_controller_tokens WHERE expires_at <= datetime('now')`).run();
+    const result = db.prepare(`DELETE FROM guest_controller_tokens WHERE datetime(expires_at) <= datetime('now')`).run();
     if (result.changes > 0) {
         console.log(`[DATABASE] Cleaned up ${result.changes} expired guest tokens`);
     }
@@ -2070,7 +2067,7 @@ function storeGuestApiKey(apiKey, ttlSeconds) {
 function getGuestApiKey(apiKey) {
     const row = db.prepare(`
         SELECT * FROM guest_controller_api_keys 
-        WHERE api_key = ? AND expires_at > datetime('now')
+        WHERE api_key = ? AND datetime(expires_at) > datetime('now')
     `).get(apiKey);
     
     if (!row) return null;
@@ -2098,7 +2095,7 @@ function incrementApiKeyRequestCount(apiKey) {
  * Clean up expired API keys
  */
 function cleanupExpiredApiKeys() {
-    const result = db.prepare(`DELETE FROM guest_controller_api_keys WHERE expires_at <= datetime('now')`).run();
+    const result = db.prepare(`DELETE FROM guest_controller_api_keys WHERE datetime(expires_at) <= datetime('now')`).run();
     if (result.changes > 0) {
         console.log(`[DATABASE] Cleaned up ${result.changes} expired API keys`);
     }
