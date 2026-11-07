@@ -542,6 +542,49 @@ function initializeDatabase() {
             SELECT swid, MAX(sequence) FROM mix_pending_notifications GROUP BY swid;
     `);
 
+    // Mix chat (services/mixChat.ts, docs/MIX_API.md section 7). Message
+    // seq is per thread; a member sees messages with
+    // seq > max(joined_seq, history_cleared_seq).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_chat_threads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL CHECK (type IN ('ONE_ON_ONE', 'GROUP', 'OFFICIAL_ACCOUNT')),
+            is_trusted INTEGER NOT NULL DEFAULT 0,
+            official_account_id TEXT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS mix_chat_members (
+            thread_id INTEGER NOT NULL,
+            swid TEXT NOT NULL,
+            joined_seq INTEGER NOT NULL DEFAULT 0,
+            left_at TEXT NULL,
+            last_seen_seq INTEGER NOT NULL DEFAULT 0,
+            history_cleared_seq INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (thread_id, swid)
+        );
+        CREATE TABLE IF NOT EXISTS mix_chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id INTEGER NOT NULL,
+            seq INTEGER NOT NULL,
+            sender_swid TEXT NOT NULL,
+            client_message_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (thread_id, seq),
+            UNIQUE (sender_swid, client_message_id)
+        );
+        CREATE TABLE IF NOT EXISTS mix_chat_nicknames (
+            swid TEXT NOT NULL,
+            thread_id INTEGER NOT NULL,
+            nickname TEXT NOT NULL,
+            PRIMARY KEY (swid, thread_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_mix_chat_members_swid ON mix_chat_members(swid);
+        CREATE INDEX IF NOT EXISTS idx_mix_chat_messages_thread_seq ON mix_chat_messages(thread_id, seq);
+    `);
+
     // Moderation (Mix and CPI). The text filter rules are read by
     // services/moderation.ts and edited live with tools/mod.ts.
     const rulesExisted = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'mix_moderation_rules'").get();

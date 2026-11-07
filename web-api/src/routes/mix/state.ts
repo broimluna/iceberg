@@ -2,6 +2,7 @@ import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
 import { hashUserId, buildResponse, getTimestamp, presenceState, defaultAvatar } from "./common.ts";
+import { stateFor } from "../../services/mixChat.ts";
 
 const router = express.Router();
 
@@ -69,16 +70,12 @@ router.post('/state', authenticateMix, (req, res) => {
     
     res.json(buildResponse({
         Users: users,
-        // Mix app fields (GetStateResponse). Empty until chat, nicknames
-        // and official accounts exist; the app expects the lists present.
+        // Mix app fields (GetStateResponse). Nicknames and official
+        // accounts are empty until they exist; the app expects the lists.
         UserNicknames: [],
         OfficialAccounts: [],
-        ChatThreads: [],
-        ChatThreadNicknames: [],
-        ChatThreadUnreadMessageCount: [],
-        ChatThreadLatestMessageSequenceNumbers: [],
-        ChatThreadLastSeenMessageSequenceNumbers: [],
-        GameStateChatMessages: [],
+        // ChatThreads, nicknames, unread counts and sequence pairs.
+        ...stateFor(req.mixUserId),
         Friendships: userFriendships.map(f => ({
             FriendUserId: f.friendUserId,
             IsTrusted: f.isTrusted

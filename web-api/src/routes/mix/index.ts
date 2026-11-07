@@ -18,9 +18,10 @@ import session from "./session.ts";
 import moderation from "./moderation.ts";
 import push from "./push.ts";
 import officialAccounts from "./officialAccounts.ts";
+import chat from "./chat.ts";
 
 const router = express.Router();
 router.use(mixEncryptionMiddleware);
-router.use(users, state, notifications, friends, session, moderation, push, officialAccounts);
+router.use(users, state, notifications, friends, session, moderation, push, officialAccounts, chat);
 
 export default router;

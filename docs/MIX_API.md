@@ -345,7 +345,7 @@ iceberg's current state.
 
 | Method | Path | Request type | iceberg |
 |---|---|---|---|
-| PUT | `/chatThread` | AddChatThreadRequest | ❌ |
+| PUT | `/chatThread` | AddChatThreadRequest | ✅ (section 7) |
 | POST | `/chatThread` | GetChatThreadMessagesRequest | ❌ |
 | PUT | `/chatThreadMembership` | AddChatThreadMembershipRequest | ❌ |
 | POST | `/chatThreadMembership/delete` | RemoveChatThreadMembershipRequest | ❌ |
@@ -699,6 +699,61 @@ All message types extend `BaseChatMessage`:
   (`AbstractChatThread`).
 - Member-add errors: `USER_ALREADY_THREAD_MEMBER`,
   `USER_NOT_THREAD_MEMBER` (`ChatThreadMemberAdder`).
+
+### Creating threads in iceberg (`services/mixChat.ts`)
+
+`PUT /chatThread` takes `{ChatThreadType, MemberUserIds}` and replies
+`{Status: "OK", Notification: AddChatThread}`.
+
+- **The reply is a real notification.** `ChatThreadCreator` validates it
+  and runs it through the caller's notification queue, so it carries the
+  caller's next sequence number. Every other member gets the same
+  `AddChatThread {ChatThread, WelcomingUserId: <creator>}` through
+  polling, at their own next sequence.
+- Members are deduplicated, and the creator is always one of them.
+  `ONE_ON_ONE` needs exactly one other member. Only `ONE_ON_ONE` and
+  `GROUP` can be created: `OFFICIAL_ACCOUNT` channels belong to the
+  server.
+- Every other member must be the creator's friend, or
+  `400 USER_NOT_FRIEND`. **The client has no specific creation failure
+  statuses.** `ChatThreadCreator` sends any error to the same failure
+  callback, so the status string is iceberg's choice (the same holds for
+  `INVALID_REQUEST`).
+- Creating a 1:1 that already exists returns the existing thread, in a
+  fresh `AddChatThread` for the creator only. The other member already
+  has it.
+- `IsTrusted` mirrors friendship trust. A 1:1 takes the friendship's
+  trust. A group is trusted only if every pair of members are trusted
+  friends.
+- `ChatThread.Members` are full user objects with avatars, like
+  everywhere else (section 5).
+
+### Chat in `/state`
+
+- `ChatThreads`: every thread the user is a current member of.
+- **`ChatThreadLatestMessageSequenceNumbers` and
+  `ChatThreadLastSeenMessageSequenceNumbers` are flat pairs**:
+  `[threadId, seq, threadId, seq, ...]`.
+  `SequenceNumberUtils.CreateSequenceNumberDictionary` reads index `i`
+  as a thread ID and `i+1` as its sequence. They are not lists parallel
+  to `ChatThreads` (`List<long?>` was the only way to send a map in this
+  JSON shape).
+- `ChatThreadUnreadMessageCount`: `{ChatThreadId, UnreadMessageCount}`,
+  only for threads with something unread:
+  `latest - max(last_seen, history_cleared)`.
+- `ChatThreadNicknames`: `{ChatThreadId, Nickname}`, the user's own names
+  for threads.
+
+### Polling returns every list
+
+`POST /notifications/sinceSequence` replies with every list field of
+`GetNotificationsResponse` (29 of them), empty when nothing is pending.
+A stored notification goes in the list named by its type. Until
+2026-11-07 the route had a fixed switch over the friendship and alert
+types. Any other type, such as `AddChatThread`, was stored and given a
+sequence number but never sent, so the client saw a gap
+(`NotificationSequenceCounter` ahead of what it received) and fell back
+to a full resync.
 
 ### Chat notification types
 

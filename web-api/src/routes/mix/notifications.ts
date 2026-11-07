@@ -6,6 +6,20 @@ import { notify } from "../../services/mixNotify.ts";
 
 const router = express.Router();
 
+// Every list field of MixDomain/GetNotificationsResponse.cs. A stored
+// notification goes in the list named by its type. This used to be a
+// fixed switch over the friendship and alert types, so any other type
+// (chat) was silently dropped and the client saw a sequence gap.
+const NOTIFICATION_LISTS = [
+    "AddChatThread", "AddChatThreadMembership", "AddChatThreadGagMessage", "AddChatThreadMemberListChangedMessage",
+    "AddChatThreadPhotoMessage", "AddChatThreadStickerMessage", "AddChatThreadTextMessage", "AddChatThreadVideoMessage",
+    "AddChatThreadNickname", "AddChatThreadGameStateMessage", "UpdateChatThreadGameStateMessage", "AddChatThreadGameEventMessage",
+    "AddFriendship", "AddFollowship", "AddFriendshipInvitation", "AddNickname", "AddAlert", "ClearAlert",
+    "ClearMemberChatHistory", "ClearUnreadMessageCount", "RemoveChatThreadMembership", "RemoveChatThreadNickname",
+    "RemoveFriendshipInvitation", "RemoveFriendship", "RemoveFollowship", "RemoveFriendshipTrust", "RemoveNickname",
+    "SetAvatar", "UpdateChatThreadTrustStatus",
+];
+
 // =============================================================================
 // Alert Endpoints
 // =============================================================================
@@ -74,53 +88,21 @@ router.post('/notifications/sinceSequence', authenticateMix, (req, res) => {
     
     console.log(`[NOTIFICATIONS] User ${UserId} polling with SequenceNumber: ${SequenceNumber}, pending notifications: ${userNotifications.length}`);
     
-    // Separate notifications by type
-    const addFriendshipInvitations = [];
-    const addFriendships = [];
-    const removeFriendshipInvitations = [];
-    const removeFriendships = [];
-    const addAlerts = [];
-    const clearAlerts = [];
-    const removeFriendshipTrust = [];
-    
+    // One list per notification type, named as in GetNotificationsResponse.
+    // A stored notification's type is its list name. All lists are sent,
+    // empty when nothing is pending.
+    const lists = Object.fromEntries(NOTIFICATION_LISTS.map((name) => [name, []]));
     for (const notification of userNotifications) {
-        console.log(`[NOTIFICATIONS] Checking notification type=${notification.type}, seq=${notification.sequence} vs client seq=${SequenceNumber}`);
-        
-        // Skip notifications that are in the exclude list
-        if (ExcludeNotificationSequenceNumbers && 
+        if (ExcludeNotificationSequenceNumbers &&
             ExcludeNotificationSequenceNumbers.includes(notification.sequence)) {
-            console.log(`[NOTIFICATIONS] Skipping - in exclude list`);
             continue;
         }
-        
-        console.log(`[NOTIFICATIONS] Including notification type=${notification.type}`);
-        
-        // Update data to use sequence from database
-        const notificationData = { ...notification.data, SequenceNumber: notification.sequence };
-        
-        switch (notification.type) {
-            case 'AddFriendshipInvitation':
-                addFriendshipInvitations.push(notificationData);
-                break;
-            case 'AddFriendship':
-                addFriendships.push(notificationData);
-                break;
-            case 'RemoveFriendshipInvitation':
-                removeFriendshipInvitations.push(notificationData);
-                break;
-            case 'RemoveFriendship':
-                removeFriendships.push(notificationData);
-                break;
-            case 'AddAlert':
-                addAlerts.push(notificationData);
-                break;
-            case 'ClearAlert':
-                clearAlerts.push(notificationData);
-                break;
-            case 'RemoveFriendshipTrust':
-                removeFriendshipTrust.push(notificationData);
-                break;
+        const list = lists[notification.type];
+        if (!list) {
+            console.warn(`[NOTIFICATIONS] ${UserId}: stored notification type ${notification.type} has no list in GetNotificationsResponse, not sent`);
+            continue;
         }
+        list.push({ ...notification.data, SequenceNumber: notification.sequence });
     }
     
     // Clean up old notifications for this user (older than 1 hour)
@@ -129,13 +111,7 @@ router.post('/notifications/sinceSequence', authenticateMix, (req, res) => {
     res.json(buildResponse({
         LastNotificationTimestamp: getTimestamp(),
         NotificationSequenceCounter: db.getMixNotificationSequence(UserId),
-        AddFriendship: addFriendships,
-        AddFriendshipInvitation: addFriendshipInvitations,
-        AddAlert: addAlerts,
-        ClearAlert: clearAlerts,
-        RemoveFriendshipInvitation: removeFriendshipInvitations,
-        RemoveFriendship: removeFriendships,
-        RemoveFriendshipTrust: removeFriendshipTrust
+        ...lists
     }));
 });
 
