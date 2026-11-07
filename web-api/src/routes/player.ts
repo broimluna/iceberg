@@ -27,6 +27,7 @@ import * as db from "../database.ts";
 import config from "../config.ts";
 import { signedResponse, QuestStatus } from "../utils/response.ts";
 import * as smartfox from "../smartfoxNotifier.ts";
+import { buildContentIdentifier } from "./game.ts";
 
 // =============================================================================
 // Helper Functions
@@ -263,15 +264,17 @@ function buildOtherPlayerData(username, swid, displayName = null) {
     console.log(`[PLAYER] Checking online status for ${swid}: activeSession =`, activeSession);
     let onlineLocation = null;
     if (activeSession && activeSession.room_name) {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        // Must match what the room list gave the viewer: the player card
+        // shows "in <room>" only when contentIdentifier equals the
+        // viewer's own, and "unreachable" otherwise.
         onlineLocation = {
-            world: "CPI",
+            world: activeSession.world || 'Alpine',
             language: 1,
             zoneId: {
                 name: activeSession.room_name,
-                instanceId: ""
+                instanceId: activeSession.instance_id || ""
             },
-            contentIdentifier: `1.13.0;1.13.0.1424;${today};NONE`,
+            contentIdentifier: buildContentIdentifier(),
             room: activeSession.room_name
         };
         console.log(`[PLAYER] Player ${swid} is ONLINE in room ${activeSession.room_name}`);

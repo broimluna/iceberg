@@ -364,6 +364,11 @@ function initializeDatabase() {
             FOREIGN KEY (swid) REFERENCES player_identity(swid) ON DELETE CASCADE
         )
     `);
+    // World and instance (igloo owner) of the session's room, for the
+    // onlineLocation on player cards. Added to older databases here.
+    const sessionCols = db.prepare("SELECT name FROM pragma_table_info('player_sessions')").all().map(c => c.name);
+    if (!sessionCols.includes('world')) db.exec("ALTER TABLE player_sessions ADD COLUMN world TEXT");
+    if (!sessionCols.includes('instance_id')) db.exec("ALTER TABLE player_sessions ADD COLUMN instance_id TEXT DEFAULT ''");
 
     // Referrals table - tracks who referred whom and pending rewards
     db.exec(`
@@ -500,6 +505,19 @@ function initializeDatabase() {
             sequence INTEGER NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
+    `);
+
+    // Mix notification sequence numbers are per user and must never repeat
+    // or go backwards: the client applies a notification only if its
+    // number is exactly one past the last it saw. Seeded once from any
+    // pending notifications already stored.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_notification_counters (
+            swid TEXT PRIMARY KEY,
+            last_sequence INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT OR IGNORE INTO mix_notification_counters (swid, last_sequence)
+            SELECT swid, MAX(sequence) FROM mix_pending_notifications GROUP BY swid;
     `);
 
     // Create indexes for performance
@@ -759,7 +777,7 @@ function getPlayerPassword(swid) {
 // only a backstop for a game server that died without reporting.
 const SESSION_ONLINE_WINDOW = '-12 hours';
 
-function registerPlayerSession(swid, sessionId, roomName) {
+function registerPlayerSession(swid, sessionId, roomName, world = null, instanceId = '') {
     const player = getPlayerBySwid(swid);
     if (!player) {
         console.log(`[DB] registerPlayerSession: No player found for SWID ${swid}`);
@@ -768,9 +786,9 @@ function registerPlayerSession(swid, sessionId, roomName) {
     
     console.log(`[DB] registerPlayerSession: Registering session ${sessionId} for ${swid} (${player.username}) in room ${roomName}`);
     db.prepare(`
-        INSERT OR REPLACE INTO player_sessions (session_id, swid, username, room_name, last_activity)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(sessionId, swid, player.username, roomName);
+        INSERT OR REPLACE INTO player_sessions (session_id, swid, username, room_name, world, instance_id, last_activity)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(sessionId, swid, player.username, roomName, world, instanceId || '');
     console.log(`[DB] registerPlayerSession: Session registered successfully`);
 }
 
@@ -2275,10 +2293,25 @@ function getMixPendingNotifications(swid, sinceSequence = 0) {
  * @param {object} data - The notification data
  * @returns {number} The notification sequence number
  */
+function getMixNotificationSequence(swid) {
+    const row = db.prepare('SELECT last_sequence FROM mix_notification_counters WHERE swid = ?').get(swid);
+    return row ? row.last_sequence : 0;
+}
+
+function nextMixNotificationSequence(swid) {
+    const row = db.prepare(`
+        INSERT INTO mix_notification_counters (swid, last_sequence) VALUES (?, 1)
+        ON CONFLICT(swid) DO UPDATE SET last_sequence = last_sequence + 1
+        RETURNING last_sequence
+    `).get(swid);
+    return row.last_sequence;
+}
+
+// Stores a notification for one user with that user's next sequence
+// number, which is also written into data.SequenceNumber. Returns it.
 function addMixPendingNotification(swid, type, data) {
-    // Get next sequence number
-    const seqRow = db.prepare('SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq FROM mix_pending_notifications').get();
-    const sequence = seqRow.next_seq;
+    const sequence = nextMixNotificationSequence(swid);
+    data.SequenceNumber = sequence;
     
     db.prepare(`
         INSERT INTO mix_pending_notifications (swid, type, data, sequence)
@@ -2294,11 +2327,11 @@ function addMixPendingNotification(swid, type, data) {
  * @param {number} maxAge - Maximum age in seconds (default 1 hour)
  */
 function cleanupOldMixNotifications(swid, maxAgeSeconds = 3600) {
-    const cutoffTime = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
+    // created_at is SQLite CURRENT_TIMESTAMP text; compare with datetime().
     db.prepare(`
         DELETE FROM mix_pending_notifications 
-        WHERE swid = ? AND created_at < ?
-    `).run(swid, cutoffTime);
+        WHERE swid = ? AND created_at < datetime('now', ?)
+    `).run(swid, `-${Math.floor(maxAgeSeconds)} seconds`);
 }
 
 /**
@@ -2545,6 +2578,7 @@ export {
     deleteMixPresenceState,
     getMixPendingNotifications,
     addMixPendingNotification,
+    getMixNotificationSequence,
     cleanupOldMixNotifications,
     clearAllMixDataForUser,
     

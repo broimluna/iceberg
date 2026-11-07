@@ -69,7 +69,7 @@ const POPULATION_THRESHOLDS = {
 /**
  * Build content identifier string
  */
-function buildContentIdentifier() {
+export function buildContentIdentifier() {
     const { clientVersion, contentVersion, subContentVersion, abTestGroup } = config.content;
     return `${clientVersion};${contentVersion};${subContentVersion};${abTestGroup}`;
 }
@@ -325,7 +325,7 @@ router.post('/game/v1/worlds/:world/language/:language/rooms/:room/players', (re
     
     // Register session in database for player lookups
     console.log(`[JOIN ROOM] Registering session for SWID=${swid}, sessionId=${sessionId}, room=${room}`);
-    db.registerPlayerSession(swid, sessionId, room);
+    db.registerPlayerSession(swid, sessionId, room, world);
     
     // Load player data from database
     const playerProgress = db.getFullPlayerData(username);
@@ -384,7 +384,7 @@ router.post('/game/v1/igloos/language/:language/players', (req, res) => {
     saveSessionForUser(username, sessionId, iglooZoneName);
     
     // Register session in database
-    db.registerPlayerSession(swid, sessionId, iglooZoneName);
+    db.registerPlayerSession(swid, sessionId, iglooZoneName, 'Igloo', iglooOwnerId);
     
     // Load player data
     const playerProgress = db.getFullPlayerData(username);

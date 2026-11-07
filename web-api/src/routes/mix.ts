@@ -18,7 +18,6 @@ import crypto from "crypto";
 import { buildRsaPublicKeyFromBytes, decryptAesCbc, encryptAesCbc } from "../lib/crypto.ts";
 
 // State variables
-let notificationSequence = 0;
 const presenceState = new Map();
 
 // =============================================================================
@@ -59,6 +58,30 @@ function generateId() {
 /**
  * Generate a default avatar object matching the reference implementation
  */
+// A Mix notification for one user. It gets that user's next sequence
+// number (the client applies a notification only if it's exactly one past
+// the last it saw, and rejects 0) and is stored as pending, so one the
+// client misses is redelivered by /notifications/sinceSequence.
+function notify(swid, type, fields) {
+    const notification = { Created: Date.now(), NotificationId: generateId(), SequenceNumber: 0, ...fields };
+    db.addMixPendingNotification(swid, type, notification);
+    return notification;
+}
+
+// The Friend (Mix User) object for a player.
+function mixUser(swid, player) {
+    const name = player?.displayName || player?.username || 'Unknown';
+    return {
+        UserId: swid,
+        HashedUserId: hashUserId(swid),
+        DisplayName: name,
+        FirstName: name,
+        Avatar: generateDefaultAvatar(),
+        Status: null,
+        Nickname: null
+    };
+}
+
 function generateDefaultAvatar() {
     return {
         AvatarId: generateId(),
@@ -353,7 +376,7 @@ router.post('/state', authenticateMix, (req, res) => {
         PollIntervals: [2, 5, 10],
         PokeIntervals: [2, 3, 5],
         Timestamp: getTimestamp(),
-        NotificationSequenceCounter: notificationSequence,
+        NotificationSequenceCounter: db.getMixNotificationSequence(UserId),
         NotificationSequenceThreshold: 100,
         NotificationIntervalsJitter: 1000
     }));
@@ -531,10 +554,6 @@ router.put('/friendship', authenticateMix, (req, res) => {
         });
     }
     
-    const created = Date.now();
-    const notificationId = generateId();
-    const sequenceNumber = notificationSequence++;
-    
     // Add friendship for both users in database
     db.addMixFriendship(UserId, friend.swid, IsTrusted || false);
     db.addMixFriendship(friend.swid, UserId, IsTrusted || false);
@@ -542,53 +561,23 @@ router.put('/friendship', authenticateMix, (req, res) => {
     // Remove invitation from database
     db.removeMixFriendshipInvitation(InvitationId);
     
-    // Get the accepter's info for notifications
     const accepter = db.getPlayerBySwid(UserId);
     
-    // Add notification for the friend (the original inviter) that their invitation was accepted
-    const friendNotificationSeq = db.addMixPendingNotification(friend.swid, 'AddFriendship', {
-        Created: created,
-        NotificationId: generateId(),
-        SequenceNumber: 0, // Will be set by database function
-        Friend: {
-            UserId: UserId,
-            HashedUserId: hashUserId(UserId),
-            DisplayName: accepter?.displayName || accepter?.username,
-            FirstName: accepter?.displayName || accepter?.username,
-            Avatar: generateDefaultAvatar(),
-            Status: null,
-            Nickname: null
-        },
+    // The original inviter learns the invitation was accepted.
+    notify(friend.swid, 'AddFriendship', {
+        Friend: mixUser(UserId, accepter),
         FriendshipInvitationId: InvitationId,
         IsTrusted: IsTrusted || false
     });
     
     console.log(`[FRIENDSHIP] Friendship created between ${UserId} and ${friend.swid}`);
     
-    // Build response matching cpi-web-service format
     const response = buildResponse({
-        Notification: {
-            Created: created,
-            NotificationId: notificationId,
-            SequenceNumber: sequenceNumber,
-            Invitation: {
-                FriendshipInvitationId: InvitationId,
-                FriendDisplayName: friend.displayName || friend.username,
-                IsInviter: true,
-                IsTrusted: IsTrusted || false
-            },
-            Friend: {
-                UserId: friend.swid,
-                HashedUserId: hashUserId(friend.swid),
-                DisplayName: friend.displayName || friend.username,
-                FirstName: friend.displayName || friend.username,
-                Avatar: generateDefaultAvatar(),
-                Status: null,
-                Nickname: null
-            },
+        Notification: notify(UserId, 'AddFriendship', {
+            Friend: mixUser(friend.swid, friend),
             FriendshipInvitationId: InvitationId,
             IsTrusted: IsTrusted || false
-        }
+        })
     });
     
     console.log(`[FRIENDSHIP] Sending accept response:`, JSON.stringify(response));
@@ -606,10 +595,9 @@ router.post('/friendship/delete', authenticateMix, (req, res) => {
     db.removeMixFriendship(UserId, FriendUserId);
     db.removeMixFriendship(FriendUserId, UserId);
     
+    notify(FriendUserId, 'RemoveFriendship', { FriendUserId: UserId });
     res.json(buildResponse({
-        Notification: {
-            FriendUserId: FriendUserId
-        }
+        Notification: notify(UserId, 'RemoveFriendship', { FriendUserId })
     }));
 });
 
@@ -676,64 +664,37 @@ router.put('/friendship/invitation', authenticateMix, (req, res) => {
     }
     
     const invitationId = generateId();
-    const notificationId = generateId();
-    const sequenceNumber = notificationSequence++;
-    const created = Date.now();
     
     console.log(`[FRIENDSHIP] Generated invitation ID: ${invitationId}`);
     
-    // Add invitation for both users in database
-    db.addMixFriendshipInvitation(invitationId, UserId, InviteeDisplayName, true, IsTrusted || false);
-    
     const inviterPlayer = db.getPlayerBySwid(UserId);
-    console.log(`[FRIENDSHIP] Inviter player lookup:`, inviterPlayer);
+    const inviterName = inviterPlayer?.displayName || inviterPlayer?.username || 'Unknown';
     
-    db.addMixFriendshipInvitation(invitationId, invitee.swid, inviterPlayer?.displayName || inviterPlayer?.username || 'Unknown', false, IsTrusted || false);
+    // One row per side of the invitation.
+    db.addMixFriendshipInvitation(invitationId, UserId, InviteeDisplayName, true, IsTrusted || false);
+    db.addMixFriendshipInvitation(invitationId, invitee.swid, inviterName, false, IsTrusted || false);
     
-    // Store pending notification in database for invitee to receive via /notifications/sinceSequence
-    const inviteeNotificationSeq = db.addMixPendingNotification(invitee.swid, 'AddFriendshipInvitation', {
-        Created: created,
-        NotificationId: generateId(),
-        SequenceNumber: 0, // Will be set by database function
+    // The invitee receives it through /notifications/sinceSequence.
+    notify(invitee.swid, 'AddFriendshipInvitation', {
         Invitation: {
             FriendshipInvitationId: invitationId,
-            FriendDisplayName: inviterPlayer?.displayName || inviterPlayer?.username || 'Unknown',
+            FriendDisplayName: inviterName,
             IsInviter: false,
             IsTrusted: IsTrusted || false
         },
-        Friend: {
-            UserId: UserId,
-            HashedUserId: hashUserId(UserId),
-            DisplayName: inviterPlayer?.displayName || inviterPlayer?.username,
-            FirstName: inviterPlayer?.displayName || inviterPlayer?.username,
-            Avatar: generateDefaultAvatar(),
-            Status: null,
-            Nickname: null
-        }
+        Friend: mixUser(UserId, inviterPlayer)
     });
     
-    // Build response matching cpi-web-service format
     const response = buildResponse({
-        Notification: {
-            Created: created,
-            NotificationId: notificationId,
-            SequenceNumber: sequenceNumber,
+        Notification: notify(UserId, 'AddFriendshipInvitation', {
             Invitation: {
                 FriendshipInvitationId: invitationId,
                 FriendDisplayName: InviteeDisplayName,
                 IsInviter: true,
                 IsTrusted: IsTrusted || false
             },
-            Friend: {
-                UserId: invitee.swid,
-                HashedUserId: hashUserId(invitee.swid),
-                DisplayName: invitee.displayName || invitee.username,
-                FirstName: invitee.displayName || invitee.username,
-                Avatar: generateDefaultAvatar(),
-                Status: null,
-                Nickname: null
-            }
-        }
+            Friend: mixUser(invitee.swid, invitee)
+        })
     });
     
     console.log(`[FRIENDSHIP] Sending response:`, JSON.stringify(response));
@@ -747,13 +708,15 @@ router.put('/friendship/invitation', authenticateMix, (req, res) => {
 router.post('/friendship/invitation/delete', authenticateMix, (req, res) => {
     const { UserId, InvitationId } = req.body;
     
-    // Remove invitation from database
+    // Tell the other side too, before the rows are gone.
+    const invitation = db.getMixFriendshipInvitations(UserId).find(inv => String(inv.invitationId) === String(InvitationId));
+    const other = invitation ? db.getPlayerByDisplayName(invitation.friendDisplayName) : null;
+    
     db.removeMixFriendshipInvitation(InvitationId);
     
+    if (other?.swid) notify(other.swid, 'RemoveFriendshipInvitation', { InvitationId });
     res.json(buildResponse({
-        Notification: {
-            InvitationId: InvitationId
-        }
+        Notification: notify(UserId, 'RemoveFriendshipInvitation', { InvitationId })
     }));
 });
 
@@ -766,11 +729,11 @@ router.post('/friendship/trust/delete', authenticateMix, (req, res) => {
     
     // Update trust status in database by re-adding with updated trust value
     db.addMixFriendship(UserId, FriendUserId, false);
+    db.addMixFriendship(FriendUserId, UserId, false);
     
+    notify(FriendUserId, 'RemoveFriendshipTrust', { FriendUserId: UserId });
     res.json(buildResponse({
-        Notification: {
-            FriendUserId: FriendUserId
-        }
+        Notification: notify(UserId, 'RemoveFriendshipTrust', { FriendUserId })
     }));
 });
 
@@ -788,7 +751,7 @@ router.post('/notifications', authenticateMix, (req, res) => {
     // Return empty notifications for development
     res.json(buildResponse({
         LastNotificationTimestamp: getTimestamp(),
-        NotificationSequenceCounter: notificationSequence++,
+        NotificationSequenceCounter: db.getMixNotificationSequence(UserId),
         AddFriendship: [],
         AddFriendshipInvitation: [],
         AddAlert: [],
@@ -865,13 +828,9 @@ router.post('/notifications/sinceSequence', authenticateMix, (req, res) => {
     // Clean up old notifications for this user (older than 1 hour)
     db.cleanupOldMixNotifications(UserId, 3600);
     
-    // Get latest sequence number
-    const allNotifications = db.getMixPendingNotifications(UserId, 0);
-    const maxSeq = allNotifications.length > 0 ? Math.max(...allNotifications.map(n => n.sequence)) : 0;
-    
     res.json(buildResponse({
         LastNotificationTimestamp: getTimestamp(),
-        NotificationSequenceCounter: maxSeq,
+        NotificationSequenceCounter: db.getMixNotificationSequence(UserId),
         AddFriendship: addFriendships,
         AddFriendshipInvitation: addFriendshipInvitations,
         AddAlert: addAlerts,
