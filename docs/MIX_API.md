@@ -697,3 +697,10 @@ the recreation's `windows64` bundles were made.
   untrusted thread?
 - The CPI client's copy of `SessionResumer`: does it read
   `NotificationSequenceThreshold` the same way?
+- The exact `ChatThreadType` strings the client parses, and the status
+  string it expects for a missing or forbidden thread.
+- How the CPI client reacts to `UNAUTHORIZED_BANNED` on its Mix calls,
+  and what each app shows when Guest Controller login is refused for
+  a banned account.
+- How the client treats a cpipe manifest response whose version is
+  unchanged or older than the one it holds.
