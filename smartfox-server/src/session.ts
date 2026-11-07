@@ -1,8 +1,12 @@
+import type { Protocol } from "./sfs-wire.ts";
+
 // Per-connection state, one per connected client.
 let nextUserId = 1;
 
 export class Session {
   readonly userId: number;
+  // Wire protocol, detected from the connection's first packet (server.ts).
+  protocol: Protocol = "sfs2x";
   zoneName = "ClubPenguin";
   roomName = "ClubPenguin_default_room";
   userName = "guest";

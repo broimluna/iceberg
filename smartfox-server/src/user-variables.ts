@@ -5,16 +5,13 @@
 import { SFSArrayWriter, SFSObjectWriter } from "./sfs-wire.ts";
 import type { Session } from "./session.ts";
 
-const VARIABLE_TYPE_STRING = 4;
-const VARIABLE_TYPE_INT = 2;
-const VARIABLE_TYPE_OBJECT = 5;
-
-// Wire shape of one variable: [name, typeByte, value, isPrivate].
+// Wire shape of one variable: [name, typeByte, value, isPrivate]. The type
+// byte is numbered per protocol (putVariableType).
 function stringVar(name: string, value: string): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_STRING).putUtfString(value).putBool(false);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("string").putUtfString(value).putBool(false);
 }
 function intVar(name: string, value: number): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_INT).putInt(value).putBool(false);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("int").putInt(value).putBool(false);
 }
 
 export function buildUserVariablesArray(session: Session): SFSArrayWriter {
@@ -28,7 +25,7 @@ export function buildUserVariablesArray(session: Session): SFSArrayWriter {
   // A held consumable, so others see it in the player's hand.
   if (session.equippedConsumable) {
     const con = new SFSObjectWriter().putUtfString("type", "consum").putUtfString("name", session.equippedConsumable);
-    varList.putSFSArray(new SFSArrayWriter().putUtfString("con").putByte(VARIABLE_TYPE_OBJECT).putSFSObject(con).putBool(false));
+    varList.putSFSArray(new SFSArrayWriter().putUtfString("con").putVariableType("object").putSFSObject(con).putBool(false));
     // A held tray or taken item ("con" + "con_prop" makes a PlayerHeldItem).
     if (session.heldActionCount !== undefined) {
       varList.putSFSArray(stringVar("con_prop", `{"actionCount":${session.heldActionCount}}`));

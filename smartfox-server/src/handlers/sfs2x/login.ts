@@ -48,12 +48,14 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
   // server restores its own.
   restoreTransientData(session);
 
-  // The room array must have exactly 14 elements: that size is how the
-  // client tells an MMORoom from a plain room.
+  // The array's size is how the client tells an MMORoom from a plain room:
+  // exactly 14 elements for SFS2X, more than 12 for SFS3. SFS3 adds
+  // isAudioStreamingAllowed after the variables.
   //   0-8:   id, name, groupId, isGame, isHidden, isPasswordProtected,
   //          userCount, maxUsers, variables
-  //   9-10:  spectatorCount, maxSpectators
-  //   11-13: DefaultAOI, LowerMapLimit, HigherMapLimit (Vec3 float arrays)
+  //   SFS3:  isAudioStreamingAllowed
+  //   then:  spectatorCount, maxSpectators,
+  //          DefaultAOI, LowerMapLimit, HigherMapLimit (Vec3 float arrays)
   // The name must match joinRoomData.room or the client rejects the join.
   function buildRoomArray(userCount: number): SFSArrayWriter {
     return new SFSArrayWriter()
@@ -66,6 +68,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
       .putShort(userCount)
       .putShort(100) // maxUsers
       .putSFSArray(new SFSArrayWriter()) // variables
+      .onlyFor("sfs3", (w) => w.putBool(false)) // isAudioStreamingAllowed
       .putShort(0) // spectatorCount
       .putShort(100) // maxSpectators
       .putFloatArray([900, 900, 900]) // DefaultAOI

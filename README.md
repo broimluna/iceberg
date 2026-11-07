@@ -11,7 +11,7 @@ and it does not include any game client or game assets.
 
 | Directory | What it is |
 |---|---|
-| [`smartfox-server/`](smartfox-server/) | The realtime multiplayer server. A from-scratch reimplementation of the SmartFoxServer 2X (SFS2X) wire protocol in TypeScript. It needs no SmartFoxServer install, no Java and no license. |
+| [`smartfox-server/`](smartfox-server/) | The realtime multiplayer server. A from-scratch reimplementation of the SmartFoxServer wire protocol in TypeScript, speaking both SmartFoxServer 2X (SFS2X) and SmartFoxServer 3 clients. It needs no SmartFoxServer install, no Java and no license. |
 | [`web-api/`](web-api/) | The REST/HTTP backend: accounts and login (Guest Controller), Mix, inventory, catalog, quests, rewards, igloos and the rest of what the client calls outside the realtime connection. |
 | [`docs/`](docs/) | Protocol reference: every SFS2X extension command (`SMARTFOX_PACKETS_DOCUMENTATION.md`) and every WebAPI endpoint (`API_ENDPOINTS_DOCUMENTATION.md`). |
 
@@ -24,7 +24,7 @@ build step.
 # Terminal 1 - WebAPI (http://localhost:3000)
 cd web-api && bun install && bun start
 
-# Terminal 2 - game server (tcp 9933, plus 8080 for OpenCPI clients)
+# Terminal 2 - game server (tcp 9933, plus 8080 and 8088 for OpenCPI clients)
 cd smartfox-server && bun start
 ```
 
@@ -32,7 +32,7 @@ Then point the retail 1.13.0 client at your machine. Set the network
 hosts (`GameServerHost`, `CPAPIServicehost`, `GuestControllerHostUrl`,
 `MixAPIHostUrl`) in the client's built-in Tweaker console. The game
 server also accepts the OpenCPI client's WebSocket transport on the
-same ports.
+same ports, from both its older SFS2X builds and its newer SFS3 builds.
 
 The two servers talk to each other over localhost: the game server
 grants rewards server-to-server, and the WebAPI pushes player-data
@@ -54,6 +54,9 @@ variables.
 - The whole WebAPI.
 
 **Implemented, not yet checked with the real client:**
+- SmartFoxServer 3 clients (newer OpenCPI builds), alongside SFS2X ones
+  in the same room. Tested with the SFS3 client API over raw TCP and
+  WebSocket, but not yet with an OpenCPI SFS3 game build.
 - Using consumables where other players can see it (`con.use` /
   `con.reuse`): one-shot props, party blasters and pinatas as MMO items
   with a countdown and coin rewards for nearby players, and trays that

@@ -29,10 +29,6 @@ const ITEM_CATEGORY_SCHEDULED_ROOM_OBJECT = 2;
 const STATE_INACTIVE = 0;
 const STATE_ACTIVE = 1;
 
-// SFS2X VariableType: NULL=0, BOOL=1, INT=2, DOUBLE=3, STRING=4, OBJECT=5, ARRAY=6.
-const VARIABLE_TYPE_INT = 2;
-const VARIABLE_TYPE_STRING = 4;
-
 // Same single room id as login.ts.
 const ROOM_ID = 1;
 
@@ -134,10 +130,10 @@ function groupDefsForRoom(roomName: string): GroupDef[] {
 
 // [name, type, value] - no isPrivate flag on item variables.
 function itemIntVar(name: string, value: number): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_INT).putInt(value);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("int").putInt(value);
 }
 function itemStringVar(name: string, value: string): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_STRING).putUtfString(value);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("string").putUtfString(value);
 }
 
 // Variables the client's StatefulWorldObject reads.

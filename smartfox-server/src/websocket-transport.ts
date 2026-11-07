@@ -1,6 +1,7 @@
-// Minimal WebSocket (RFC 6455) layer for SFS2X's WebSocket-Binary mode. The
-// OpenCPI client always connects with WS_BIN to ws://host:port/BlueBox/websocket
-// on the same port as raw TCP. Each frame carries the same BitSwarm packets,
+// Minimal WebSocket (RFC 6455) layer for the BitSwarm WebSocket-Binary mode.
+// The OpenCPI client always connects over WebSocket: SFS2X builds use
+// ws://host:port/BlueBox/websocket and SFS3 builds /WebServices/websocket.
+// The path isn't checked. Raw TCP is accepted on the same ports. Each frame carries the same BitSwarm packets,
 // so this only wraps and unwraps. Implemented: the upgrade handshake,
 // single-frame masked binary frames in and unmasked binary frames out. Not
 // implemented: ping/pong, close frames, fragmentation.
@@ -9,10 +10,11 @@ import crypto from "node:crypto";
 
 const WEBSOCKET_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-// Raw BitSwarm packets start with a byte >= 0x80 (the binary flag); an HTTP
-// request line starts with ASCII. One byte tells them apart.
+// A WebSocket upgrade starts with "GET". A raw SFS2X packet starts with a
+// byte >= 0x80 (the binary flag), and a raw SFS3 handshake with 0x00, so
+// "G" (0x47) tells them apart.
 export function looksLikeHttpRequest(buf: Buffer): boolean {
-  return buf.length > 0 && buf[0]! < 0x80;
+  return buf.length > 0 && buf[0] === 0x47;
 }
 
 // Returns null if the header block (terminated by \r\n\r\n) hasn't fully

@@ -49,8 +49,8 @@ export function getFloatArray(obj: SFSObjectData, key: string): number[] | undef
   return v?.type === SFSDataType.FLOAT_ARRAY ? v.value : undefined;
 }
 
-// Makes a decoded value safe to log. LONG fields decode to bigint, which
-// JSON.stringify throws on, so they're converted to strings. Logging only.
+// Makes a decoded value safe to log or print. LONG fields decode to bigint,
+// which JSON.stringify throws on, so they're converted to strings.
 export function describeValue(v: SFSObjectData[string]): unknown {
   if (v.type === SFSDataType.SFS_OBJECT) {
     const out: Record<string, unknown> = {};
@@ -64,6 +64,12 @@ export function describeValue(v: SFSObjectData[string]): unknown {
     return v.value.toString();
   }
   return v.value;
+}
+
+// Like ISFSObject.toJson() in the Java server API: a decoded SFSObject as
+// plain JSON, without the {type, value} wrappers. LONGs become strings.
+export function toJson(obj: SFSObjectData): string {
+  return JSON.stringify(describeValue({ type: SFSDataType.SFS_OBJECT, value: obj }));
 }
 
 // Returns the raw JSON text of `key`'s value without parsing it. Used for the

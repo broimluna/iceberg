@@ -1,11 +1,12 @@
 import type { Session } from "./session.ts";
+import type { OutgoingPacket } from "./sfs-wire.ts";
 
 // Every connected player, keyed by user id. Used for room broadcasts and for
 // pushes from the WebAPI (notify-listener.ts).
 export interface RegisteredSession {
   session: Session;
   peer: string;
-  send: (data: Buffer) => void;
+  send: (packet: OutgoingPacket) => void;
 }
 
 const byUserId = new Map<number, RegisteredSession>();

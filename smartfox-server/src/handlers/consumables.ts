@@ -1,4 +1,4 @@
-import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
+import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString } from "../wire-helpers.ts";
 import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
@@ -12,12 +12,6 @@ import type { HandlerContext } from "./context.ts";
 const ITEM_CATEGORY_CONSUMABLE = 1;
 const TEMPLATE_TIMED = "timed";
 const TEMPLATE_ACTIONED = "actioned";
-
-// SFS2X VariableType.
-const VARIABLE_TYPE_NULL = 0;
-const VARIABLE_TYPE_INT = 2;
-const VARIABLE_TYPE_DOUBLE = 3;
-const VARIABLE_TYPE_STRING = 4;
 
 // RewardSource.WORLD_OBJECT.
 const REWARD_SOURCE_WORLD_OBJECT = 1;
@@ -48,11 +42,11 @@ function log(msg: string): void {
   console.log(`[${new Date().toISOString()}] ${msg}`);
 }
 
-function extensionPacket(cmd: string, p: SFSObjectWriter): Buffer {
+function extensionPacket(cmd: string, p: SFSObjectWriter): OutgoingPacket {
   return encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", cmd).putSFSObject("p", p));
 }
 
-function sendToRoom(roomName: string, packet: Buffer): RegisteredSession[] {
+function sendToRoom(roomName: string, packet: OutgoingPacket): RegisteredSession[] {
   const targets = getByRoom(roomName);
   for (const { send } of targets) send(packet);
   return targets;
@@ -78,7 +72,7 @@ function parsePosition(propJson: string | undefined, ctx: HandlerContext): [numb
 // the client reads as HELD_OBJECT_DEQUIPPED. Sent to the whole room,
 // sender included, like any SetUserVariables broadcast.
 function broadcastDequip(ctx: HandlerContext): void {
-  const conEntry = new SFSArrayWriter().putUtfString("con").putByte(VARIABLE_TYPE_NULL).putNull().putBool(false);
+  const conEntry = new SFSArrayWriter().putUtfString("con").putVariableType("null").putNull().putBool(false);
   const params = new SFSObjectWriter().putInt("u", ctx.session.userId).putSFSArray("vl", new SFSArrayWriter().putSFSArray(conEntry));
   sendToRoom(ctx.session.roomName, encodePacket(0, 12, params));
   ctx.session.equippedItemName = undefined;
@@ -97,13 +91,13 @@ function setHeldObject(session: Session, name: string | undefined): void {
 // ==================== MMO item encoding ====================
 
 function intVar(name: string, value: number): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_INT).putInt(value);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("int").putInt(value);
 }
 function doubleVar(name: string, value: number): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_DOUBLE).putDouble(value);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("double").putDouble(value);
 }
 function stringVar(name: string, value: string): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_STRING).putUtfString(value);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("string").putUtfString(value);
 }
 
 // Variables read by the client's ItemFactory, TimedItem and ActionedItem.
@@ -354,13 +348,13 @@ const EATEN_ITEM_REMOVE_DELAY_MS = 4000;
 
 function conVar(name: string): SFSArrayWriter {
   const value = new SFSObjectWriter().putUtfString("type", "consum").putUtfString("name", name);
-  return new SFSArrayWriter().putUtfString("con").putByte(5).putSFSObject(value).putBool(false);
+  return new SFSArrayWriter().putUtfString("con").putVariableType("object").putSFSObject(value).putBool(false);
 }
 function conPropVar(actionCount: number): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString("con_prop").putByte(VARIABLE_TYPE_STRING).putUtfString(`{"actionCount":${actionCount}}`).putBool(false);
+  return new SFSArrayWriter().putUtfString("con_prop").putVariableType("string").putUtfString(`{"actionCount":${actionCount}}`).putBool(false);
 }
 function nullUserVar(name: string): SFSArrayWriter {
-  return new SFSArrayWriter().putUtfString(name).putByte(VARIABLE_TYPE_NULL).putNull().putBool(false);
+  return new SFSArrayWriter().putUtfString(name).putVariableType("null").putNull().putBool(false);
 }
 
 function broadcastUserVars(session: Session, vars: SFSArrayWriter[]): void {
@@ -442,10 +436,10 @@ export interface EquippedObject {
 
 function objectConVar(con: EquippedObject): SFSArrayWriter {
   const value = new SFSObjectWriter().putUtfString("type", con.type).putUtfString("name", con.name);
-  return new SFSArrayWriter().putUtfString("con").putByte(5).putSFSObject(value).putBool(false);
+  return new SFSArrayWriter().putUtfString("con").putVariableType("object").putSFSObject(value).putBool(false);
 }
 
-function sendUserVars(target: { send: (b: Buffer) => void }, session: Session, vars: SFSArrayWriter[]): void {
+function sendUserVars(target: { send: (packet: OutgoingPacket) => void }, session: Session, vars: SFSArrayWriter[]): void {
   const vl = new SFSArrayWriter();
   for (const v of vars) vl.putSFSArray(v);
   target.send(encodePacket(0, 12, new SFSObjectWriter().putInt("u", session.userId).putSFSArray("vl", vl)));

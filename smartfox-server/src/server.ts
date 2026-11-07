@@ -1,8 +1,10 @@
 import net from "node:net";
 import {
   tryReadHeader,
-  decodeSFSObject,
+  decodePacketBody,
+  detectProtocol,
   SFSDataType,
+  type OutgoingPacket,
   type SFSObjectData,
 } from "./sfs-wire.ts";
 import {
@@ -26,9 +28,9 @@ import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
 
-// Per connection: detect the transport (raw BitSwarm or WebSocket), frame
-// packets, and dispatch them to system handlers (controller 0) or to
-// extension commands (controller 1, action 13).
+// Per connection: detect the transport (raw BitSwarm or WebSocket) and the
+// protocol (SFS2X or SFS3), frame packets, and dispatch them to system
+// handlers (controller 0) or to extension commands (controller 1, action 13).
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
@@ -39,31 +41,48 @@ const connectionHandler = (socket: net.Socket) => {
   let transportMode: "unknown" | "raw" | "websocket" = "unknown";
   let handshakeBuffer = Buffer.alloc(0);
   let wsBuffered = Buffer.alloc(0);
+  // Retail and older OpenCPI clients speak SFS2X; newer OpenCPI builds
+  // speak SFS3. The first packet decides.
+  let protocolDetected = false;
 
-  function send(data: Buffer) {
+  function send(packet: OutgoingPacket) {
+    const data = packet.encode(session.protocol);
     socket.write(transportMode === "websocket" ? encodeWebSocketFrame(data) : data);
   }
   const ctx: HandlerContext = { session, peer, send };
 
   function parseBufferedPackets() {
+    if (!protocolDetected && buffered.length > 0) {
+      session.protocol = detectProtocol(buffered[0]!);
+      protocolDetected = true;
+      console.log(`[${new Date().toISOString()}] ${peer} - speaks ${session.protocol === "sfs3" ? "SFS3" : "SFS2X"}`);
+    }
     for (;;) {
-      const header = tryReadHeader(buffered);
+      const header = tryReadHeader(buffered, session.protocol);
       if (!header || buffered.length < header.totalLength) break;
       const body = buffered.subarray(header.headerLength, header.totalLength);
       buffered = buffered.subarray(header.totalLength);
 
-      let envelope: SFSObjectData;
+      // The handshake's compression threshold keeps clients from
+      // compressing, and packet encryption is never negotiated.
+      if (header.header.compressed || header.header.encrypted) {
+        console.log(
+          `[${new Date().toISOString()}] ${peer} - dropped a ${header.header.compressed ? "compressed" : "encrypted"} packet (not supported)`
+        );
+        continue;
+      }
+
+      let controllerId: number | undefined;
+      let actionId: number | undefined;
+      let params: SFSObjectData;
       try {
-        envelope = decodeSFSObject(body, 0).value;
+        ({ controllerId, actionId, params } = decodePacketBody(body, session.protocol));
       } catch (err) {
         console.log(`[${new Date().toISOString()}] ${peer} - failed to decode packet: ${(err as Error).message}`);
         console.log(body.toString("hex").match(/../g)?.join(" ") ?? "");
         continue;
       }
 
-      const controllerId = envelope["c"]?.value;
-      const actionId = envelope["a"]?.value;
-      const params = envelope["p"]?.type === SFSDataType.SFS_OBJECT ? envelope["p"].value : {};
       console.log(
         `[${new Date().toISOString()}] ${peer} -> c=${controllerId} a=${actionId} p=${JSON.stringify(
           Object.fromEntries(Object.entries(params).map(([k, v]) => [k, describeValue(v)]))
@@ -160,20 +179,21 @@ const connectionHandler = (socket: net.Socket) => {
   });
 };
 
-// Listens on PORT (9933, the port clients are told to use) and on 8080. The
-// OpenCPI client has a bug: for local, unencrypted servers it connects to
-// its HttpPort setting (default 8080) instead of the real port.
+// Listens on PORT (9933, the port clients are told to use), 8080 and 8088.
+// For local, unencrypted servers the OpenCPI client connects to its
+// HttpPort setting instead of the real port: that defaults to 8080 in the
+// SFS2X client API and 8088 in the SFS3 one.
 export function startServer(): void {
-  for (const port of [PORT, 8080]) {
+  for (const port of [PORT, 8080, 8088]) {
     const server = net.createServer(connectionHandler);
     server.on("error", (err) => {
-      // Only PORT failing is fatal; something else (e.g. a real SFS2X
-      // install's admin tool) may already hold 8080.
+      // Only PORT failing is fatal; something else (e.g. a real SFS2X or
+      // SFS3 install) may already hold 8080 or 8088.
       console.error(`listener error on port ${port}: ${err.message}`);
       if (port === PORT) process.exit(1);
     });
     server.listen(port, () => {
-      console.log(`SFS2X server listening on tcp:${port}`);
+      console.log(`SFS server (SFS2X + SFS3) listening on tcp:${port}`);
     });
   }
   startNotifyListener();

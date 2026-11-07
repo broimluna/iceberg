@@ -22,7 +22,7 @@
 // to tasks it has loaded for its content date and ignores the rest.
 
 import data from "../data/daily-tasks.json" with { type: "json" };
-import { SFSObjectWriter, encodePacket } from "./sfs-wire.ts";
+import { SFSObjectWriter, encodePacket, type OutgoingPacket } from "./sfs-wire.ts";
 import { incrementTask } from "./webapi-client.ts";
 import { getAll, getByRoom } from "./session-registry.ts";
 import type { Session } from "./session.ts";
@@ -64,7 +64,7 @@ interface TaskDef {
 }
 
 interface Target {
-  send: (data: Buffer) => void;
+  send: (packet: OutgoingPacket) => void;
   session: Session;
 }
 
@@ -83,7 +83,7 @@ const GROUP_COMMUNITY = 2;
 const LOCOMOTION_MOVE = 0;
 const LOCOMOTION_INTERACT = 2;
 
-function taskCountPacket(taskId: string, counter: number): Buffer {
+function taskCountPacket(taskId: string, counter: number): OutgoingPacket {
   const p = new SFSObjectWriter().putUtfString("t", taskId).putInt("c", counter);
   return encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", "task.c").putSFSObject("p", p));
 }

@@ -1,4 +1,13 @@
-import { SFSDataType, SFSObjectWriter, encodePacket, type SFSObjectData, type SFSValue } from "../../sfs-wire.ts";
+import {
+  SFSDataType,
+  SFSObjectWriter,
+  encodePacket,
+  variableKindFromId,
+  type Protocol,
+  type SFSObjectData,
+  type SFSValue,
+  type VariableKind,
+} from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
 import { extractRawJsonValue } from "../../wire-helpers.ts";
 import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
@@ -12,7 +21,10 @@ import type { HandlerContext } from "../context.ts";
 export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContext): void {
   const raw = params["vl"];
   if (raw?.type === SFSDataType.SFS_ARRAY) {
-    const vl: SFSValue = { type: SFSDataType.SFS_ARRAY, value: raw.value.map((v) => unwrapSignedVariable(v, ctx)) };
+    const vl: SFSValue = {
+      type: SFSDataType.SFS_ARRAY,
+      value: raw.value.map((v) => unwrapSignedVariable(neutralizeVariableType(v, ctx.session.protocol), ctx)),
+    };
     const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", vl));
     ctx.send(packet);
     for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
@@ -59,15 +71,25 @@ function trackLocomotionState(vars: SFSValue[], ctx: HandlerContext): void {
   }
 }
 
-const VARIABLE_TYPE_INT = 2;
-const VARIABLE_TYPE_STRING = 4;
+// The client's type byte uses its own protocol's numbering. It's replaced
+// with the kind, so the echo is numbered for each recipient.
+function neutralizeVariableType(v: SFSValue, protocol: Protocol): SFSValue {
+  if (v.type !== SFSDataType.SFS_ARRAY) return v;
+  const typeByte = v.value[1];
+  if (typeByte?.type !== SFSDataType.BYTE) return v;
+  const kind = variableKindFromId(typeByte.value, protocol);
+  if (!kind) return v;
+  const items = [...v.value];
+  items[1] = { type: SFSDataType.VARIABLE_TYPE, value: kind };
+  return { type: SFSDataType.SFS_ARRAY, value: items };
+}
 
-function variableEntry(name: string, type: number, value: SFSValue): SFSValue {
+function variableEntry(name: string, kind: VariableKind, value: SFSValue): SFSValue {
   return {
     type: SFSDataType.SFS_ARRAY,
     value: [
       { type: SFSDataType.UTF_STRING, value: name },
-      { type: SFSDataType.BYTE, value: type },
+      { type: SFSDataType.VARIABLE_TYPE, value: kind },
       value,
       { type: SFSDataType.BOOL, value: false },
     ],
@@ -91,13 +113,13 @@ function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
         const colour = JSON.parse(json)?.data?.colour;
         if (!Number.isInteger(colour)) return v;
         session.colour = colour;
-        return variableEntry("colour", VARIABLE_TYPE_INT, { type: SFSDataType.INT, value: colour });
+        return variableEntry("colour", "int", { type: SFSDataType.INT, value: colour });
       }
       case "tube": {
         const tubeId = JSON.parse(json)?.data?.tubeId;
         if (!Number.isInteger(tubeId)) return v;
         session.selectedTubeId = tubeId;
-        return variableEntry("tube", VARIABLE_TYPE_INT, { type: SFSDataType.INT, value: tubeId });
+        return variableEntry("tube", "int", { type: SFSDataType.INT, value: tubeId });
       }
       case "outfit": {
         // Kept as raw text: equipment ids and timestamps are 64-bit.
@@ -105,7 +127,7 @@ function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
         const outfit = extractRawJsonValue(json, "data");
         if (!outfit?.startsWith("{")) return v;
         session.outfitJson = outfit;
-        return variableEntry("outfit", VARIABLE_TYPE_STRING, { type: SFSDataType.UTF_STRING, value: outfit });
+        return variableEntry("outfit", "string", { type: SFSDataType.UTF_STRING, value: outfit });
       }
     }
   } catch {
