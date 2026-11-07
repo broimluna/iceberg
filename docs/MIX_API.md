@@ -510,7 +510,107 @@ IDs (Mix uses `DI-SPARK-PROD`) and different cellophane client tokens.
 
 ---
 
-## 9. Content preservation status (checked 2026-11-07)
+## 9. Moderation: alerts, bans and the escalation ladder
+
+### Terminology trap: "gag" is not a mute
+
+In Mix, a **gag** is a *prank*. `GagChatMessage` (`ContentId`,
+`TargetUserId`) plays an animated joke aimed at a friend in the chat,
+and the `hd/gags/` bundles are those animations. There is nothing in
+the SDK that mutes a user. When iceberg needs a word for a temporary
+chat or account suspension, it says **ban**, never gag.
+
+### Bans
+
+- A banned user's calls fail with `Status: "UNAUTHORIZED_BANNED"`
+  (`MixWebCallFactory`, the error switch).
+  - The client does not retry.
+  - It raises `OnAuthenticationLost` with `AccountBannedEventArgs`,
+    which logs the user out.
+- Compare the other auth failures:
+  - `UNAUTHORIZED_ONEID_TOKEN` refreshes the Guest Controller token
+  - `UNAUTHORIZED_MIX_SESSION` re-runs the session key exchange
+  - anything else refreshes both
+- A ban is all-or-nothing at the API level. There is no
+  "can log in but can't chat" status.
+- Related statuses: `PROFILE_USER_BANNED` (profile calls) and
+  `DISPLAYNAME_MODERATION_FAILED` (`DisplayNameUpdater`).
+
+### Alerts are moderation warnings sent to the offender
+
+`Alert` = `{AlertId, Level, Text, Timestamp}`. The field names hide
+what's in them:
+
+- **`Text` holds a category** from `AlertType` / `AlertTypeUtils`.
+  The values are:
+  - `CYBERCRIMINAL`, `CYBERBULLY`, `DATING_TEENS`, `OFFENSIVE_USER`
+  - `OVERSHARING_CHILD`, `POTENTIAL_PAEDOPHILE`, `SEX_PEST`
+  - `SPAMMER`, `TERRORIST`, `TROLL`, `VULNERABLE_PERSON`
+- **`Level` holds a severity from 1 to 5**, stored as a string.
+- The app shows the localized string `customtokens.alerts.<type>_<level>`
+  (`Mix/Ui/AlertTokenMappings.cs`, `AlertLocalNotification`).
+
+Alerts arrive as `AddAlert` notifications and in `/state.Alerts`. They
+are dismissed with `PUT /alert/clear`. Disney's test hook
+`integrationTestSupport/user/alert` sent `{Level, Text: <type>}`, which
+is exactly how a moderator would trigger one.
+
+The category names are Disney's internal classification of the
+**offender**, not of a message. Some of them (`VULNERABLE_PERSON`,
+`OVERSHARING_CHILD`) protect the user rather than punish them.
+`VULNERABLE_PERSON` *locks* the account instead of banning it.
+
+### The ladder (from `localization/en_US.2_3.json`)
+
+Levels with no string have no mapping: those categories start at
+level 3.
+
+| Category | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| CYBERCRIMINAL (cheating, third-party tools) | warning | **72 h ban** | ban, contact support | same | same |
+| CYBERBULLY | warning | warning | **12 h** | **24 h** | **permanent** |
+| DATING_TEENS | warning | "may be banned" | **12 h** | **24 h** | ban |
+| OFFENSIVE_USER (language) | warning | **12 h** | **24 h** | **72 h** | ban |
+| OVERSHARING_CHILD (personal info) | safety warning | same | same | same | ban |
+| POTENTIAL_PAEDOPHILE | – | – | ban, contact support | same | same |
+| SEX_PEST | warning | **12 h** | **24 h** | ban | ban |
+| SPAMMER | warning | **24 h** | **72 h** | **permanent** | permanent |
+| TERRORIST | – | – | ban, contact support | same | same |
+| TROLL | warning | **12 h** | **24 h** | **72 h** | **permanent** |
+| VULNERABLE_PERSON | – | – | **locked**, contact support | same | same |
+
+Example strings:
+
+- `troll_1`: "Please respect everyone, no bullying or being mean to
+  others."
+- `offensive_user_4`: "You used a rude or inappropriate word. This
+  account has been banned for 72 hours."
+- `cybercriminal_2`: "You were caught cheating. This account has been
+  banned for 72 hours."
+- Support contact: `support@disneymix.com`
+
+Two consequences:
+
+- The client only *displays* the alert text. The ban itself must be
+  enforced server-side through `UNAUTHORIZED_BANNED`. The durations
+  live only in the strings, so the server has to apply the matching
+  duration itself.
+- Because the server picks `(type, level)` and the client supplies the
+  wording, a recreation gets Disney's original, localized moderation
+  messages for free, in all five languages that have strings.
+
+### Text moderation
+
+`PUT /moderation/text` takes `{Text, ChatThreadId, ModerationPolicy}`
+and returns `{Text, Moderated}`. The client asks *before* sending, and
+gets back possibly-masked text plus a flag.
+
+Reports: `PUT /moderation/reportPlayer` takes `{ReportedUserId,
+Reason}`.
+
+---
+
+## 10. Content preservation status (checked 2026-11-07)
 
 ### Where the content lived
 
@@ -586,7 +686,7 @@ the recreation's `windows64` bundles were made.
 
 ---
 
-## 10. Open questions
+## 11. Open questions
 
 - How does photo/video **upload** work? Where does `UgcMediaId` come from?
   Trace `ChatMessageSender.cs` / `IChatMessageSender.cs`.
