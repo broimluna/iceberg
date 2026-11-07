@@ -81,6 +81,15 @@ base64 -d n7c4c656 | openssl enc -d -aes-256-cbc -K "$KEY" -iv 05ec55c6795f972c0
 Encrypting is the same command with `-e` instead of `-d`, piped
 through `base64 -w0`.
 
+**Generating one for iceberg:** `bun tools/mix-config.ts render
+<base URL> --out n7c4c656` writes Disney's original 16 keys with:
+
+- `guest_baseUrl` = base, `guest_v2_baseUrl` = base + `/jgc/v5`
+- `mix_platform_services_url` = base + `/mix`
+- `cpipe_url` = base + `/cpipe`
+
+`decrypt <file>` prints any config.
+
 The recreation ships two copies:
 
 - **`n7c4c656.og`** is Disney's original prod config:

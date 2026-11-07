@@ -14,7 +14,25 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 |---|---|
 | `mix-friends-test.ts` | Mix friend invites, accept, remove, trust and cancel. Every notification follows the client's strict "latest + 1" sequence rule. |
 | `webapi-fixes-test.ts` | `X-HTTP-Method-Override` routing, the invitations table migration, and online/offline session handling. |
+| `mix-session-test.ts` | Mix login, the RSA→AES session, encrypted `/state`, and an invite delivered through a poll the way the SDK polls. |
+| `mix-auth-test.ts` | Mix requests act only as the token's user: bogus tokens, forged `UserId` and foreign sessions get the SDK's 401 statuses. |
+| `mix-config-test.ts` | The boot config tool round-trips, and `openssl` decrypts what it writes. |
 | `webapi-auth-test.ts` | CPI access-token auth with default settings: valid tokens work, while expired, unknown or raw-SWID tokens get 401 and never create accounts. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).
+
+## Mix boot config
+
+`mix-config.ts` writes the encrypted config the Disney Mix app reads at
+boot (`StreamingAssets/donotcopy/n7c4c656`), pointing all of its
+services at your server:
+
+```sh
+bun tools/mix-config.ts render http://192.168.1.50:3000 --out n7c4c656
+bun tools/mix-config.ts decrypt n7c4c656     # inspect any config, including Disney's
+```
+
+`lib/mix-client.ts` is a test client that behaves like the Mix SDK
+(login, key exchange, encrypted bodies, strict notification order). Use
+it for any new Mix test.
