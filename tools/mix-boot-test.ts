@@ -3,6 +3,7 @@
 // files it names, served from cdnRoot.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", MIX_CPIPE_CONFIG_VERSION: "1234" } });
 const { check, finish } = makeChecker();
@@ -33,6 +34,18 @@ try {
   check(traversal.status === 404, `encoded path traversal -> ${traversal.status}`);
   const traversal2 = await fetch(`${api.base}/cpipe/files/1234/..%2f..%2f..%2fsrc%2fserver.ts`);
   check(traversal2.status === 404, `encoded traversal after a version -> ${traversal2.status}`);
+
+  // The Mix app logs in with its own Guest Controller client ID.
+  await createPlayer(api.base, api.dbPath, "{DDDD-4}", "dana");
+  const M = new MixClient(api.base, { clientId: "DI-SPARK-PROD" });
+  let loggedIn = false;
+  try { await M.login("dana", "pw-dana"); await M.startSession(); loggedIn = true; } catch (e) { console.log((e as Error).message); }
+  check(loggedIn, "login + session with client ID DI-SPARK-PROD");
+  const st = loggedIn ? await M.state() : {};
+  for (const k of ["ChatThreads", "ChatThreadNicknames", "ChatThreadUnreadMessageCount", "ChatThreadLatestMessageSequenceNumbers",
+                   "ChatThreadLastSeenMessageSequenceNumbers", "GameStateChatMessages", "OfficialAccounts", "UserNicknames"]) {
+    check(Array.isArray(st[k]) && st[k].length === 0, `/state ${k} is [] (${JSON.stringify(st[k])})`);
+  }
 } finally {
   api.stop();
 }

@@ -67,6 +67,16 @@ router.post('/state', authenticateMix, (req, res) => {
     
     res.json(buildResponse({
         Users: users,
+        // Mix app fields (GetStateResponse). Empty until chat, nicknames
+        // and official accounts exist; the app expects the lists present.
+        UserNicknames: [],
+        OfficialAccounts: [],
+        ChatThreads: [],
+        ChatThreadNicknames: [],
+        ChatThreadUnreadMessageCount: [],
+        ChatThreadLatestMessageSequenceNumbers: [],
+        ChatThreadLastSeenMessageSequenceNumbers: [],
+        GameStateChatMessages: [],
         Friendships: userFriendships.map(f => ({
             FriendUserId: f.friendUserId,
             IsTrusted: f.isTrusted
