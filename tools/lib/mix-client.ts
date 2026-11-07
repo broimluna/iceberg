@@ -11,6 +11,11 @@ import { Database } from "bun:sqlite";
 import { decryptAesCbc, encryptAesCbc } from "../../web-api/src/lib/crypto.ts";
 import { parseJson, stringifyJson } from "../../web-api/src/lib/bigJson.ts";
 
+// Not a secret: Disney's public mix_platform_services_cellophane value from
+// the app's original boot config (docs/MIX_API.md section 2), shipped in every
+// copy of the Mix app. iceberg doesn't check X-Mix-ClientToken; the test
+// client sends it to look like the real app. (Flagged by GitGuardian as a
+// generic high-entropy secret: a false positive.)
 export const MIX_CLIENT_TOKEN = "F7EA7678-FE45-4A00-89EB-496EFDA74761";
 
 /** Creates a player (server needs ALLOW_SWID_AUTH=1) and sets its display name. */
