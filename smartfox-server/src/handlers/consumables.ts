@@ -542,7 +542,9 @@ function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boo
   if (count === undefined) return false;
   invitationGuests.delete(session.userId);
   session.heldActionCount = undefined;
-  if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0 && session.swid) {
+  // Only trays keep what's left. A held invitation's count is its open
+  // slots; storing that would make the next one free.
+  if (previous && CONSUMABLES[previous]?.experience === "playerHeld" && !CONSUMABLES[previous]?.serverAdded && count > 0 && session.swid) {
     const { goodUntil, signature } = signConsumable("partial", session.swid, previous, count);
     const payload = { goodUntil, signature, swid: session.swid, data: { type: previous, partialCount: count } };
     ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));

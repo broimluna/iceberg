@@ -170,6 +170,14 @@ try {
   const p = sfsSig.signConsumable("partial", A.swid, "Firework", 0);
   check(await attempt(A, JSON.stringify({ ...p, swid: A.swid, data: { type: "Firework", partialCount: 0 } })) === 0, "a partial signature as con.use -> refused");
 
+  // An invitation put away unaccepted is gone: no partial (it would make the
+  // next spend free).
+  A.setCon("FindFourGroup"); await sleep(100);
+  await A.use("FindFourGroup"); await sleep(150);
+  check(B.varsOf(A.myId).some((v) => v.con === "consum:FindFourGroup"), "invitation held out");
+  A.clear(); A.setCon(null); await sleep(200);
+  check(A.extOf("con.partial").length === 0, `putting an invitation away sends no con.partial (${A.extOf("con.partial").length})`);
+
   // Tray: hold out, B takes one, put away -> signed con.partial for 5,
   // which the web API stores; the next spend returns it and the tray comes
   // back with 5.
