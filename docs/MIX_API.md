@@ -1120,7 +1120,7 @@ chat or account suspension, it says **ban**, never gag.
   - iceberg uses `PROFILE_USER_BANNED` for temporary bans and
     `PROFILE_DISABLED` for permanent bans and locks, on both
     `guest/login` (after the password check, so a wrong password still
-    says `INVALID_CREDENTIALS` and doesn't reveal the ban) and
+    says `AUTHORIZATION_CREDENTIALS` and doesn't reveal the ban) and
     `guest/refresh-auth`. Body:
     `{error: {keyCategory: "LOGIN", errors: [{code, inputName: null, developerMessage}]}}`.
   - **The HTTP status must be 400.** `GuestControllerClient` only

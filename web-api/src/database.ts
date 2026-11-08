@@ -460,6 +460,11 @@ function initializeDatabase() {
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    // The account last logged in or registered with the key. The client's
+    // validate call carries only the API key, so this is how validate knows
+    // whose own display name it is checking.
+    const apiKeyCols = db.prepare("SELECT name FROM pragma_table_info('guest_controller_api_keys')").all().map((c) => c.name);
+    if (!apiKeyCols.includes('swid')) db.exec('ALTER TABLE guest_controller_api_keys ADD COLUMN swid TEXT');
 
     // Mix user sessions - stores session data for Mix API
     db.exec(`
@@ -2311,8 +2316,14 @@ function getGuestApiKey(apiKey) {
     return {
         apiKey: row.api_key,
         requestCount: row.request_count,
-        expiresAt: row.expires_at
+        expiresAt: row.expires_at,
+        swid: row.swid ?? null
     };
+}
+
+/** Records the account that logged in or registered with this API key. */
+function bindGuestApiKey(apiKey, swid) {
+    db.prepare('UPDATE guest_controller_api_keys SET swid = ? WHERE api_key = ?').run(swid, apiKey);
 }
 
 /**
@@ -2852,6 +2863,7 @@ export {
     cleanupExpiredGuestTokens,
     storeGuestApiKey,
     getGuestApiKey,
+    bindGuestApiKey,
     incrementApiKeyRequestCount,
     cleanupExpiredApiKeys,
     

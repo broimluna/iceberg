@@ -28,11 +28,13 @@ try {
   check(await bearer(access) === 200, "the access token works as a bearer token");
   check(await bearer(refresh) === 401, "the refresh token doesn't work as a bearer token");
   check(await mix(refresh) === await mix("not-a-token") && await mix(access) !== await mix("not-a-token"), "the refresh token doesn't work as a Mix token");
-  check((await doRefresh(access)).status === 401, "an access token can't be used to refresh");
+  // A refused refresh is a 400 AUTHORIZATION_INVALID_REFRESH_TOKEN (the code the client maps).
+  const refused = (r: { status: number; body: any }) => r.status === 400 && r.body?.error?.errors?.[0]?.code === "AUTHORIZATION_INVALID_REFRESH_TOKEN";
+  check(refused(await doRefresh(access)), "an access token can't be used to refresh");
 
   const r1 = await doRefresh(refresh);
   check(r1.status === 200 && !!r1.body?.data?.token?.refresh_token, `the refresh token refreshes (${r1.status})`);
-  check((await doRefresh(refresh)).status === 401, "a used refresh token stops working");
+  check(refused(await doRefresh(refresh)), "a used refresh token stops working");
 
   await Bun.sleep(100);
   const logs = api.logs();

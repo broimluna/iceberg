@@ -161,7 +161,7 @@ try {
   let li = await gcLogin("bob", "pw-bob");
   check(li.status === 400 && li.code === "PROFILE_USER_BANNED", `temp-banned login -> ${li.status} ${li.code}`);
   const wrongPw = await gcLogin("bob", "nope");
-  check(wrongPw.code === "INVALID_CREDENTIALS", `wrong password still says INVALID_CREDENTIALS, not banned (${wrongPw.code})`);
+  check(wrongPw.code === "AUTHORIZATION_CREDENTIALS", `wrong password still says AUTHORIZATION_CREDENTIALS, not banned (${wrongPw.code})`);
 
   // Expiry.
   { const d3 = new Database(api.dbPath); d3.run("UPDATE mix_bans SET until = ? WHERE swid = '{MOD-B}'", [new Date(Date.now() - 60_000).toISOString()]); d3.close(); }

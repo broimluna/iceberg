@@ -90,7 +90,14 @@ function nameProblem(reason) {
 // Unauthenticated endpoints that cost the server (password hashing) or
 // create things are rate limited per address.
 const tooMany = (res) => res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
-const loginLimit = rateLimit({ name: 'login', envVar: 'AUTH_LOGIN_PER_MIN', defaultLimit: 10, windowMs: 60_000, onLimited: tooMany });
+// Login errors use the codes GuestControllerErrorParser maps, on HTTP 400:
+// the SDK parses error bodies only on 400 and 2xx. Too many attempts is
+// AUTHORIZATION_ACCOUNT_LOCKED_OUT ("locked out due to too many login
+// attempts"), never RATE_LIMITED: the SDK's transport catches that code,
+// fetches a new API key and retries, so the login screen never sees it.
+const lockedOut = (res) => res.status(400).json(buildError('LOGIN', 'AUTHORIZATION_ACCOUNT_LOCKED_OUT'));
+const badCredentials = (res, inputName = 'password') => res.status(400).json(buildError('LOGIN', 'AUTHORIZATION_CREDENTIALS', inputName, 'Invalid username or password'));
+const loginLimit = rateLimit({ name: 'login', envVar: 'AUTH_LOGIN_PER_MIN', defaultLimit: 10, windowMs: 60_000, onLimited: lockedOut });
 const registerLimit = rateLimit({ name: 'register', envVar: 'AUTH_REGISTER_PER_HOUR', defaultLimit: 5, windowMs: 3_600_000, onLimited: tooMany });
 const accountFails = accountFailureLimit();
 const apiKeyLimit = rateLimit({ name: 'api-key', envVar: 'AUTH_APIKEY_PER_MIN', defaultLimit: 30, windowMs: 60_000, onLimited: tooMany });
@@ -185,6 +192,7 @@ function authenticateApiKey(req, res, next) {
     }
     
     db.incrementApiKeyRequestCount(apiKey);
+    req.guestApiKey = stored;
     next();
 }
 
@@ -228,10 +236,9 @@ function authenticateBearer(req, res, next) {
  * Returns API key in response header.
  */
 router.post('/jgc/v5/client/:clientId/api-key', apiKeyLimit, (req, res) => {
-    // START FIX: Use hardcoded reference key to ensure client acceptance
-    // The client may have strict validation on key format/length
-    // This key is from the reference Java implementation (APIKey.java)
-    const apiKey = "aqnA9p/GHYcMJnHGPld3WUYS6xVbbkaizQIgUOXxUTV1ty0kGcIvQkRHMBiO89jAF+h6Bp6jWCj0KDdy71nsYSAhDpDV/5Y9AYDhQ/2efdB5XCWilW5q2g==";
+    // A new random key per client (88 bytes, 120 base64 characters). The
+    // client stores whatever the header carries without checking its form.
+    const apiKey = crypto.randomBytes(88).toString('base64');
     
     // Store API key with 24-hour expiry
     db.storeGuestApiKey(apiKey, 24 * 60 * 60);
@@ -271,12 +278,14 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         
         if (!loginValue || !password) {
             console.log(`[LOGIN] Missing loginValue or password`);
-            return res.status(400).json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'loginValue'));
+            // MALFORMED_INPUT shows "incorrect username or password";
+            // MISSING_VALUE would mean a logged-in account missing profile data.
+            return res.status(400).json(buildError('LOGIN', 'MALFORMED_INPUT', 'loginValue'));
         }
         
         // Login should not implicitly create accounts.
         // New accounts should be created via /guest/register.
-        // If an account doesn't exist, return INVALID_CREDENTIALS so the client
+        // If an account doesn't exist, return AUTHORIZATION_CREDENTIALS so the client
         // can present the proper error instead of continuing into a broken flow.
         console.log(`[LOGIN] Looking up player by displayName: ${logSafe(loginValue)}`);
         const playerInfo = db.getPlayerByDisplayName(loginValue);
@@ -284,11 +293,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         
         if (!playerInfo) {
             console.log(`[LOGIN] Player not found for displayName: ${logSafe(loginValue)}`);
-            // Use 400 (not 401) because the CPI client tends to treat 401 as a generic
-            // account/service failure, which results in a confusing popup.
-            return res
-                .status(400)
-                .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
+            return badCredentials(res);
         }
 
         // Use the existing SWID from the database - this is critical!
@@ -299,7 +304,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         const attempt = accountFails.begin(swid, clientAddress(req));
         if (!attempt) {
             console.log(`[LOGIN] ${logSafe(loginValue)} has too many failed logins; locked for now`);
-            return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
+            return lockedOut(res);
         }
         // Whatever path the request takes (an error included), the attempt is
         // released when the response ends; an earlier done() decides the result.
@@ -318,9 +323,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             if (process.env.LEGACY_PASSWORD_CLAIM !== '1') {
                 attempt.done(false);
                 console.log(`[LOGIN] ${logSafe(loginValue)} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
-                return res
-                    .status(400)
-                    .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
+                return badCredentials(res);
             }
             attempt.done(true);
             console.log(`[LOGIN] No password set for ${logSafe(loginValue)}, setting it now (LEGACY_PASSWORD_CLAIM).`);
@@ -332,9 +335,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             attempt.done(verified.ok);
             if (!verified.ok) {
                 console.log(`[LOGIN] Password verification FAILED for ${logSafe(loginValue)}`);
-                return res
-                    .status(400)
-                    .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
+                return badCredentials(res);
             }
             console.log(`[LOGIN] Password verification PASSED`);
         }
@@ -348,6 +349,8 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         console.log(`[LOGIN] User "${logSafe(loginValue)}" logging in with existing SWID: ${swid}`);
         console.log(`[LOGIN] playerInfo from DB: username=${playerInfo?.username}, displayName=${playerInfo?.displayName}`);
     
+        db.bindGuestApiKey(req.guestApiKey.apiKey, swid);
+
         // Generate tokens
         const token = generateTokens(swid);
         
@@ -420,12 +423,12 @@ router.post('/jgc/v5/client/:clientId/guest/refresh-auth/:refreshToken', (req, r
     const stored = db.getGuestToken(refreshToken, 'refresh');
     
     if (!stored) {
-        return res.status(401).json(buildError('AUTHORIZATION', 'REFRESH_TOKEN_INVALID'));
+        return res.status(400).json(buildError('AUTHORIZATION', 'AUTHORIZATION_INVALID_REFRESH_TOKEN'));
     }
     
     if (new Date(stored.expiresAt) < new Date()) {
         db.deleteGuestToken(refreshToken);
-        return res.status(401).json(buildError('AUTHORIZATION', 'REFRESH_TOKEN_EXPIRED'));
+        return res.status(400).json(buildError('AUTHORIZATION', 'AUTHORIZATION_INVALID_REFRESH_TOKEN'));
     }
     
     const swid = stored.swid;
@@ -532,6 +535,8 @@ router.post('/jgc/v5/client/:clientId/guest/register', registerLimit, authentica
         db.setPlayerDisplayName(swid, proposed);
     }
     
+    db.bindGuestApiKey(req.guestApiKey.apiKey, swid);
+
     // Generate ETags and tokens
     const etags = generateEtags(swid, username);
     const token = generateTokens(swid);
@@ -615,7 +620,10 @@ router.get('/jgc/v5/client/:clientId/configuration/site', (req, res) => {
  * We must skip username validation when this placeholder is detected.
  */
 router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) => {
-    const { email, displayName, username, password } = req.body;
+    // Non-string fields are ignored (validate only advises; register enforces).
+    const str = (v) => (typeof v === 'string' ? v : undefined);
+    const email = str(req.body?.email), displayName = str(req.body?.displayName);
+    const username = str(req.body?.username), password = str(req.body?.password);
     
     const errors = [];
     
@@ -656,10 +664,12 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
                 developerMessage: 'Display name contains blocked words'
             });
         }
-        // Check if display name is already taken
-        const existingDisplayName = db.getPlayerByDisplayName(displayName);
-        if (existingDisplayName) {
-            console.log(`[VALIDATE] Display name "${displayName}" already exists (SWID: ${existingDisplayName.swid})`);
+        // Taken unless it's the caller's own: after registering, the client
+        // validates the name it was just given. The request carries only
+        // the API key, so the caller is the account last logged in or
+        // registered with that key.
+        if (db.isDisplayNameTaken(c.ok ? c.name : displayName, req.guestApiKey.swid ?? '')) {
+            console.log(`[VALIDATE] Display name ${logSafe(displayName)} is taken`);
             errors.push({
                 code: 'INUSE_VALUE',
                 inputName: 'displayName.proposedDisplayName',
@@ -676,15 +686,14 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
         }
         if (username.length < 3 || username.length > 20) {
             errors.push({
-                code: 'USERNAME_INVALID_LENGTH',
+                code: 'INVALID_VALUE_USERNAME_SIZE',
                 inputName: 'username',
                 developerMessage: 'Username must be between 3 and 20 characters'
             });
         }
-        // Check if username is already taken
-        const existingUsername = db.getPlayerByDisplayName(username);
-        if (existingUsername) {
-            console.log(`[VALIDATE] Username "${username}" already exists (SWID: ${existingUsername.swid})`);
+        // Taken by anyone, as register checks it (usernames are for new accounts).
+        if (db.isDisplayNameTaken(c.ok ? c.name : username, '')) {
+            console.log(`[VALIDATE] Username ${logSafe(username)} is taken`);
             errors.push({
                 code: 'INUSE_VALUE',
                 inputName: 'profile.username',
@@ -693,13 +702,13 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
         }
     }
     
-    // Validate password if provided
+    // Validate password if provided (same bounds as register)
     if (password) {
-        if (password.length < 6) {
+        if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
             errors.push({
-                code: 'PASSWORD_TOO_SHORT',
+                code: 'INVALID_VALUE_PASSWORD_SIZE',
                 inputName: 'password',
-                developerMessage: 'Password must be at least 6 characters'
+                developerMessage: `Password must be ${MIN_PASSWORD} to ${MAX_PASSWORD} characters`
             });
         }
     }
