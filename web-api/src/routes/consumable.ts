@@ -97,14 +97,23 @@ router.post('/consumable/v1/FishBucketGroup', (req, res) => {
  */
 function purchaseConsumable(req, res) {
     const type = req.params.type;
-    const count = parseInt(req.params.count) || 1;
+    const count = Number(req.params.count);
     const { swid, username } = req.player;
-    
+
+    if (!Number.isSafeInteger(count) || count < 1) {
+        console.log(`[CONSUMABLE] ${username} purchase refused (count ${JSON.stringify(req.params.count)})`);
+        return res.status(400).json({ code: 'BAD_COUNT' });
+    }
     console.log(`[CONSUMABLE] ${username} purchasing ${count}x ${type}`);
-    
+
     // Get price from config
     const price = config.consumablePrices[type] || 10;
     const totalCost = price * count;
+    // 707 is the code the client shows as "not enough coins".
+    if (db.getPlayerCoins(username) < totalCost) {
+        console.log(`[CONSUMABLE] ${username} can't afford ${count}x ${type} (${totalCost})`);
+        return res.status(400).json({ code: 707 });
+    }
     
     // Deduct coins and add consumable
     db.addPlayerCoins(username, -totalCost);

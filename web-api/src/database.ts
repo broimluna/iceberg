@@ -1163,7 +1163,7 @@ function addPlayerCoins(username, amount) {
 function getPlayerCoins(username) {
     getOrCreatePlayer(username);
     const row = db.prepare('SELECT coins FROM player_assets WHERE username = ?').get(username);
-    return row?.coins || 1000;
+    return row?.coins ?? 1000;
 }
 
 // ========== MASCOT XP OPERATIONS ==========
