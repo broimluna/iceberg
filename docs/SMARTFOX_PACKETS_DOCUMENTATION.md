@@ -224,7 +224,7 @@ signature can be any string for a private server).
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
 | `reward.add` | `RECEIVED_REWARDS` | IN | `reward` -> JSON `SignedResponse<RewardedUserCollectionJsonHelper>`. |
-| `reward.add_delayed` | `RECEIVED_REWARDS_DELAYED` | IN | Same shape as above, delayed-delivery variant (e.g. rewards queued until the player's back online). |
+| `reward.add_delayed` | `RECEIVED_REWARDS_DELAYED` | IN | Same shape as above. The client holds it until something claims it by `(source, sourceId)` (`ClaimDelayedReward`), then echoes it to `PUT /reward/v1`. Party games send it with `source` 5 (`MINI_GAME`) and `sourceId` = the session id, and their end popup claims it. |
 | `reward.room` | `RECEIVED_ROOOM_REWARDS` | IN | `reward` -> JSON `SignedResponse<InRoomRewards>`. (Enum name has the typo `ROOOM` - three O's - verbatim in the client, keep it if this needs to round-trip against real client behavior.) |
 | `reward.levelup` | `PROGRESSION_LEVELUP` | IN | `level` = int + sender session ID. |
 | `reward.broadcast` | `SEND_EARNED_REWARDS` | OUT | `reward` = JSON `SignedResponse<RewardedUserCollectionJsonHelper>` - client broadcasting its own earned rewards (to the room? to other systems?) rather than receiving them. |
@@ -267,10 +267,57 @@ signature can be any string for a private server).
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `pgame.start` | `PARTY_GAME_START` | IN | `owner` (long), `id` -> sessionId (int), `template` -> templateId (int), `players` (long array). |
-| `pgame.start.v2` | `PARTY_GAME_START_V2` | IN | `id` -> sessionId (int), `template` -> templateId (int), `players` (string, **not** an array here - raw player-data blob, shape not yet decoded). v2 trades the `owner`/typed-array fields of v1 for one opaque string - worth diffing against v1 further before implementing either. |
-| `pgame.end` | `PARTY_GAME_END` | IN | `id` -> sessionId (int), `results` -> JSON `List<PartyGameEndPlayerResult>` (each with `PlayerSessionId`/`Placement`), reshaped client-side into a `sessionId -> placement` map. |
-| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | OUT (`SendPartyGameSessionMessage`): `id` = sessionId (int), `type` = int, `message` = JSON caller-defined object. IN: same three keys (`id`, `type`, `message`) - this one *is* symmetric. |
+| `pgame.start` | `PARTY_GAME_START` | IN | `owner` (long), `id` -> sessionId (int), `template` -> templateId (int), `players` (long array). The client builds the same player list as v2 from it. iceberg sends v2 only. |
+| `pgame.start.v2` | `PARTY_GAME_START_V2` | IN | `id` -> sessionId (int), `template` -> templateId (int, `PartyGameDefinition.GameTypes`), `players` -> JSON `PartyGamePlayerCollection` `{"Players":[{"TeamId":0,"UserSessionId":<long>,"RoleId":0}, ...]}`. `Players[0]` is the owner. |
+| `pgame.end` | `PARTY_GAME_END` | IN | `id` -> sessionId (int), `results` -> JSON `List<PartyGameEndPlayerResult>` `[{"PlayerSessionId":<long>,"Placement":<int>}]`, reshaped client-side into a `sessionId -> placement` map. An empty list closes the game with no end popup; otherwise `PartyGameEndGamePopup` shows every listed player. |
+| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | `id` = sessionId (int), `type` = int (`PartyGameSessionMessageTypes`), `message` = JSON of that type's `PartyGameSessionMessages` class. Same keys both ways. |
+
+The client's `PartyGameManager` starts a session for **any** `pgame.start.v2`
+it receives (the game hides remote players and takes over the camera), so
+`pgame.start.v2`, `pgame.message` and `pgame.end` go to the game's players
+only. Placement rewards go to each player as `reward.add_delayed` with
+`source` 5 (`MINI_GAME`) and `sourceId` = the session id; the end popup
+claims them (`ClaimDelayedReward`), which echoes the reward to
+`PUT /reward/v1`. Session ids in the JSON are numbers and can exceed 2^53.
+
+`PartyGameSessionMessageTypes`:
+
+| # | Name | # | Name |
+|---|---|---|---|
+| 0 | SetRole | 7 | PlayerLeftGame |
+| 1 | SetGameState | 8 | PlayDanceMoves |
+| 2 | AddItem | 9 | DanceMoveSequenceComplete |
+| 3 | RemoveItem | 10 | SetTubeRaceModifierLayout |
+| 4 | SetGameStartPositions | 11 | CollectTubeRaceScoreModifier |
+| 5 | ShowTurnOutput | 12 | PlayerFinishedTubeRace |
+| 6 | PlayerTurnStart | 13 | TubeRacePlayerResult |
+
+#### Invitations (`partyGameLobby` consumables)
+
+`ScavengerHuntGroup`, `FishBucketGroup` and `FindFourGroup` are held out like
+a shareable tray: `con` {type `consum`, name} plus `con_prop`
+`{"actionCount": open slots}` (`TotalItemQuantity`), read by the client's
+`InvitationalItemExperience`. Another player accepts by interacting with
+the holder (`l.a` Interact on the player). When the last slot fills, the
+invitation is removed (`con` + `con_prop` NULL) and the game starts. During
+the game each player holds the game's `PlayerProp` as `con` {type `pgame`,
+name} with no `con_prop` (the client raises `PARTYGAME_EQUIPPED`), shown to
+the whole room and cleared at the end.
+
+#### Find Four (template 2)
+
+| Type | Dir | `message` |
+|---|---|---|
+| 1 SetGameState | IN | `{"GameStateId": 0 Intro / 1 Game / 2 Finished}`. `PlayerTurnStart` is ignored outside Game. |
+| 6 PlayerTurnStart | IN | `{"PlayerId": <long>}`. The client enables its controls if it's the local player and auto-sends its current column at `TurnTimeInSeconds - 1`. |
+| 5 ShowTurnOutput | OUT | `{"PlayerId": <own id>, "ScoreDelta": <column>}`, then controls off until the echo. |
+| 5 ShowTurnOutput | IN | `{"PlayerId": <mover>, "ScoreDelta": <column>}`. The client drops the token there (and draws its own win highlight). |
+
+`Players[0]` is red and moves first. iceberg decides turns, columns (a full
+or invalid column becomes the nearest open one), wins, draws (both players
+get placement 1) and forfeits (the player who stays gets placement 0 and is
+the only one in `results`). Rules and timings come from `GameData` in
+`smartfox-server/data/party-games.json`.
 
 ---
 

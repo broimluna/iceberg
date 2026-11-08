@@ -19,7 +19,7 @@
 - Session message types: SetGameState 1, ShowTurnOutput 5, PlayerTurnStart 6. Game states: Intro 0, Game 1, Finished 2.
 - Rewards come from the data (template 2: placement 0 → 20 coins + AuntArctic 15; placement 1 → 10 coins + AuntArctic 10). Draw → both get placement 1. A leaver forfeits, and `results` then lists only the player who stayed.
 - Every party-game delay is multiplied by `PARTY_GAME_TIME_SCALE` (env, default 1, read once).
-- iceberg rules: no references to private material (`OLDCPIFILES`, `research/`, `/home/tyler`, DumbFox) in code, comments or commits. Comments must be short protocol facts. Commit as the repo's configured noreply identity with no attribution lines. Write variable type bytes with `putVariableType(kind)`, never `putByte(n)`.
+- iceberg rules: no references to private material or local paths in code, comments or commits. Comments must be short protocol facts. Commit as the repo's configured noreply identity with no attribution lines. Write variable type bytes with `putVariableType(kind)`, never `putByte(n)`.
 
 ## Review Focus
 
@@ -34,7 +34,7 @@
 ### Task 1: Party game data and loader
 
 **Files:**
-- Create (dev repo, private): `~/Desktop/cpi-private-server/tools/extract-party-games.py`
+- Create (maintainer's data tooling, outside this repo): `extract-party-games.py`
 - Create: `smartfox-server/data/party-games.json` (generated output, committed)
 - Create: `smartfox-server/src/party-games/definitions.ts`
 - Test: `tools/party-games-data-test.ts`
@@ -56,7 +56,7 @@
   export function rewardFor(def: PartyGameDef, placement: number): PartyGameReward | undefined;
   ```
 
-- [ ] **Step 1: Write the generator.** `python3 -I tools/extract-party-games.py <out.json>` reads `PartyGames.json`, `PartyGameLaunchers.json` and `Props.json` from the CPI Project's `Generated/Export/ServerData/StaticGameDataExports/`, using the same default path as `extract-daily-tasks.py`. For each template it parses `GameData` / `LobbyData` (JSON strings) into objects, keeps only non-zero, non-empty reward fields (`coins`, `mascotXP`, plus any other non-empty list), maps `PlayerProp`, `LobbyProp` and the launcher's `TriggerProp` / `LobbyProp` ids to the prop's `NameOnServer` (or `null`), and writes `{ "<id>": PartyGameDef }` with sorted keys and 2-space indent. Write it to `../cpi-private-server-release/smartfox-server/data/party-games.json`.
+- [ ] **Step 1: Write the generator.** `python3 -I extract-party-games.py <out.json>` reads `PartyGames.json`, `PartyGameLaunchers.json` and `Props.json` from the game's `StaticGameDataExports/`, like the generator for `daily-tasks.json`. For each template it parses `GameData` / `LobbyData` (JSON strings) into objects, keeps only non-zero, non-empty reward fields (`coins`, `mascotXP`, plus any other non-empty list), maps `PlayerProp`, `LobbyProp` and the launcher's `TriggerProp` / `LobbyProp` ids to the prop's `NameOnServer` (or `null`), and writes `{ "<id>": PartyGameDef }` with sorted keys and 2-space indent. Write it to `smartfox-server/data/party-games.json`.
 - [ ] **Step 2: Check the output.** `jq '."2".playerProp, ."2".launcher.triggerProp, ."2".gameData.GameBoardWidth, ."2".rewards' party-games.json` should print `"FindFourGameServerAdded"`, `"FindFourGroup"`, `7`, and two rewards with coins 20/10 and AuntArctic 15/10. Also check that `."1".launcher.triggerProp` is `"FishBucketGroup"` and `."4".launcher.scheduledZone` is `"MtBlizzard"`.
 - [ ] **Step 3: Write the failing test** `tools/party-games-data-test.ts` (`makeChecker`, no servers), with these checks:
   - `getPartyGame(2)?.gameData.SequenceCountToWin === 4`, `minPlayers === 2 && maxPlayers === 2`
@@ -66,7 +66,7 @@
 - [ ] **Step 4:** Run `bun tools/party-games-data-test.ts`. Expected: FAIL (module missing).
 - [ ] **Step 5: Implement `definitions.ts`.** Load the JSON once at import (relative to `import.meta.dir`, the way `daily-tasks.ts` loads its data). The trigger map is built from `launcher.triggerProp`.
 - [ ] **Step 6:** Run the test again. Expected: `ALL PASSED`.
-- [ ] **Step 7: Commit (iceberg)** `party-games.json`, `definitions.ts` and the test: `feat(party-games): party game definitions from static game data`. The generator stays uncommitted in the dev repo (private repo, never pushed), like the other extractors.
+- [ ] **Step 7: Commit (iceberg)** `party-games.json`, `definitions.ts` and the test: `feat(party-games): party game definitions from static game data`. The generator lives with the other data generators, outside this repo.
 
 ### Task 2: Session base class and manager
 
@@ -188,18 +188,18 @@ Timing comes from `def.gameData`: `IntroTimeInSeconds`, `TurnTimeInSeconds`, `Ch
   - The pending entry is also deleted when the holder releases or stores the item (`releaseHeldItem`) or disconnects. Clean up next to the existing release path.
   - The self-interaction edible guard already excludes `partyGameLobby` (it isn't `serverAdded` or non-shareable `playerHeld`). Keep it that way, and confirm it with the test.
 - [ ] **Step 4:** Run `bun tools/party-games-test.ts`. Expected: `ALL PASSED`.
-- [ ] **Step 5: Regressions.** Run `bun tools/<each>-test.ts` for all iceberg `tools/*-test.ts`, then the dev repo's `tools/held-consumables-test.ts`, `consumables-test.ts`, `multiplayer-test.ts` and `room-state-test.ts` (`grep -c '^PASS'` counts should be unchanged: 37, 57, 33, 17). Then run the SFS3 harness as described in the dev repo's `docs/HANDOFF.md`. Everything should pass.
+- [ ] **Step 5: Regressions.** Run `bun tools/<each>-test.ts` for all iceberg `tools/*-test.ts`, then the maintainer's older game-server suites (held consumables, consumables, multiplayer, room state; `grep -c '^PASS'` counts should be unchanged: 37, 57, 33, 17) and the SFS3 client harness. Everything should pass.
 - [ ] **Step 6: Commit** `feat(party-games): Find Four invitation lobby` (consumables.ts, the test, README).
 
 ### Task 5: Docs, verification and live test
 
 **Files:**
 - Modify: `docs/SMARTFOX_PACKETS_DOCUMENTATION.md` (party game section)
-- Modify (dev repo, private): `docs/HANDOFF.md` (status, new tests, generator)
+- Modify (maintainer notes, outside this repo): the handoff notes (status, new tests, generator)
 
 - [ ] **Step 1: Packet docs.** Replace the party game section with the four commands and their exact params (from Global Constraints), the `PartyGameSessionMessageTypes` table (0–13), the Find Four message table, and the invitation → `pgame` `con` flow, all taken from the spec's Background section.
-- [ ] **Step 2: Typecheck and build.** Run the strict `tsc` command from the dev repo's `docs/HANDOFF.md` ("Verifying a change", step 0) over `smartfox-server/src/**/*.ts`, then `bun build src/handshake-server.ts --target=bun --outdir <scratch>`. Expected: no errors, and no new "will always be undefined" warnings.
-- [ ] **Step 3: Private-ref scan.** `git diff origin/main..HEAD | grep -n -i -E "OLDCPIFILES|research/|dumbfox|/home/tyler|scratchpad|CPI-Project"`. Expected: no output.
+- [ ] **Step 2: Typecheck and build.** Run a strict `tsc` (`--strict --noEmit --allowImportingTsExtensions --moduleResolution bundler`, Node types) over `smartfox-server/src/**/*.ts`, then `bun build src/handshake-server.ts --target=bun --outdir <scratch>`. Expected: no errors, and no new "will always be undefined" warnings.
+- [ ] **Step 3: Private-ref scan.** Scan `git diff origin/main..HEAD` with the maintainer's private-reference pattern. Expected: no matches.
 - [ ] **Step 4: Commit and push** `docs: party game packets and Find Four`, then `git push`.
-- [ ] **Step 5: Live test.** Restart both servers (HANDOFF "Running the servers") and ask Tyler for a two-client test: buy + use Find Four, have the second client accept, play to a win, confirm the end popup and coins, then repeat with one client closing mid-game. Watch the game-server log for `pgame` lines and errors.
-- [ ] **Step 6: Update HANDOFF.md** (dev repo, not committed to iceberg): framework + Find Four done, new tests and their PASS counts, `tools/extract-party-games.py`, and the remaining party games listed next.
+- [ ] **Step 5: Live test.** Restart both servers and ask Tyler for a two-client test: buy + use Find Four, have the second client accept, play to a win, confirm the end popup and coins, then repeat with one client closing mid-game. Watch the game-server log for `pgame` lines and errors.
+- [ ] **Step 6: Update the handoff notes** (outside this repo): framework + Find Four done, new tests and their PASS counts, the generator, and the remaining party games listed next.
