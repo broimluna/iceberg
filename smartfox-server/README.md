@@ -44,9 +44,10 @@ bun run start:supervised
 | Variable | Default | Purpose |
 |---|---|---|
 | `SFS_TCP_PORT` | `9933` | Game server port. Also listens on 8080 and 8088: for local, unencrypted servers the OpenCPI client connects to its HttpPort setting instead, which defaults to 8080 in SFS2X builds and 8088 in SFS3 builds. |
-| `SFS_NOTIFY_PORT` | `9339` | Localhost-only port the WebAPI pushes updates to. |
+| `SFS_NOTIFY_PORT` | `9339` | Port the WebAPI pushes updates to. Listens on 127.0.0.1 only. |
+| `SFS_BIND_HOST` | *(all interfaces)* | Address the game ports (9933, 8080, 8088) listen on. Set `127.0.0.1` when clients only arrive through a reverse proxy on this machine. |
 | `WEBAPI_INTERNAL_URL` | `http://127.0.0.1:3000` | Where to send server-to-server reward grants. |
-| `INTERNAL_API_SECRET` | *(empty)* | Optional shared secret for the internal bridge. If set, it must match on both servers. |
+| `INTERNAL_API_SECRET` | *(derived)* | Shared secret for the internal bridge, required in both directions. If unset, both servers derive it from `JOIN_SIGNING_KEY`. If set, it must match on both servers. |
 | `SFS_JOIN_DELAY_MS` | `0` | Debug only: delays the room-join push. |
 | `JOIN_SIGNING_KEY` | *(auto)* | Key that checks the web API's signature on `joinRoomData` at login. Must match `web-api`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
 | `SFS_ALLOW_UNSIGNED_LOGIN` | *(off)* | Development only: `1` accepts logins whose `joinRoomData` isn't signed by this server's web API. |

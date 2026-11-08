@@ -24,7 +24,7 @@ await servers.setStaffAdmins([root.username, root2.username, dave.username]);
 const everyone = [root, root2, bob, carol, dave];
 const disconnectAll = async () => { for (const c of everyone) if (c.sock && !c.closed) c.disconnect(); await sleep(150); };
 const setRoleVia = (c: Client, role: string) => fetch(`${servers.api.base}/api/internal/set-role`, {
-  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: c.username, role }),
+  method: "POST", headers: servers.api.internalHeaders(), body: JSON.stringify({ username: c.username, role }),
 });
 const SAY = async (c: Client, text: string, wait = 300) => { for (const x of everyone) x.reset(); await c.chat(text); await sleep(wait); };
 
@@ -207,7 +207,7 @@ try {
       const admin = new Client(sup, "{rs-admin}", "RsAdmin"), mod = new Client(sup, "{rs-mod}", "RsMod"), player = new Client(sup, "{rs-player}", "RsPlayer");
       for (const c of [admin, mod, player]) await c.account();
       await sup.setStaffAdmins([admin.username]);
-      await fetch(`${sup.api.base}/api/internal/set-role`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: mod.username, role: "moderator" }) });
+      await fetch(`${sup.api.base}/api/internal/set-role`, { method: "POST", headers: sup.api.internalHeaders(), body: JSON.stringify({ username: mod.username, role: "moderator" }) });
       await admin.connect(); await mod.connect(); await player.connect();
       const say = async (c: Client, text: string, wait = 300) => { for (const x of [admin, mod, player]) x.reset(); await c.chat(text); await sleep(wait); };
       const notices = (c: Client) => c.ext.filter((e) => e.cmd === "server.restarting" || e.cmd === "server.alert").map((e) => `${e.cmd}:${e.p.message!.value}`);

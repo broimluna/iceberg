@@ -1,4 +1,5 @@
-import { WEBAPI_INTERNAL_URL, INTERNAL_API_SECRET } from "./config.ts";
+import { WEBAPI_INTERNAL_URL } from "./config.ts";
+import { internalHeaders } from "./internal-secret.ts";
 import { isRole, type Role } from "./commands/roles.ts";
 
 // Server-to-server reward grants. The game server decides what was earned
@@ -33,7 +34,7 @@ export async function fetchIdentity(swid: string): Promise<{ username: string; r
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/identity`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}) },
+      headers: internalHeaders(),
       body: JSON.stringify({ swid }),
       signal: AbortSignal.timeout(5000),
     });
@@ -53,7 +54,7 @@ export async function setRole(username: string, role: Role): Promise<SetRoleResu
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/set-role`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}) },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, role }),
       signal: AbortSignal.timeout(5000),
     });
@@ -72,10 +73,7 @@ export async function grantReward(username: string, reward: RewardGrant): Promis
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/grant-reward`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, reward }),
       signal: AbortSignal.timeout(5000),
     });
@@ -99,10 +97,7 @@ export async function grantQuestObjective(username: string, objective: string): 
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/quest-objective`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, objective }),
       signal: AbortSignal.timeout(5000),
     });
@@ -125,10 +120,7 @@ export async function reportSessionEnded(sessionId: string): Promise<void> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/session-ended`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ sessionId: Number(sessionId) }),
       signal: AbortSignal.timeout(5000),
     });
@@ -151,10 +143,7 @@ export async function incrementTask(username: string, taskId: string, times: num
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/task-increment`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, taskId, times }),
       signal: AbortSignal.timeout(5000),
     });

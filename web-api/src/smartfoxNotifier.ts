@@ -5,8 +5,10 @@
  * This enables immediate UI updates without requiring room changes or polling.
  */
 
-const SMARTFOX_HOST = 'localhost';
-const SMARTFOX_PORT = 9339;
+import { internalSecret } from './utils/internalSecret.ts';
+
+const SMARTFOX_HOST = '127.0.0.1';
+const SMARTFOX_PORT = Number(process.env.SFS_NOTIFY_PORT) || 9339;
 const NOTIFICATION_TIMEOUT_MS = 5000;
 
 /**
@@ -17,7 +19,7 @@ async function sendNotification(payload: Record<string, unknown>): Promise<boole
     try {
         const res = await fetch(`http://${SMARTFOX_HOST}:${SMARTFOX_PORT}/notify`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': internalSecret() },
             body: JSON.stringify(payload),
             signal: AbortSignal.timeout(NOTIFICATION_TIMEOUT_MS)
         });

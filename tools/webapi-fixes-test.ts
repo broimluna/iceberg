@@ -71,10 +71,10 @@ try {
     check(loc?.contentIdentifier === roomCi && !!roomCi, `card contentIdentifier ${loc?.contentIdentifier} == room list ${roomCi}`);
     check(loc?.world === "Alpine" && loc?.zoneId?.name === "Town", `card world/room ${loc?.world}/${loc?.zoneId?.name}`);
   }
-  const ended = await fetch(`${BASE}/api/internal/session-ended`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: 2112464646 }) });
+  const ended = await fetch(`${BASE}/api/internal/session-ended`, { method: "POST", headers: api.internalHeaders(), body: JSON.stringify({ sessionId: 2112464646 }) });
   check(ended.ok, `session-ended -> ${ended.status}`);
   check(JSON.stringify(await online()) === "[]", "offline after session-ended");
-  const bad = await fetch(`${BASE}/api/internal/session-ended`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  const bad = await fetch(`${BASE}/api/internal/session-ended`, { method: "POST", headers: api.internalHeaders(), body: "{}" });
   check(bad.status === 400, "session-ended without sessionId -> 400");
 } finally {
   server.kill();

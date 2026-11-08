@@ -6,11 +6,13 @@ export const COMPRESSION_THRESHOLD = 999_999_999;
 export const MAX_MESSAGE_SIZE = 10_000_000;
 export const JOIN_DELAY_MS = Number(process.env.SFS_JOIN_DELAY_MS ?? 0);
 
-// Internal bridge to web-api. Both directions are localhost-only; the
-// shared secret is an optional extra check.
+// Internal bridge to web-api: localhost only, with the shared secret from
+// internal-secret.ts.
 export const WEBAPI_INTERNAL_URL = process.env.WEBAPI_INTERNAL_URL ?? "http://127.0.0.1:3000";
 export const NOTIFY_PORT = Number(process.env.SFS_NOTIFY_PORT ?? 9339);
-export const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET ?? "";
+// Address the game ports listen on (all interfaces by default).
+// 127.0.0.1 when clients only arrive through a reverse proxy on this machine.
+export const BIND_HOST = process.env.SFS_BIND_HOST || undefined;
 
 // Input limits (see server.ts). A client that exceeds one is disconnected.
 // A packet (raw frame or WebSocket frame) may not exceed MAX_MESSAGE_SIZE,

@@ -13,6 +13,7 @@ import * as routes from "./routes/index.ts";
 import { encryptionMiddleware } from "./routes/encryption.ts";
 import { incrementTask as incrementDailyTask } from "./routes/task.ts";
 import { effectiveRole, isStaffAdmin, isStaffRole } from "./utils/staffRoles.ts";
+import { isInternalRequest } from "./utils/internalSecret.ts";
 
 // Initialize Express app
 const app = express();
@@ -82,17 +83,11 @@ app.use(encryptionMiddleware);
 // Routes
 // =============================================================================
 
-// Internal endpoints, called only by the game server. Restricted to
-// localhost, plus the shared secret if one is configured.
-function isInternalCaller(req: express.Request): boolean {
-    const remote = req.socket.remoteAddress;
-    if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false;
-    if (config.internalApiSecret && req.headers['x-internal-secret'] !== config.internalApiSecret) return false;
-    return true;
-}
+// Internal endpoints, called only by the game server: loopback, not
+// through a proxy, and with the shared secret (utils/internalSecret.ts).
 
 app.post('/api/internal/add-coins', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
         const { username, coins } = req.body;
         if (!username || coins === undefined) {
@@ -114,7 +109,7 @@ app.post('/api/internal/add-coins', express.json(), (req, res) => {
  * PUT /reward/v1.
  */
 app.post('/api/internal/grant-reward', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
         const { username, reward } = req.body;
         if (!username || !reward) {
@@ -135,7 +130,7 @@ app.post('/api/internal/grant-reward', express.json(), (req, res) => {
  * grants its reward from quests.json.
  */
 app.post('/api/internal/quest-objective', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     try {
         const { username, objective } = req.body;
         if (!username || !objective) {
@@ -156,7 +151,7 @@ app.post('/api/internal/quest-objective', express.json(), (req, res) => {
  * as online. Body: { sessionId } (the joinRoomData sessionId).
  */
 app.post('/api/internal/session-ended', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     const sessionId = Number(req.body?.sessionId);
     if (!Number.isSafeInteger(sessionId)) return res.status(400).json({ error: 'Missing or invalid sessionId' });
     db.deleteSession(sessionId);
@@ -170,7 +165,7 @@ app.post('/api/internal/session-ended', express.json(), (req, res) => {
  * Body: { username, taskId, times }. Returns { counter, changed, completed }.
  */
 app.post('/api/internal/task-increment', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     const { username, taskId, times } = req.body ?? {};
     if (typeof username !== 'string' || typeof taskId !== 'string' || !Number.isInteger(times) || times < 1) {
         return res.status(400).json({ error: 'Missing or invalid username, taskId or times' });
@@ -186,7 +181,7 @@ app.post('/api/internal/task-increment', express.json(), (req, res) => {
  * signed swid. Body: { swid }. Returns { username, role }.
  */
 app.post('/api/internal/identity', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     const swid = req.body?.swid;
     if (typeof swid !== 'string') return res.status(400).json({ error: 'Missing or invalid swid' });
     const row = db.getPlayerIdentityAndRole(swid);
@@ -201,7 +196,7 @@ app.post('/api/internal/identity', express.json(), (req, res) => {
  * { success, username, role }; 409 for STAFF_ADMINS accounts.
  */
 app.post('/api/internal/set-role', express.json(), (req, res) => {
-    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     const { username, role } = req.body ?? {};
     if (typeof username !== 'string' || !isStaffRole(role)) return res.status(400).json({ error: 'Missing username or unknown role' });
     const canonical = db.findUsernameNoCase(username);
@@ -271,8 +266,8 @@ process.on('SIGTERM', shutdown);
 // Start Server
 // =============================================================================
 
-app.listen(config.server.port, () => {
-    console.log(`CPI Web API listening at http://localhost:${config.server.port}`);
+app.listen(Number(config.server.port), config.server.host, () => {
+    console.log(`CPI Web API listening at http://${config.server.host}:${config.server.port}`);
     console.log('[DATABASE] Using SQLite for persistent storage (bun:sqlite)');
     console.log('[CONFIG] Game server:', config.gameServer.ip + ':' + config.gameServer.tcpPort);
 });

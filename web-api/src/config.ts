@@ -75,13 +75,6 @@ const config = {
     // Session file path for SFS2X integration
     sessionFile: process.env.SESSION_FILE || '',
 
-    // Shared secret for the internal (server-to-server only) endpoints -
-    // /api/internal/add-coins and /api/internal/grant-reward. Optional:
-    // both endpoints are already restricted to localhost callers
-    // regardless (see server.ts's isInternalCaller); this is an extra
-    // check for deployments where that's not enough, not a requirement.
-    internalApiSecret: process.env.INTERNAL_API_SECRET || '',
-
     // Database settings
     database: {
         path: process.env.DB_PATH || "cpi_data.db",

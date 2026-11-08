@@ -17,11 +17,12 @@ on first run.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` / `HOST` | `3000` / `0.0.0.0` | HTTP listen address. |
+| `PORT` / `HOST` | `3000` / `0.0.0.0` | HTTP listen address. Use `HOST=127.0.0.1` when a reverse proxy on the same machine is the only way in. |
 | `GAME_SERVER_IP` / `GAME_SERVER_PORT` | `127.0.0.1` / `9933` | The game server address handed to clients on room join. |
 | `ICEBERG_DB_PATH` | `src/cpi_data.db` | SQLite database file. (`DB_PATH` is read into `config.ts` but has never been used, so it has no effect.) |
 | `JOIN_SIGNING_KEY` | *(auto)* | Key that signs `joinRoomData` for the SmartFox login. Must match `smartfox-server`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
-| `INTERNAL_API_SECRET` | *(empty)* | Optional shared secret for the internal bridge with `smartfox-server`. |
+| `INTERNAL_API_SECRET` | *(derived)* | Shared secret for the internal bridge with `smartfox-server`, required on every internal call in both directions. If unset, both servers derive it from `JOIN_SIGNING_KEY`. If set, it must match on both. |
+| `SFS_NOTIFY_PORT` | `9339` | The game server's notify port on 127.0.0.1, where player-data changes are pushed. Must match `smartfox-server`. |
 | `STAFF_ADMINS` | *(empty)* | Comma-separated usernames (exact case) that are always admins for the game server's staff commands. Name accounts that already exist. |
 | `AUTH_LOGIN_PER_MIN` | `10` | Guest logins allowed per address per minute. `0` turns the limit off. |
 | `AUTH_REGISTER_PER_HOUR` | `5` | Registrations allowed per address per hour. `0` turns it off. |
@@ -34,8 +35,11 @@ on first run.
 
 - `smartfox-server` calls `POST /api/internal/grant-reward`,
   `/api/internal/add-coins` and `/api/internal/quest-objective` when its
-  own game logic decides something was earned. Only localhost callers are
-  accepted (plus the shared secret, if one is set).
+  own game logic decides something was earned. A call must come from
+  localhost, carry the shared secret, and not have been relayed by a
+  reverse proxy (any `X-Forwarded-For`, `Forwarded` or `X-Real-IP` header
+  is refused, since a proxy on the same machine also connects from
+  localhost).
 - `src/smartfoxNotifier.ts` pushes player-data changes to the game
   server's notify port (9339).
 

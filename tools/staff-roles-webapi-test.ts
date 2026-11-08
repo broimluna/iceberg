@@ -15,7 +15,7 @@ const usernameOf = (swid: string) => {
 };
 const post = async (path: string, body: unknown) => {
   const res = await fetch(`${api.base}/api/internal/${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "POST", headers: api.internalHeaders(), body: JSON.stringify(body),
   });
   let json: any = null;
   try { json = await res.json(); } catch {}

@@ -21,7 +21,7 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS } from "./config.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS, BIND_HOST } from "./config.ts";
 import { addressKey } from "./net-address.ts";
 import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
@@ -349,8 +349,8 @@ export function startServer(): void {
       console.error(`listener error on port ${port}: ${err.message}`);
       if (port === PORT) process.exit(1);
     });
-    server.listen(port, () => {
-      console.log(`SFS server (SFS2X + SFS3) listening on tcp:${port}`);
+    server.listen(port, BIND_HOST, () => {
+      console.log(`SFS server (SFS2X + SFS3) listening on ${BIND_HOST ?? "*"}:${port}`);
     });
   }
   startNotifyListener();

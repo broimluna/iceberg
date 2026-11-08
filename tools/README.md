@@ -33,6 +33,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `staff-commands-test.ts` | Staff chat commands end to end with signed logins: rewards follow the signed swid not the login name, every command, role limits, mutes, `:announce` popups and a real `:restart` under the supervisor. Sections can be run on their own (`bun tools/staff-commands-test.ts economy`). |
 | `party-games-test.ts` | Find Four end to end with a game server and three clients: the invitation, joining, a full match with coin rewards in the web API, and a forfeit by disconnect. |
 | `consumable-signature-test.ts` | Consumable spend verification: the web API signs uses and refuses them without stock; the game server plays `con.use` only with a signed, unused spend for that player; `con.partial` is signed and the web API stores only signed partials. Covers tampering, replay, another player's payload and non-canonical signatures. |
+| `internal-bridge-test.ts` | The internal bridge between the servers: the shared secret is always required (set or derived from the join key), proxied requests are refused, the web API's notifier sends the secret to `SFS_NOTIFY_PORT`, and `HOST` / `SFS_BIND_HOST` / the notify port keep listeners on localhost. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).
