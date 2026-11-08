@@ -1,9 +1,9 @@
 // Coin costs from the game data (data/prices.json, generated from the
 // client's static game data): consumables (by server name), equipment
-// templates (making clothing), decorations and igloo structures. null for an id that has no cost.
+// templates the clothing designer can edit (making clothing), decorations and igloo structures. null for an id that has no cost.
 import prices from "../../data/prices.json";
 
-const table = prices as Record<"consumables" | "templates" | "decorations" | "structures", Record<string, number>>;
+const table = prices as Record<"consumables" | "creatableTemplates" | "decorations" | "structures", Record<string, number>>;
 
 function lookup(kind: keyof typeof table, id: unknown, pattern = /^\d+$/): number | null {
     const key = String(id);
@@ -13,7 +13,8 @@ function lookup(kind: keyof typeof table, id: unknown, pattern = /^\d+$/): numbe
 
 export const consumableCost = (type: unknown) => lookup("consumables", type, /^[A-Za-z0-9_]+$/);
 
-export const templateCost = (definitionId: unknown) => lookup("templates", definitionId);
+/** Templates the clothing designer can edit; null for fixed reward items. */
+export const templateCost = (definitionId: unknown) => lookup("creatableTemplates", definitionId);
 
 /** DecorationType 0 is a decoration, 1 an igloo structure. */
 export const decorationCost = (type: number, definitionId: unknown) =>

@@ -7,7 +7,7 @@ import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { createPlayer } from "./lib/mix-client.ts";
 
 const { check, finish } = makeChecker();
-const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1" } });
+const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", FISHING_MIN_CATCH_MS: "1000", FISHING_MIN_CAST_MS: "1000" } });
 const sql = (q: string, ...p: any[]) => { const d = new Database(api.dbPath); try { return d.query(q).all(...p) as any[]; } finally { d.close(); } };
 
 let n = 0;
@@ -147,6 +147,8 @@ try {
     check(poor.status === 400 && poor.json?.code === 707 && p.coins() === 39, `template 1 (40 coins) with 39 coins is refused with 707 (${poor.status})`);
     const unknown = await p.call("POST", "/inventory/v1/equipment", { definitionId: 999999, parts: [] });
     check(unknown.status === 400 && sql("SELECT * FROM equipment WHERE username = ?", p.username).length === 0, `an unknown template is refused (${unknown.status})`);
+    const fixed = await p.call("POST", "/inventory/v1/equipment", { definitionId: 2, parts: [] });
+    check(fixed.status === 400 && sql("SELECT * FROM equipment WHERE username = ?", p.username).length === 0, `a template the designer can't edit (a reward-only item) is refused (${fixed.status})`);
     p.setCoins(100);
     const ok = await p.call("POST", "/inventory/v1/equipment", { equipmentId: 5555, definitionId: 1, parts: [] });
     check(ok.status === 200 && p.coins() === 60 && ok.json?.equipmentId !== 5555, `creating clothing costs 40 and gets a server id (${ok.status}, ${p.coins()}, ${ok.json?.equipmentId})`);
@@ -196,9 +198,15 @@ try {
     const prizes = Object.values(cast.json?.data?.availablePrizeMap ?? {}) as string[];
     await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: "not-a-prize" });
     check(p.coins() === before, `a prize that wasn't offered pays nothing (${p.coins()})`);
-    await p.call("POST", "/minigame/v1/fishing/cast", {});
+    await Bun.sleep(1100);
     const cast2 = await p.call("POST", "/minigame/v1/fishing/cast", {});
-    const offered = Object.values(cast2.json?.data?.availablePrizeMap ?? {}) as string[];
+    const tooFast = await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: Object.values(cast2.json?.data?.availablePrizeMap ?? {})[0] });
+    check(p.coins() === before, `a catch faster than the minigame can be played pays nothing (${p.coins()})`);
+    await Bun.sleep(1100);
+    const cast3 = await p.call("POST", "/minigame/v1/fishing/cast", {});
+    check(cast3.status === 200, `casting again after the cooldown works (${cast3.status})`);
+    await Bun.sleep(1100);
+    const offered = Object.values(cast3.json?.data?.availablePrizeMap ?? {}) as string[];
     const won = await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: offered[0] });
     const paid = p.coins() - before;
     check(won.status === 200 && paid > 0, `an offered prize pays (${paid}, ${prizes.length} offered)`);

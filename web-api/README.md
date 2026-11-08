@@ -31,6 +31,7 @@ on first run.
 | `TRUST_PROXY` | *(off)* | The number of reverse proxies in front of the web API (e.g. `1` for nginx or Cloudflare alone). The client's address for the limits above is then read that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored. Leave it unset without a proxy. IPv6 addresses are limited per /64. |
 | `LEGACY_PASSWORD_CLAIM` | *(off)* | `1` lets the first login to an account that has no password set one. Only for old databases from before passwords existed: it lets anyone who knows the name take such an account. |
 | `ICEBERG_DEBUG_ERRORS` | *(off)* | `1` puts error messages and stack traces in error responses. Local development only: the log always has them. |
+| `FISHING_MIN_CATCH_MS` / `FISHING_MIN_CAST_MS` | `3000` / `5000` | A fishing catch sooner than this after its cast pays nothing; casts closer together than this are refused (429). |
 
 ## Talking to the game server
 
