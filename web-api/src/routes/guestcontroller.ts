@@ -463,6 +463,16 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
         return res.status(400).json(buildError('REGISTER', 'PASSWORD_REQUIRED', 'password'));
     }
     
+    // Names other players already use (as a username or display name) are
+    // refused: name lookups (friend search, moderation) would be ambiguous.
+    const proposed = displayName?.proposedDisplayName?.trim();
+    if (proposed && db.isDisplayNameTaken(proposed, '')) {
+        return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
+    }
+    if (!autogenerateUsername && profile?.username && db.isDisplayNameTaken(profile.username, '')) {
+        return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'profile.username', 'The username already exists in the system.'));
+    }
+
     // Generate SWID for new user
     const swid = generateSwid();
     
@@ -768,8 +778,8 @@ router.post('/jgc/v5/client/:clientId/guest/:swid', authenticateBearer, (req, re
     }
     
     // Update display name if provided
-    if (displayName?.proposedDisplayName) {
-        db.setPlayerDisplayName(swid, displayName.proposedDisplayName);
+    if (displayName?.proposedDisplayName && !db.setPlayerDisplayName(swid, displayName.proposedDisplayName)) {
+        return res.status(400).json(buildError('PROFILE', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
     }
     
     const updatedPlayer = db.getPlayerBySwid(swid);

@@ -428,8 +428,10 @@ router.post('/player/v1/displayName', (req, res) => {
     
     console.log(`[PLAYER] Setting display name for ${username} to: ${displayName}`);
     
-    // Update the display name in the database
-    db.setPlayerDisplayName(swid, displayName);
+    // Update the display name in the database (refused if another player has it)
+    if (!db.setPlayerDisplayName(swid, displayName)) {
+        return res.status(400).json({ error: 'Display name already in use' });
+    }
     
     res.json(signedResponse({
         displayName: displayName,

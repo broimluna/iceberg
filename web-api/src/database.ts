@@ -906,17 +906,23 @@ function isDisplayNameTaken(displayName, exceptSwid) {
         .get(exceptSwid, displayName, displayName);
 }
 
+/** Returns false (and changes nothing) when the name is empty or another player's. */
 function setPlayerDisplayName(swid, displayName) {
     // Don't allow empty display names
     if (!displayName || displayName.trim() === '') {
         console.warn(`[DATABASE] Attempted to set empty display name for SWID ${swid}, ignoring`);
-        return;
+        return false;
+    }
+    if (isDisplayNameTaken(displayName.trim(), swid)) {
+        console.warn(`[DATABASE] Display name "${displayName.trim()}" is taken, not set for SWID ${swid}`);
+        return false;
     }
     
     const player = getPlayerBySwid(swid);
     if (player) {
         db.prepare('UPDATE player_identity SET display_name = ? WHERE swid = ?').run(displayName.trim(), swid);
     }
+    return true;
 }
 
 /**

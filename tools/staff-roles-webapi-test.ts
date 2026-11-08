@@ -72,6 +72,29 @@ try {
     const regBody: any = await reg.json().catch(() => null);
     check(reg.status === 400 && regBody?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with taken username ${name} is refused (${reg.status})`);
   }
+  // Nor can a new account take an existing display name ("Root", "Bob"),
+  // or a username equal to one: name lookups would find the wrong player.
+  const register = (body: unknown) => fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
+    method: "POST", headers: { Authorization: "APIKEY test", "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  let reg = await register({ password: "hunter22", profile: {}, displayName: { proposedDisplayName: "root" } });
+  check(reg.status === 400 && ((await reg.json()) as any)?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with a taken display name is refused (${reg.status})`);
+  reg = await register({ password: "hunter22", profile: { username: "Bob" } });
+  check(reg.status === 400, `register with a username equal to a display name is refused (${reg.status})`);
+  const displayNameOf = (swid: string) => {
+    const db = new Database(api.dbPath, { readonly: true });
+    const row = db.query("SELECT display_name FROM player_identity WHERE swid = ?").get(swid) as { display_name: string } | null;
+    db.close();
+    return row?.display_name;
+  };
+  const rename = await fetch(`${api.base}/player/v1/displayName`, {
+    method: "POST", headers: { Authorization: "Basic " + btoa("{bob}:x"), "Content-Type": "application/json" }, body: JSON.stringify({ displayName: "ROOT" }),
+  });
+  check(rename.status >= 400 && displayNameOf("{bob}") === "Bob", `renaming to another player's display name is refused (${rename.status}, ${displayNameOf("{bob}")})`);
+  const ownCase = await fetch(`${api.base}/player/v1/displayName`, {
+    method: "POST", headers: { Authorization: "Basic " + btoa("{bob}:x"), "Content-Type": "application/json" }, body: JSON.stringify({ displayName: "BOB" }),
+  });
+  check(ownCase.status === 200 && displayNameOf("{bob}") === "BOB", `changing the case of your own name still works (${ownCase.status})`);
   r = await post("identity", { swid: "{root}" });
   check(r.json?.username === root && r.json?.role === "admin", `the admin's account still belongs to them (${JSON.stringify(r.json)})`);
   r = await post("identity", { swid: "{bob}" });
