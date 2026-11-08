@@ -10,6 +10,13 @@ export const MAX_CHAT_LENGTH = 200;
 // between the two servers is tolerated.
 const SKEW_MS = 30_000;
 
+// Chat's own key, derived from the join key (see web-api/src/utils/
+// chatSignature.ts), so chat and login signatures can't stand in for each other.
+let chatKey: Buffer | null = null;
+function chatSigningKey(): Buffer {
+  return (chatKey ??= crypto.createHmac("sha256", signingKey()).update("iceberg chat signature v1").digest());
+}
+
 export interface SignedChat {
   message: string;
   emotion: number;
@@ -24,8 +31,8 @@ export function checkChatSignature(parsed: any, swid: string | undefined, now = 
   if (parsed.swid !== swid) return "not the sender's swid";
   if (typeof data?.message !== "string" || !Number.isInteger(data?.emotion) || typeof data?.moderated !== "boolean") return "malformed";
   if ([...data.message].length > MAX_CHAT_LENGTH) return "too long";
-  const payload = `chat|${swid}|${parsed.goodUntil}|${data.emotion}|${data.moderated ? 1 : 0}|${data.message}`;
-  const expected = crypto.createHmac("sha256", signingKey()).update(payload).digest();
+  const payload = `chat|${swid}|${parsed.goodUntil}|${data.emotion}|${data.moderated ? 1 : 0}|${data.message.length}|${data.message}`;
+  const expected = crypto.createHmac("sha256", chatSigningKey()).update(payload).digest();
   const given = Buffer.from(parsed.signature, "base64url");
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return "bad signature";
   if (parsed.goodUntil + SKEW_MS < now) return "expired";

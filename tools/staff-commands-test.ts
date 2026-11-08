@@ -298,6 +298,15 @@ try {
     carol.sendChatJson(JSON.stringify(signed));
     await sleep(300);
     check(!bob.roomChats.includes("original"), "another player's signed message can't be replayed as yours");
+    // Chat signatures use their own key derived from the join key, so a
+    // signature made directly with the join key (the login's) never counts.
+    const gu = Date.now() + 60_000;
+    const rawSig = (await import("node:crypto")).createHmac("sha256", servers.key)
+      .update(`chat|${bob.swid}|${gu}|0|0|raw key words`).digest("base64url");
+    for (const x of everyone) x.reset();
+    bob.sendChatJson(JSON.stringify({ goodUntil: gu, swid: bob.swid, signature: rawSig, data: { senderSessionId: Number(bob.sid), message: "raw key words", emotion: 0, moderated: false } }));
+    await sleep(300);
+    check(!carol.roomChats.includes("raw key words"), "a chat signature made with the join key itself is refused");
     await SAY(bob, "x".repeat(201));
     check(bob.lastVerify === 400 && carol.roomChats.length === 0, `chat over 200 characters is refused (${bob.lastVerify})`);
     await disconnectAll();
