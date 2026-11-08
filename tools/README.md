@@ -24,6 +24,9 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `party-games-data-test.ts` | Party game definitions from `smartfox-server/data/party-games.json`: rules, trigger props, placement rewards. |
 | `party-games-manager-test.ts` | The party game manager in-process: `pgame.start.v2` / `pgame.message` / `pgame.end` reach only the players, the game prop is shown to the room, rewards are granted and sent as `reward.add_delayed`, and bad messages are ignored. |
 | `party-games-findfour-test.ts` | Find Four rules in-process: turn order, column fixes, wins in every direction, draws, the turn timeout and forfeits. |
+| `staff-roles-webapi-test.ts` | Staff roles in the web API: `STAFF_ADMINS` (exact names, so a look-alike account isn't an admin), `players.role`, and the internal identity / set-role endpoints. |
+| `staff-unit-test.ts` | Staff command pieces in-process: what counts as a command (emoticons don't), roles before the account lookup answers, mutes at reconnect, the restart countdown schedule. |
+| `staff-commands-test.ts` | Staff chat commands end to end with signed logins: rewards follow the signed swid not the login name, every command, role limits, mutes, `:announce` popups and a real `:restart` under the supervisor. Sections can be run on their own (`bun tools/staff-commands-test.ts economy`). |
 | `party-games-test.ts` | Find Four end to end with a game server and three clients: the invitation, joining, a full match with coin rewards in the web API, and a forfeit by disconnect. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
