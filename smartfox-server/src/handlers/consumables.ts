@@ -11,6 +11,7 @@ import { withAccount } from "../account.ts";
 import type { HandlerContext } from "./context.ts";
 import { templateForTrigger } from "../party-games/definitions.ts";
 import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
+import { logSafe } from "../log-safe.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
 const ITEM_CATEGORY_CONSUMABLE = 1;
@@ -290,7 +291,7 @@ export function handleConsumableUse(innerParams: SFSObjectData, ctx: HandlerCont
     ?? (claims.swid !== ctx.session.swid ? "wrong swid" : null)
     ?? (claimConsumable(claims.signature as string, claims.goodUntil as number) ? null : "replayed");
   if (refused) {
-    log(`${ctx.peer} - con.use refused (${refused}): ${JSON.stringify(claims.type ?? null)}`);
+    log(`${ctx.peer} - con.use refused (${refused}): ${logSafe(claims.type ?? null)}`);
     return;
   }
   useConsumable(ctx, "con.use", claims.type as string, claims.partialCount as number, getUtfString(innerParams, "prop"));
@@ -306,7 +307,7 @@ export function handleConsumableReuse(innerParams: SFSObjectData, ctx: HandlerCo
   if (!CONSUMABLES[type]?.questOnly) {
     // The client parses "prop" with LitJson, so it must be valid JSON.
     ctx.send(extensionPacket("con.reuse_error", new SFSObjectWriter().putUtfString("type", type).putUtfString("prop", propJson ?? "{}")));
-    log(`${ctx.peer} <- con.reuse_error (${JSON.stringify(type)} is not reusable)`);
+    log(`${ctx.peer} <- con.reuse_error (${logSafe(type)} is not reusable)`);
     return;
   }
   useConsumable(ctx, "con.reuse", type, 0, propJson);
@@ -611,5 +612,5 @@ export function equipObject(ctx: HandlerContext, next: EquippedObject): void {
 // `data` is a JSON SignedResponse<ConsumableInventory>.
 export function handleConsumableSet(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const dataJson = getUtfString(innerParams, "data");
-  log(`${ctx.peer} - con.set received (data=${dataJson ?? "(none)"}), no response documented`);
+  log(`${ctx.peer} - con.set received (data=${logSafe(dataJson ?? "(none)")}), no response documented`);
 }
