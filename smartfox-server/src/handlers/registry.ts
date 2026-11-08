@@ -15,6 +15,7 @@ import { handleIglooUpdated } from "./igloo.ts";
 import { handlePrototypeAction } from "./prototype.ts";
 import { handleWebServiceEvent } from "./web-service-event.ts";
 import { handleConsumableSet, handleConsumableUse, handleConsumableReuse } from "./consumables.ts";
+import { handlePartyGameMessage } from "../party-games/manager.ts";
 
 export type ExtensionHandler = (innerParams: SFSObjectData, ctx: HandlerContext) => void;
 
@@ -42,6 +43,7 @@ export const extensionHandlers: Record<string, ExtensionHandler> = {
   "con.set": handleConsumableSet,
   "con.use": handleConsumableUse,
   "con.reuse": handleConsumableReuse,
+  "pgame.message": handlePartyGameMessage,
   "reward.broadcast": handleRewardBroadcast,
   "room.igloo_updated": handleIglooUpdated,
   proto: handlePrototypeAction,

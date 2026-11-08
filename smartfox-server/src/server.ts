@@ -27,6 +27,7 @@ import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
+import { onPartyGamePlayerLeft } from "./party-games/manager.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
@@ -266,6 +267,7 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("close", (hadError) => {
     unregister(session);
+    onPartyGamePlayerLeft(session);
     onPlayerLeft(session);
     if (session.playerSessionId) void reportSessionEnded(session.playerSessionId);
     // Remove the avatar for everyone else in the room.
