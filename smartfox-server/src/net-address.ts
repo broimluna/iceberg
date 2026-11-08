@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 // The key a connection's address counts against for the per-address
 // limits (server.ts): IPv4-mapped IPv6 ("::ffff:a.b.c.d") is the IPv4
 // address, and IPv6 counts per /64, one host's usual allocation, so a host
@@ -17,13 +19,17 @@ export function addressKey(address: string | undefined): string {
  * The client address a reverse proxy reports in an HTTP request's
  * X-Forwarded-For headers: with `hops` proxies in front, the entry that
  * many from the right (each proxy appends the address it received from;
- * entries further left were written by the client). Undefined if the
- * header is missing or too short.
+ * entries further left were written by the client). Header lines are split
+ * on CRLF only and the name must match exactly. Undefined if the header is
+ * missing, too short, or the chosen entry isn't an IP address.
  */
 export function forwardedClient(headerText: string, hops: number): string | undefined {
   const entries: string[] = [];
-  for (const m of headerText.matchAll(/^x-forwarded-for:[ \t]*(.*)$/gim)) {
-    entries.push(...m[1]!.split(",").map((e) => e.trim()).filter(Boolean));
+  for (const line of headerText.split("\r\n").slice(1)) {
+    const colon = line.indexOf(":");
+    if (colon <= 0 || line.slice(0, colon).toLowerCase() !== "x-forwarded-for") continue;
+    entries.push(...line.slice(colon + 1).split(",").map((e) => e.trim()).filter(Boolean));
   }
-  return entries.length >= hops ? entries[entries.length - hops] : undefined;
+  const chosen = entries.length >= hops ? entries[entries.length - hops] : undefined;
+  return chosen !== undefined && isIP(chosen) ? chosen : undefined;
 }

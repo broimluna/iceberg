@@ -4,7 +4,7 @@
 import net from "node:net";
 import { makeChecker } from "./lib/harness.ts";
 import { SFSObjectWriter, encodePacket } from "../smartfox-server/src/sfs-wire.ts";
-import { addressKey } from "../smartfox-server/src/net-address.ts";
+import { addressKey, forwardedClient } from "../smartfox-server/src/net-address.ts";
 import { PendingPool } from "../smartfox-server/src/pending-pool.ts";
 
 const { check, finish } = makeChecker();
@@ -138,6 +138,16 @@ check(addressKey("::ffff:192.0.2.7") === "192.0.2.7", "IPv4-mapped IPv6 is keyed
 check(addressKey("2001:db8:1:2::1") === addressKey("2001:db8:1:2:ffff::9"), "one IPv6 /64 is one key");
 check(addressKey("2001:db8:1:2::1") !== addressKey("2001:db8:1:3::1"), "another /64 is another key");
 check(addressKey("10.0.0.1") === "10.0.0.1", "IPv4 unchanged");
+{
+  const req = (...lines: string[]) => ["GET /websocket HTTP/1.1", "Host: x", ...lines].join("\r\n");
+  check(forwardedClient(req("X-Forwarded-For: 203.0.113.1, 198.51.100.7"), 1) === "198.51.100.7", "last X-Forwarded-For entry with one proxy");
+  check(forwardedClient(req("X-Forwarded-For: 203.0.113.1", "x-forwarded-for: 198.51.100.7"), 1) === "198.51.100.7", "repeated headers are read as one list");
+  check(forwardedClient(req("X-Forwarded-For: 2001:db8::1"), 1) === "2001:db8::1", "IPv6 entry");
+  check(forwardedClient(req("Foo: a\rX-Forwarded-For: 198.51.100.9"), 1) === undefined, "a bare CR doesn't start a header line");
+  check(forwardedClient(req("X-Forwarded-For-Evil: 198.51.100.9"), 1) === undefined, "only the exact header name counts");
+  check(forwardedClient(req("X-Forwarded-For: not-an-ip"), 1) === undefined, "an entry that isn't an IP address is ignored");
+  check(forwardedClient(req("X-Forwarded-For: 198.51.100.7"), 2) === undefined, "too few entries for the proxy count");
+}
 // A full pending pool evicts from the address holding the most pending
 // connections, so a flood from a few addresses can't push out a real
 // player who is partway through logging in.
