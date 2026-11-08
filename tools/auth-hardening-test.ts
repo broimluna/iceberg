@@ -63,6 +63,22 @@ try {
   check(fails.slice(0, 3).every((s) => s === 400) && fails[3] === 429, `4th failed login to one account is limited (${fails})`);
   check((await login(username, "oldpass1")).status === 429, "even the right password waits out the lock");
 
+  // Guesses sent all at once can't slip past the limit while passwords are being checked.
+  await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "0", AUTH_ACCOUNT_FAILS_PER_15MIN: "3" });
+  const burst = await Promise.all(Array.from({ length: 20 }, (_, i) => login(username, "burst" + i).then((r) => r.status)));
+  check(burst.filter((s) => s === 400).length <= 3 && burst.filter((s) => s === 429).length >= 17, `20 parallel guesses: at most 3 checked (${burst.filter((s) => s === 400).length} checked)`);
+
+  // A lock doesn't keep the owner out: addresses that logged into the account before still can.
+  await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "0", AUTH_ACCOUNT_FAILS_PER_15MIN: "3", TRUST_PROXY: "1" });
+  const loginFrom = async (address: string, password: string) => (await fetch(`${gc}/guest/login`, {
+    method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json", "X-Forwarded-For": address },
+    body: JSON.stringify({ loginValue: username, password }),
+  })).status;
+  check(await loginFrom("203.0.113.1", "oldpass1") === 200, "the owner logs in from their address");
+  for (let i = 0; i < 3; i++) await loginFrom("198.51.100.9", "guess" + i);
+  check(await loginFrom("198.51.100.77", "oldpass1") === 429, "after an attacker's failures, new addresses are locked out");
+  check(await loginFrom("203.0.113.1", "oldpass1") === 200, "the owner's known address still logs in");
+
   // ---- rate limits (per IP) ----
   await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "0", AUTH_LOGIN_PER_MIN: "5", AUTH_REGISTER_PER_HOUR: "3", AUTH_APIKEY_PER_MIN: "30" });
   const statuses: number[] = [];

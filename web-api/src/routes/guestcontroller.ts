@@ -12,7 +12,7 @@
  */
 
 import { hashPassword, verifyPassword, MIN_PASSWORD, MAX_PASSWORD } from '../utils/passwords.ts';
-import { rateLimit, accountFailureLimit } from '../utils/rateLimit.ts';
+import { rateLimit, accountFailureLimit, clientAddress } from '../utils/rateLimit.ts';
 import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
@@ -300,7 +300,8 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         const swid = playerInfo.swid;
         console.log(`[LOGIN] Found SWID: ${swid}`);
     
-        if (accountFails.locked(swid)) {
+        const attempt = accountFails.begin(swid, clientAddress(req));
+        if (!attempt) {
             console.log(`[LOGIN] ${loginValue} has too many failed logins; locked for now`);
             return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
         }
@@ -316,19 +317,21 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         // passwords existed.
         if (!storedHash) {
             if (process.env.LEGACY_PASSWORD_CLAIM !== '1') {
+                attempt.done(false);
                 console.log(`[LOGIN] ${loginValue} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
                 return res
                     .status(400)
                     .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
             }
+            attempt.done(true);
             console.log(`[LOGIN] No password set for ${loginValue}, setting it now (LEGACY_PASSWORD_CLAIM).`);
             db.setPlayerPassword(swid, await hashPassword(password));
         } else {
             console.log(`[LOGIN] Verifying password...`);
             const verified = await verifyPassword(password, storedHash);
             if (verified.upgrade) db.setPlayerPassword(swid, await hashPassword(password));
+            attempt.done(verified.ok);
             if (!verified.ok) {
-                accountFails.fail(swid);
                 console.log(`[LOGIN] Password verification FAILED for ${loginValue}`);
                 return res
                     .status(400)

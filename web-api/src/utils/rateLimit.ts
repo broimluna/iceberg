@@ -67,31 +67,67 @@ export function rateLimit(opts: { name: string; envVar: string; defaultLimit: nu
 
 /**
  * Failed logins per account, whatever address they come from, so many
- * addresses can't share one account's guesses. AUTH_ACCOUNT_FAILS_PER_15MIN
- * (default 10, 0 = off) failures lock the account's logins until the
- * window ends.
+ * addresses can't share one account's guesses. After
+ * AUTH_ACCOUNT_FAILS_PER_15MIN failures (default 10, 0 = off) the account's
+ * logins are refused until the 15-minute window ends, except from addresses
+ * that have logged into it before, so a lock can't keep the owner out.
+ *
+ * begin() reserves an attempt before the (slow) password check, so guesses
+ * sent all at once can't get past the limit; done() records the result.
+ * Locked accounts are never dropped from the table; if it fills with them,
+ * new attempts are refused rather than a lock forgotten.
  */
 export function accountFailureLimit() {
     const fromEnv = process.env.AUTH_ACCOUNT_FAILS_PER_15MIN;
     const limit = fromEnv === undefined || fromEnv === "" ? 10 : Number(fromEnv);
     const windowMs = 15 * 60_000;
-    const fails = new Map<string, { count: number; resetAt: number }>();
+    const entries = new Map<string, { fails: number; inFlight: number; resetAt: number }>();
+    const knownAddresses = new Map<string, Set<string>>();
+    const KNOWN_PER_ACCOUNT = 5;
+
     const live = (key: string) => {
-        const e = fails.get(key);
-        if (e && e.resetAt <= Date.now()) { fails.delete(key); return undefined; }
+        const e = entries.get(key);
+        if (e && e.resetAt <= Date.now() && e.inFlight === 0) { entries.delete(key); return undefined; }
         return e;
     };
+    // Room for one more account: drop an expired or unlocked entry, oldest first.
+    const makeRoom = (): boolean => {
+        if (entries.size < MAX_TRACKED) return true;
+        let scanned = 0;
+        for (const [k, e] of entries) {
+            if (++scanned > 1000) break;
+            if ((e.resetAt <= Date.now() || e.fails < limit) && e.inFlight === 0) { entries.delete(k); return true; }
+        }
+        return false;
+    };
+
     return {
-        locked: (key: string) => limit > 0 && (live(key)?.count ?? 0) >= limit,
-        fail: (key: string) => {
-            if (!(limit > 0)) return;
-            const e = live(key);
-            if (e) e.count++;
-            else {
-                if (fails.size >= MAX_TRACKED) fails.delete(fails.keys().next().value!);
-                fails.set(key, { count: 1, resetAt: Date.now() + windowMs });
+        /** null when the account is locked for this address; otherwise call done(ok) after checking the password. */
+        begin(key: string, address: string): { done: (ok: boolean) => void } | null {
+            if (!(limit > 0)) return { done: () => {} };
+            const known = knownAddresses.get(key)?.has(address) ?? false;
+            let e = live(key);
+            if (!e) {
+                if (!makeRoom()) return known ? { done: () => {} } : null;
+                e = { fails: 0, inFlight: 0, resetAt: Date.now() + windowMs };
+                entries.set(key, e);
             }
+            if (!known && e.fails + e.inFlight >= limit) return null;
+            const entry = e;
+            entry.inFlight++;
+            return {
+                done(ok: boolean) {
+                    entry.inFlight--;
+                    if (!ok) { entry.fails++; return; }
+                    let set = knownAddresses.get(key);
+                    if (!set) {
+                        if (knownAddresses.size >= MAX_TRACKED) knownAddresses.delete(knownAddresses.keys().next().value!);
+                        knownAddresses.set(key, (set = new Set()));
+                    }
+                    set.add(address);
+                    if (set.size > KNOWN_PER_ACCOUNT) set.delete(set.values().next().value!);
+                },
+            };
         },
     };
 }
-

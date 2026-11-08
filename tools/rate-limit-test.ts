@@ -1,7 +1,7 @@
 // web-api/src/utils/rateLimit.ts in-process: which address a request
 // counts against, and that the table of addresses stays bounded.
 import { makeChecker } from "./lib/harness.ts";
-import { rateLimit, clientAddress } from "../web-api/src/utils/rateLimit.ts";
+import { rateLimit, clientAddress, accountFailureLimit } from "../web-api/src/utils/rateLimit.ts";
 
 const { check, finish } = makeChecker();
 const req = (remote: string, xff?: string) => ({ socket: { remoteAddress: remote }, headers: xff ? { "x-forwarded-for": xff } : {} }) as any;
@@ -41,5 +41,15 @@ delete process.env.TRUST_PROXY;
   const mw = limiter(5);
   for (let i = 0; i < 60_000; i++) hit(mw, req(`10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`));
   check(mw.size() <= 50_000, `at most 50,000 addresses are tracked (${mw.size()})`);
+}
+// A locked account stays locked however many other accounts fail.
+{
+  process.env.AUTH_ACCOUNT_FAILS_PER_15MIN = "3";
+  const limiter = accountFailureLimit();
+  for (let i = 0; i < 3; i++) limiter.begin("victim", "9.9.9.9")!.done(false);
+  check(limiter.begin("victim", "8.8.8.8") === null, "victim locked");
+  for (let i = 0; i < 60_000; i++) limiter.begin(`other${i}`, "9.9.9.9")?.done(false);
+  check(limiter.begin("victim", "8.8.8.8") === null, "still locked after 60,000 other accounts failed once");
+  delete process.env.AUTH_ACCOUNT_FAILS_PER_15MIN;
 }
 finish();
