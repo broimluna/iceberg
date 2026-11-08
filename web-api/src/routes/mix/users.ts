@@ -263,6 +263,10 @@ router.post(['/registration/text', '/mix/registration/text'], (req, res) => {
             {
                 "TextCode": "gtou_ppv2_proxy_create",
                 "Text": "By creating an account, I agree to the <a target=\"_blank\" href=\"https://disneytermsofuse.com/english/\">Terms of Use</a> and acknowledge the <a target=\"_blank\" href=\"https://privacy.thewaltdisneycompany.com/en/current-privacy-policy/\">Privacy Policy</a>."
+            },
+            {
+                "TextCode": "WDIGFamilySites",
+                "Text": "Yes! Send me Disney updates and offers."
             }
         ]
     };

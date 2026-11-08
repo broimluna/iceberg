@@ -92,6 +92,8 @@ router.post('/state', authenticateMix, (req, res) => {
             Text: a.text,
             Timestamp: a.timestamp
         })),
+
+        GameStateChatMessages: [],
         // PollIntervals and PokeIntervals are in SECONDS - client multiplies by 1000
         // Use shorter intervals for more responsive real-time updates
         PollIntervals: [2, 5, 10],
