@@ -264,6 +264,12 @@ try {
     // A partnered pair (both ends of one item) uses one decoration, as the client counts it.
     r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1), deco(1, 0, { guid: "a", partner: "b" }), deco(1, 0, { guid: "b", partner: "a" })] });
     check(r.status === 200, `a partnered pair counts once (${r.status})`);
+    // Only real mutual pairs: many items naming one partner aren't free.
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1, 0, { guid: "a", partner: "b" }), deco(1, 0, { guid: "b", partner: "a" }), deco(1, 0, { guid: "c", partner: "a" }), deco(1, 0, { guid: "d", partner: "a" }), deco(1, 0, { guid: "e", partner: "a" })] });
+    check(r.status === 400, `extra items can't claim to be someone's partner (${r.status})`);
+    await p.call("POST", "/igloo/v1/decorations/0/10");
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1), deco(1), deco(10, 0, { guid: "x", partner: "y" }), deco(1, 0, { guid: "y", partner: "x" })] });
+    check(r.status === 400, `a pair must be one decoration (${r.status})`);
     r = await p.call("POST", "/igloo/v1/layout", { name: "x", zoneId: "DefaultIgloo", decorationsLayout: [deco(5)] });
     check(r.status === 400, `new layouts are checked too (${r.status})`);
     const stored = JSON.parse(sql("SELECT decorations_layout_json AS j FROM igloo_layouts WHERE layout_id = ?", id)[0].j);

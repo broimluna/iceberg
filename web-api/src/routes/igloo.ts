@@ -63,17 +63,33 @@ function layoutProblem(username, layout): string | null {
         const key = `${item.decorationId.type}:${item.decorationId.definitionId}`;
         owned.set(key, (owned.get(key) ?? 0) + item.count);
     }
-    const placed = new Map<string, number>();
-    const partnersSeen = new Set<string>();
     for (const item of items) {
         if (!item || (item.type !== 0 && item.type !== 1) || !Number.isSafeInteger(item.definitionId)) return 'bad item';
         const props = item.customProperties;
         if (props != null && (typeof props !== 'object' || Array.isArray(props))) return 'bad item';
-        if (item.type === 0 && typeof props?.guid === 'string' && typeof props?.partner === 'string') {
-            const second = partnersSeen.has(props.partner);
-            partnersSeen.add(props.guid);
-            if (second) continue;
-        }
+    }
+    // A pair is free only when it's mutual (each names the other's guid),
+    // both ends are the same decoration, and neither end is in another pair.
+    const byGuid = new Map<string, any>();
+    const repeated = new Set<string>();
+    for (const item of items) {
+        const guid = item.customProperties?.guid;
+        if (item.type !== 0 || typeof guid !== 'string') continue;
+        if (byGuid.has(guid)) repeated.add(guid);
+        byGuid.set(guid, item);
+    }
+    // Items sharing a guid are counted one by one.
+    for (const guid of repeated) byGuid.delete(guid);
+    const freeEnds = new Set<any>();
+    for (const [guid, item] of byGuid) {
+        const partner = byGuid.get(item.customProperties.partner);
+        if (!partner || partner === item || partner.customProperties.partner !== guid || partner.definitionId !== item.definitionId) continue;
+        if (!freeEnds.has(item)) freeEnds.add(partner);
+    }
+
+    const placed = new Map<string, number>();
+    for (const item of items) {
+        if (freeEnds.has(item)) continue;
         const key = `${item.type}:${item.definitionId}`;
         const n = (placed.get(key) ?? 0) + 1;
         if (n > (owned.get(key) ?? 0)) return `places ${key} more often than owned`;
