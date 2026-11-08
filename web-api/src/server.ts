@@ -8,7 +8,7 @@
 import express from "express";
 import * as db from "./database.ts";
 import config from "./config.ts";
-import { logger, errorHandler, notFoundHandler, authenticate } from "./middleware/index.ts";
+import { logger, errorHandler, notFoundHandler, authenticate, requireGameLogin } from "./middleware/index.ts";
 import * as routes from "./routes/index.ts";
 import { encryptionMiddleware } from "./routes/encryption.ts";
 import { incrementTask as incrementDailyTask } from "./routes/task.ts";
@@ -75,6 +75,7 @@ app.use(logger);
 
 // Authentication - extracts player identity from Basic Auth headers
 app.use(authenticate);
+app.use(requireGameLogin);
 
 // Encryption middleware - handles encrypted CP API requests
 app.use(encryptionMiddleware);

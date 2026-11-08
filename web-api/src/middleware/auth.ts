@@ -107,15 +107,32 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
             };
         }
     } else {
-        // No auth provided - use default for backward compatibility
-        (req as any).player = {
-            swid: 'debug_swid_123',
-            username: 'DebugPenguin',
-            isAuthenticated: false
-        };
+        // No credentials: no player. requireGameLogin refuses the game API.
+        (req as any).player = { swid: null, username: null, isAuthenticated: false };
     }
 
     next();
+}
+
+// The CPI game API (/<service>/v1/...), which acts as the logged-in
+// player. Mix routes share some first segments (/moderation/text) but
+// never have /v1 and use their own tokens. Matched on the lower-cased path
+// because Express routing ignores case.
+const GAME_API = /^\/(game|player|quest|reward|inventory|catalog|task|consumable|tutorial|breadcrumb|igloo|chat|minigame|moderation|disneystore|tube|event|membership|iap-pc|captcha)\/v1(\/|$)/;
+// Calls the client makes without credentials (its operations without
+// HttpBasicAuthorization): looking up other players' public data.
+const PUBLIC_GAME_API = /^\/player\/v1\/(name\/[^/]+|names|session\/[^/]+|id|id\/(?!online\/?$)[^/]+)\/?$/;
+
+/**
+ * Refuses the game API without a login: 401 {code: 3}, which makes the
+ * client refresh its access token.
+ */
+export function requireGameLogin(req: Request, res: Response, next: NextFunction) {
+    const path = req.path.toLowerCase();
+    if (!GAME_API.test(path) || PUBLIC_GAME_API.test(path)) return next();
+    if ((req as any).player?.isAuthenticated) return next();
+    console.log(`[AUTH] ${req.method} ${req.path}: no login, 401`);
+    return res.status(401).json({ code: 3 });
 }
 
 /**

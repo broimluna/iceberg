@@ -35,6 +35,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `consumable-signature-test.ts` | Consumable spend verification: the web API signs uses and refuses them without stock; the game server plays `con.use` only with a signed, unused spend for that player; `con.partial` is signed and the web API stores only signed partials. Covers tampering, replay, another player's payload and non-canonical signatures. |
 | `internal-bridge-test.ts` | The internal bridge between the servers: the shared secret is always required (set or derived from the join key), proxied requests are refused, the web API's notifier sends the secret to `SFS_NOTIFY_PORT`, and `HOST` / `SFS_BIND_HOST` / the notify port keep listeners on localhost. |
 | `log-hygiene-test.ts` | Client text can't forge or flood the web API log (escaped, length- and count-capped), the logged address isn't a client-written header, and error responses carry no stack traces or echoed URLs. |
+| `anonymous-access-test.ts` | Without a login the CPI game API answers 401 `{code: 3}` instead of acting as a shared fallback account; only the calls the client makes without credentials (other-player lookups, the encryption key, diagnostics) stay open. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).

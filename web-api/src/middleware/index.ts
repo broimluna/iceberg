@@ -6,7 +6,7 @@
 
 import { requestLogger as logger } from "./logger.ts";
 import { errorHandler, notFoundHandler } from "./errorHandler.ts";
-import { authenticate, requireAuth, parseBasicAuth } from "./auth.ts";
+import { authenticate, requireAuth, requireGameLogin, parseBasicAuth } from "./auth.ts";
 
 export {
     logger,
@@ -14,5 +14,6 @@ export {
     notFoundHandler,
     authenticate,
     requireAuth,
+    requireGameLogin,
     parseBasicAuth
 };
