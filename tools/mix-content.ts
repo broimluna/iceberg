@@ -1,7 +1,12 @@
 // Builds and imports the Disney Mix asset bundles that iceberg serves to
 // source builds of the app (docs/MIX_API.md sections 2 and 10).
 //
+//   bun tools/mix-content.ts build --project <DisneyMix checkout> [--unity <editor>] [--method <Class.Method>]
 //   bun tools/mix-content.ts import --from <…/StreamingAssets/AssetBundles> [--to <dir>]
+//
+// build runs the Unity editor in batchmode to rebuild the standalonelinux64
+// bundles into the project's StreamingAssets/AssetBundles/ (windows64
+// ships prebuilt in the client repo). The log goes to <project>-bundles.log.
 //
 // import replaces <to>/AssetBundles/<platform>/ with every hd/**/*.unity3d
 // for windows64 and standalonelinux64, then prints what is present against
@@ -14,7 +19,11 @@ import manifestFile from "../web-api/data/mix/cpipe-manifest.json";
 
 const DEFAULT_TO = resolve(import.meta.dir, "../web-api/data/mix/cpipe");
 const AREAS = ["hd/stickers", "hd/gags", "hd/gogs", "hd/avatar_thumbs", "hd/avatar_multiplane"];
-const USAGE = "usage: bun tools/mix-content.ts import --from <…/StreamingAssets/AssetBundles> [--to <dir>]";
+const DEFAULT_UNITY = `${process.env.HOME}/Unity/Hub/Editor/6000.3.14f1/Editor/Unity`;
+const DEFAULT_METHOD = "RebuildAssetBundles.RebuildAllBatch";
+const USAGE =
+  "usage: bun tools/mix-content.ts build --project <path> [--unity <editor>] [--method <Class.Method>]\n" +
+  "       bun tools/mix-content.ts import --from <…/StreamingAssets/AssetBundles> [--to <dir>]";
 
 function arg(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
@@ -79,9 +88,42 @@ export function importBundles(from: string, to: string): void {
   }
 }
 
+/** Exit code for the CLI: 0 ok, 2 Unity license missing, 1 other failure. */
+export async function buildBundles(project: string, unity: string, method: string): Promise<number> {
+  const log = `${project}-bundles.log`;
+  const cmd = [unity, "-batchmode", "-quit", "-nographics", "-projectPath", project,
+               "-buildTarget", "Linux64", "-executeMethod", method, "-logFile", log];
+  console.log(`running ${cmd.join(" ")}`);
+  const started = Date.now();
+  const proc = Bun.spawn(cmd, { stdio: ["inherit", "inherit", "inherit"] });
+  const code = await proc.exited;
+  const secs = Math.round((Date.now() - started) / 1000);
+  if (code === 0) {
+    console.log(`bundles built in ${secs}s: ${project}/Assets/StreamingAssets/AssetBundles/standalonelinux64/ (log ${log})`);
+    return 0;
+  }
+  if (code === 198) {
+    console.error(
+      "Unity exited 198: no valid Unity Editor license. The Flatpak Unity Hub keeps the license in its\n" +
+      "sandbox; copy it where the native editor looks (docs/MIX_API.md section 5):\n" +
+      "  mkdir -p ~/.config/unity3d/Unity/licenses && cp ~/.var/app/com.unity.UnityHub/config/unity3d/Unity/licenses/UnityEntitlementLicense.xml ~/.config/unity3d/Unity/licenses/",
+    );
+    return 2;
+  }
+  console.error(`Unity exited ${code} after ${secs}s; see the log: ${log}`);
+  return 1;
+}
+
 if (import.meta.main) {
   const [cmd, ...args] = process.argv.slice(2);
-  if (cmd === "import") {
+  if (cmd === "build") {
+    const project = arg(args, "--project");
+    if (!project || !existsSync(project)) {
+      console.error(project ? `--project ${project} does not exist\n${USAGE}` : USAGE);
+      process.exit(1);
+    }
+    process.exit(await buildBundles(resolve(project), arg(args, "--unity") ?? DEFAULT_UNITY, arg(args, "--method") ?? DEFAULT_METHOD));
+  } else if (cmd === "import") {
     const from = arg(args, "--from");
     const to = arg(args, "--to") ?? DEFAULT_TO;
     if (!from || !existsSync(from)) {

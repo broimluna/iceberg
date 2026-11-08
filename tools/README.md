@@ -46,6 +46,7 @@ it for any new Mix test.
 for desktop source builds of Mix (docs/MIX_API.md sections 2 and 10):
 
 ```sh
+bun tools/mix-content.ts build --project ~/src/DisneyMix     # Linux bundles via Unity batchmode (~3 min)
 bun tools/mix-content.ts import --from ~/src/DisneyMix/Assets/StreamingAssets/AssetBundles
 ```
 

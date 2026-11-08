@@ -626,6 +626,39 @@ What we learned doing it:
   to `~/.config/unity3d/Unity/licenses/`. A Personal license includes
   the `com.unity.editor.headless` entitlement that batchmode needs.
 
+**Rebuilding the Linux asset bundles (2026-11-07).** The recreation ships
+its rebuilt bundles only as `StreamingAssets/AssetBundles/windows64/`.
+Windows bundles aren't rebuilt here (no Windows build support is
+installed, and they're in the repo already). The Linux ones come from
+the client's own editor script:
+
+```sh
+bun tools/mix-content.ts build --project ~/src/DisneyMix
+bun tools/mix-content.ts import --from ~/src/DisneyMix/Assets/StreamingAssets/AssetBundles
+```
+
+- `build` runs `Unity -batchmode -quit -nographics -buildTarget Linux64
+  -executeMethod RebuildAssetBundles.RebuildAllBatch` with the log in
+  `<project>-bundles.log`. On this machine it took **166 s** and wrote
+  **1,264 bundles** to `standalonelinux64/` (142 stickers, 28 gags, 611
+  game files), exactly as many as `windows64/` has. Exit 198 means the
+  license copy above is missing, and the tool says so.
+- `RebuildAssetBundles.RebuildAll` (the "Tools/AssetBundles/Rebuild from
+  JSON" menu item) builds every named bundle flat into `_raw/`, then
+  moves each one to the path `Resources/json/AssetBundles.json` gives it,
+  replacing the `platform` token with the target's folder name
+  (`StandaloneLinux64` → `standalonelinux64`). Two changes to it were
+  needed for batch use (client branch `iceberg/content-delivery`):
+  - **It deleted all of `StreamingAssets/AssetBundles/` first,** including
+    the prebuilt `windows64` bundles, so building Linux would have wiped
+    Windows. It now clears only the target platform's folder.
+  - **It can't fail a batch run.** It reports a failed build or a missing
+    JSON with `Debug.LogError` and returns, so `-quit` still exits 0.
+    The new `RebuildAllBatch()` wrapper exits 1 when it throws or leaves
+    no `.unity3d` for the platform.
+- A Linux player build also packs `standalonelinux64/` into its own
+  StreamingAssets, so it can show local stickers with no server.
+
 ---
 
 ## 6. `/state`: the snapshot

@@ -88,6 +88,26 @@ try {
   check(out.includes("donotcopy/n7c4c656"), "import warns about the missing boot config");
   const noFrom = await $`bun tools/mix-content.ts import`.nothrow().quiet();
   check(noFrom.exitCode === 1, `import without --from exit ${noFrom.exitCode}`);
+
+  // --- tools/mix-content.ts build (fake Unity editor) ---
+  const fake = mkdtempSync(join(tmpdir(), "mix-unity-"));
+  const editor = join(fake, "Unity");
+  writeFileSync(editor, `#!/bin/sh\nprintf '%s\\n' "$@" > "${fake}/args.txt"\nexit $FAKE_EXIT\n`, { mode: 0o755 });
+  const project = join(fake, "Proj");
+  mkdirSync(project);
+  const build = (code: number) => $`bun tools/mix-content.ts build --project ${project} --unity ${editor}`.env({ ...process.env, FAKE_EXIT: String(code) }).nothrow().quiet();
+  const ok = await build(0);
+  const args = existsSync(`${fake}/args.txt`) ? (await Bun.file(`${fake}/args.txt`).text()).split("\n") : [];
+  const after = (flag: string) => args[args.indexOf(flag) + 1];
+  check(ok.exitCode === 0, `build exit ${ok.exitCode}`);
+  check(["-batchmode", "-quit", "-nographics"].every((f) => args.includes(f)), `build flags ${JSON.stringify(args)}`);
+  check(after("-projectPath") === project && after("-buildTarget") === "Linux64", "build -projectPath and -buildTarget Linux64");
+  check(after("-executeMethod") === "RebuildAssetBundles.RebuildAllBatch", `build -executeMethod ${after("-executeMethod")}`);
+  check(after("-logFile") === `${project}-bundles.log`, `build -logFile ${after("-logFile")}`);
+  const lic = await build(198);
+  check(lic.exitCode === 2 && (lic.stdout.toString() + lic.stderr.toString()).includes("UnityEntitlementLicense.xml"), `build 198 -> exit ${lic.exitCode} with license hint`);
+  const bad = await build(1);
+  check(bad.exitCode === 1 && (bad.stdout.toString() + bad.stderr.toString()).includes(`${project}-bundles.log`), `build failure -> exit ${bad.exitCode} with log path`);
 } catch (e) {
   check(false, `threw: ${(e as Error).stack}`);
 }
