@@ -6,6 +6,7 @@
  * We need to look up the access token to get the SWID, then look up the player.
  */
 
+import { logUrl } from "../utils/logSafe.ts";
 import type { Request, Response, NextFunction } from "express";
 import * as db from "../database.ts";
 import { tokenStore } from "../routes/guestcontroller.ts";
@@ -61,7 +62,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
         // new auto-created accounts. Test tools can opt back in.
         if (!swid) {
             if (process.env.ALLOW_SWID_AUTH !== '1') {
-                console.log(`[AUTH] ${req.method} ${req.path}: unknown or expired access token, 401 (client refreshes)`);
+                console.log(`[AUTH] ${req.method} ${logUrl(req.path)}: unknown or expired access token, 401 (client refreshes)`);
                 return res.status(401).json({ code: 3 });
             }
             swid = authValue;
@@ -72,7 +73,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
         // answers with the ban (a 400 the client shows), as Mix's
         // authenticateMix already does with UNAUTHORIZED_BANNED.
         if (isBanned(swid)) {
-            console.log(`[AUTH] ${req.method} ${req.path}: ${swid} is banned, 401 (refresh shows the ban)`);
+            console.log(`[AUTH] ${req.method} ${logUrl(req.path)}: ${swid} is banned, 401 (refresh shows the ban)`);
             return res.status(401).json({ code: 3 });
         }
 
@@ -131,7 +132,7 @@ export function requireGameLogin(req: Request, res: Response, next: NextFunction
     const path = req.path.toLowerCase();
     if (!GAME_API.test(path) || PUBLIC_GAME_API.test(path)) return next();
     if ((req as any).player?.isAuthenticated) return next();
-    console.log(`[AUTH] ${req.method} ${req.path}: no login, 401`);
+    console.log(`[AUTH] ${req.method} ${logUrl(req.path)}: no login, 401`);
     return res.status(401).json({ code: 3 });
 }
 

@@ -1985,6 +1985,8 @@ function getIglooLayout(username, layoutId) {
 /**
  * Save an igloo layout
  */
+// Inserts, or updates the player's own layout with that id. Returns false
+// (and changes nothing) when the id is another player's layout.
 function saveIglooLayout(username, layout) {
     getOrCreatePlayer(username);
     db.prepare(`
@@ -1999,6 +2001,7 @@ function saveIglooLayout(username, layout) {
             decorations_layout_json = excluded.decorations_layout_json,
             last_modified_date = excluded.last_modified_date,
             member_only = excluded.member_only
+        WHERE igloo_layouts.username = excluded.username
     `).run(
         layout.layoutId,
         username,
@@ -2011,7 +2014,7 @@ function saveIglooLayout(username, layout) {
         layout.createdDate || Date.now(),
         layout.lastModifiedDate || Date.now(),
         layout.memberOnly !== false ? 1 : 0
-    );
+    ).changes === 1;
 }
 
 /**
@@ -2232,11 +2235,15 @@ function storeGuestToken(token, tokenType, swid, ttlSeconds) {
  * @param {string} token - The token value
  * @returns {object|null} { token, tokenType, swid, expiresAt } or null
  */
-function getGuestToken(token) {
+// A live token of the given type ('access' or 'refresh'), or null. The
+// type matters: a refresh token must not work as an access token, nor the
+// other way round.
+function getGuestToken(token, type) {
+    if (type !== 'access' && type !== 'refresh') throw new Error('getGuestToken needs a token type');
     const row = db.prepare(`
         SELECT * FROM guest_controller_tokens 
-        WHERE token = ? AND datetime(expires_at) > datetime('now')
-    `).get(token);
+        WHERE token = ? AND token_type = ? AND datetime(expires_at) > datetime('now')
+    `).get(token, type);
     
     if (!row) return null;
     

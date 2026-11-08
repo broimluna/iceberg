@@ -5,6 +5,7 @@
  * Routes are organized into separate modules for maintainability.
  */
 
+import { logUrl } from "./utils/logSafe.ts";
 import express from "express";
 import * as db from "./database.ts";
 import config from "./config.ts";
@@ -29,7 +30,7 @@ app.use((req, res, next) => {
     const override = req.headers['x-http-method-override'];
     if (req.method === 'POST' && typeof override === 'string' && ['PUT', 'DELETE', 'PATCH'].includes(override.toUpperCase())) {
         req.method = override.toUpperCase();
-        console.log(`[HTTP] ${req.url}: POST -> ${req.method} (X-HTTP-Method-Override), content-type=${req.headers['content-type'] ?? '(none)'}, length=${req.headers['content-length'] ?? '?'}`);
+        console.log(`[HTTP] ${logUrl(req.url)}: POST -> ${req.method} (X-HTTP-Method-Override), content-type=${req.headers['content-type'] ?? '(none)'}, length=${req.headers['content-length'] ?? '?'}`);
     }
     next();
 });

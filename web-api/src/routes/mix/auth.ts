@@ -1,5 +1,5 @@
 // Mix transport middleware: application/mix body encryption and auth.
-import { logSafe } from "../../utils/logSafe.ts";
+import { logSafe, logUrl } from "../../utils/logSafe.ts";
 import * as db from "../../database.ts";
 import { decryptAesCbc, encryptAesCbc } from "../../lib/crypto.ts";
 import { isBanned } from "../../services/moderation.ts";
@@ -38,7 +38,7 @@ function getSessionKey(req) {
  */
 export function mixEncryptionMiddleware(req, res, next) {
     const contentType = req.headers['content-type'];
-    console.log(`[MIX] Middleware: ${req.method} ${logSafe(req.url)} Content-Type: ${logSafe(contentType)}`);
+    console.log(`[MIX] Middleware: ${req.method} ${logUrl(req.url)} Content-Type: ${logSafe(contentType)}`);
     
     // Check if this is an encrypted request (application/mix)
     if (contentType && contentType.includes('application/mix')) {
@@ -97,27 +97,27 @@ export function mixEncryptionMiddleware(req, res, next) {
 // session key exchange.
 export function authenticateMix(req, res, next) {
     const oneIdToken = req.headers['x-mix-oneidtoken'];
-    const token = oneIdToken ? db.getGuestToken(oneIdToken) : null;
+    const token = oneIdToken ? db.getGuestToken(oneIdToken, 'access') : null;
     if (!token || token.tokenType !== 'access') {
-        console.warn(`[MIX] Auth failed: unknown or expired X-Mix-OneIdToken for ${req.method} ${req.url}`);
+        console.warn(`[MIX] Auth failed: unknown or expired X-Mix-OneIdToken for ${req.method} ${logUrl(req.url)}`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_ONEID_TOKEN' });
     }
 
     const claimed = req.body?.UserId;
     if (claimed != null && claimed !== token.swid) {
-        console.warn(`[MIX] Auth failed: token belongs to ${token.swid} but body claims ${logSafe(claimed)} (${req.method} ${logSafe(req.url)})`);
+        console.warn(`[MIX] Auth failed: token belongs to ${token.swid} but body claims ${logSafe(claimed)} (${req.method} ${logUrl(req.url)})`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_ONEID_TOKEN' });
     }
 
     if (req.mixSessionSwid && req.mixSessionSwid !== token.swid) {
-        console.warn(`[MIX] Auth failed: session belongs to ${req.mixSessionSwid}, token to ${token.swid} (${req.method} ${req.url})`);
+        console.warn(`[MIX] Auth failed: session belongs to ${req.mixSessionSwid}, token to ${token.swid} (${req.method} ${logUrl(req.url)})`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_MIX_SESSION' });
     }
 
     // A banned or locked user gets UNAUTHORIZED_BANNED: the SDK doesn't
     // retry, it logs the user out (AccountBannedEventArgs).
     if (isBanned(token.swid)) {
-        console.warn(`[MIX] ${token.swid} is banned (${req.method} ${req.url})`);
+        console.warn(`[MIX] ${token.swid} is banned (${req.method} ${logUrl(req.url)})`);
         return res.status(401).json({ Status: 'UNAUTHORIZED_BANNED' });
     }
 

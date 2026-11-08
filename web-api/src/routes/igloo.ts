@@ -137,7 +137,7 @@ router.post('/igloo/v1/layout', (req, res) => {
     const { swid, username } = req.player;
     const layoutData = req.body;
     
-    console.log(`[IGLOO] ${username} creating new layout: ${layoutData.name}`);
+    console.log(`[IGLOO] ${username} creating new layout: ${logSafe(layoutData?.name)}`);
     
     const now = Date.now();
     const layoutId = generateLayoutId();
@@ -156,10 +156,8 @@ router.post('/igloo/v1/layout', (req, res) => {
         memberOnly: true
     };
     
-    // Save layout
-    if (db.saveIglooLayout) {
-        db.saveIglooLayout(username, savedLayout);
-    }
+    // Save layout (a fresh id if it collides with someone else's)
+    while (!db.saveIglooLayout(username, savedLayout)) savedLayout.layoutId = generateLayoutId();
     
     // If this is the first layout, set it as active
     const layouts = db.getIglooLayouts ? db.getIglooLayouts(username) : [];
@@ -264,9 +262,9 @@ function handleUpdateLayout(req, res) {
         layout.extraInfo = update.extraInfo;
     }
     
-    // Save updated layout
-    if (db.saveIglooLayout) {
-        db.saveIglooLayout(username, layout);
+    // Save updated layout; another player's layout id is refused.
+    if (!db.saveIglooLayout(username, layout)) {
+        return res.status(404).json({ error: 'Layout not found' });
     }
     
     // Response: SavedSceneLayout

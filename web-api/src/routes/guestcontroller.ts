@@ -11,6 +11,7 @@
  * - BEARER: Requires "Authorization: BEARER {access-token}" header
  */
 
+import { logSafe, logUrl } from "../utils/logSafe.ts";
 import { hashPassword, verifyPassword, MIN_PASSWORD, MAX_PASSWORD } from '../utils/passwords.ts';
 import { rateLimit, accountFailureLimit, clientAddress } from '../utils/rateLimit.ts';
 import { checkName } from '../utils/names.ts';
@@ -133,7 +134,7 @@ function buildSuccess(data) {
 // These are kept for any middleware that might reference them
 const tokenStore = {
     get: (token) => {
-        const data = db.getGuestToken(token);
+        const data = db.getGuestToken(token, 'access');
         if (!data) return null;
         return { swid: data.swid, expiry: new Date(data.expiresAt).getTime() };
     },
@@ -142,12 +143,12 @@ const tokenStore = {
         db.storeGuestToken(token, 'access', data.swid, ttlSeconds);
     },
     delete: (token) => db.deleteGuestToken(token),
-    has: (token) => db.getGuestToken(token) !== null
+    has: (token) => db.getGuestToken(token, 'access') !== null
 };
 
 const refreshStore = {
     get: (token) => {
-        const data = db.getGuestToken(token);
+        const data = db.getGuestToken(token, 'refresh');
         if (!data) return null;
         return { swid: data.swid, expiry: new Date(data.expiresAt).getTime() };
     },
@@ -156,7 +157,7 @@ const refreshStore = {
         db.storeGuestToken(token, 'refresh', data.swid, ttlSeconds);
     },
     delete: (token) => db.deleteGuestToken(token),
-    has: (token) => db.getGuestToken(token) !== null
+    has: (token) => db.getGuestToken(token, 'refresh') !== null
 };
 
 
@@ -167,7 +168,7 @@ const refreshStore = {
 function authenticateApiKey(req, res, next) {
     const authHeader = req.headers.authorization;
     
-    console.log(`[APIKEY] ${req.method} ${req.path} - Authorization header: ${authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING'}`);
+    console.log(`[APIKEY] ${req.method} ${logUrl(req.path)} - Authorization: ${authHeader ? String(authHeader).split(' ')[0] + ' <redacted>' : 'MISSING'}`);
     
     if (!authHeader || !authHeader.startsWith('APIKEY ')) {
         console.log(`[APIKEY] Rejected - Invalid or missing APIKEY header`);
@@ -204,7 +205,7 @@ function authenticateBearer(req, res, next) {
     }
     
     const accessToken = authHeader.slice(7);
-    const stored = db.getGuestToken(accessToken);
+    const stored = db.getGuestToken(accessToken, 'access');
     
     if (!stored) {
         return res.status(401).json(buildError('AUTHORIZATION', 'ACCESS_TOKEN_NOT_FOUND'));
@@ -282,12 +283,12 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         // New accounts should be created via /guest/register.
         // If an account doesn't exist, return INVALID_CREDENTIALS so the client
         // can present the proper error instead of continuing into a broken flow.
-        console.log(`[LOGIN] Looking up player by displayName: ${loginValue}`);
+        console.log(`[LOGIN] Looking up player by displayName: ${logSafe(loginValue)}`);
         const playerInfo = db.getPlayerByDisplayName(loginValue);
         console.log(`[LOGIN] Player lookup result:`, JSON.stringify(playerInfo));
         
         if (!playerInfo) {
-            console.log(`[LOGIN] Player not found for displayName: ${loginValue}`);
+            console.log(`[LOGIN] Player not found for displayName: ${logSafe(loginValue)}`);
             // Use 400 (not 401) because the CPI client tends to treat 401 as a generic
             // account/service failure, which results in a confusing popup.
             return res
@@ -302,7 +303,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
     
         const attempt = accountFails.begin(swid, clientAddress(req));
         if (!attempt) {
-            console.log(`[LOGIN] ${loginValue} has too many failed logins; locked for now`);
+            console.log(`[LOGIN] ${logSafe(loginValue)} has too many failed logins; locked for now`);
             return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
         }
         // Whatever path the request takes (an error included), the attempt is
@@ -321,13 +322,13 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         if (!storedHash) {
             if (process.env.LEGACY_PASSWORD_CLAIM !== '1') {
                 attempt.done(false);
-                console.log(`[LOGIN] ${loginValue} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
+                console.log(`[LOGIN] ${logSafe(loginValue)} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
                 return res
                     .status(400)
                     .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
             }
             attempt.done(true);
-            console.log(`[LOGIN] No password set for ${loginValue}, setting it now (LEGACY_PASSWORD_CLAIM).`);
+            console.log(`[LOGIN] No password set for ${logSafe(loginValue)}, setting it now (LEGACY_PASSWORD_CLAIM).`);
             db.setPlayerPassword(swid, await hashPassword(password));
         } else {
             console.log(`[LOGIN] Verifying password...`);
@@ -335,7 +336,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             if (verified.upgrade) db.setPlayerPassword(swid, await hashPassword(password));
             attempt.done(verified.ok);
             if (!verified.ok) {
-                console.log(`[LOGIN] Password verification FAILED for ${loginValue}`);
+                console.log(`[LOGIN] Password verification FAILED for ${logSafe(loginValue)}`);
                 return res
                     .status(400)
                     .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
@@ -345,11 +346,11 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
 
         const banned = banError(swid);
         if (banned) {
-            console.log(`[LOGIN] ${loginValue} is banned: ${banned.error.errors[0].code}`);
+            console.log(`[LOGIN] ${logSafe(loginValue)} is banned: ${banned.error.errors[0].code}`);
             return res.status(400).json(banned);
         }
     
-        console.log(`[LOGIN] User "${loginValue}" logging in with existing SWID: ${swid}`);
+        console.log(`[LOGIN] User "${logSafe(loginValue)}" logging in with existing SWID: ${swid}`);
         console.log(`[LOGIN] playerInfo from DB: username=${playerInfo?.username}, displayName=${playerInfo?.displayName}`);
     
         // Generate tokens
@@ -404,7 +405,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             marketing: []
         };
     
-        console.log(`[LOGIN] Sending success response for ${loginValue}`);
+        console.log(`[LOGIN] Sending success response for ${logSafe(loginValue)}`);
         res.json(buildSuccess(responseData));
     } catch (err) {
         console.error(`[LOGIN] Exception in login handler:`, err);
@@ -421,7 +422,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
 router.post('/jgc/v5/client/:clientId/guest/refresh-auth/:refreshToken', (req, res) => {
     const { refreshToken } = req.params;
     
-    const stored = db.getGuestToken(refreshToken);
+    const stored = db.getGuestToken(refreshToken, 'refresh');
     
     if (!stored) {
         return res.status(401).json(buildError('AUTHORIZATION', 'REFRESH_TOKEN_INVALID'));

@@ -23,3 +23,9 @@ export function logSafe(value: unknown, max = MAX_CHARS): string {
     });
     return length > max ? `${text}...(${length} chars)` : text;
 }
+
+// A request URL for the log: the Guest Controller sends refresh tokens in
+// the path (/guest/refresh-auth/<token>), which must not reach the log.
+export function logUrl(url: unknown): string {
+    return logSafe(String(url ?? "").replace(/(\/refresh-auth\/)[^/?#]*/gi, "$1<redacted>"));
+}

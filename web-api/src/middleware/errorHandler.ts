@@ -5,10 +5,10 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-import { logSafe } from "../utils/logSafe.ts";
+import { logSafe, logUrl } from "../utils/logSafe.ts";
 
 export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-    console.error(`[ERROR] ${req.method} ${logSafe(req.url)}: ${logSafe(err.message)}`);
+    console.error(`[ERROR] ${req.method} ${logUrl(req.url)}: ${logSafe(err.message)}`);
     console.error(err.stack);
 
     // Details stay in the log. Clients only see them with
@@ -28,7 +28,7 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
  * 404 Handler
  */
 export function notFoundHandler(req: Request, res: Response) {
-    console.log(`[404] Route not found: ${req.method} ${logSafe(req.url)}`);
+    console.log(`[404] Route not found: ${req.method} ${logUrl(req.url)}`);
     res.status(404).json({
         error: {
             message: 'Route not found'

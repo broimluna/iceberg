@@ -222,6 +222,17 @@ try {
       check(r.status === 400 && p.coins() === 500, `buying consumable ${type} is refused (${r.status}, ${p.coins()})`);
     }
   }
+  // ---- one player can't overwrite another's igloo layout ----
+  {
+    const a = await player(); const b = await player();
+    await a.call("GET", "/player/v1/"); await b.call("GET", "/player/v1/");
+    sql("INSERT INTO igloo_layouts (layout_id, username, name, zone_id, lighting_id, music_id, extra_info_json, decorations_layout_json, created_date, last_modified_date, member_only) VALUES (515151, ?, 'Alice Igloo', 'DefaultIgloo', 0, 0, '{}', '[]', 1, 1, 1)", a.username);
+    const r = await b.call("PUT", "/igloo/v1/layout/515151", { name: "defaced", decorationsLayout: [] });
+    const row = sql("SELECT username, name FROM igloo_layouts WHERE layout_id = 515151")[0];
+    check(row.username === a.username && row.name === "Alice Igloo", `another player's igloo layout is untouched (${r.status}, ${JSON.stringify(row)})`);
+    const del = await b.call("DELETE", "/igloo/v1/layout/515151");
+    check(sql("SELECT * FROM igloo_layouts WHERE layout_id = 515151").length === 1, `and can't be deleted by them (${del.status})`);
+  }
 } finally {
   await api.stop();
 }
