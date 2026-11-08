@@ -21,7 +21,8 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN } from "./config.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS } from "./config.ts";
+import { addressKey } from "./net-address.ts";
 import { register, unregister } from "./session-registry.ts";
 import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
@@ -34,7 +35,10 @@ import { releaseRoomIfEmpty } from "./world-objects.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
 const connectionsByIp = new Map<string, number>();
-let openConnections = 0;
+// Logged-in players, for MAX_CONNECTIONS, and connections still logging in,
+// oldest first, for MAX_PENDING_LOGINS.
+let loggedInCount = 0;
+const pendingLogins = new Set<net.Socket>();
 // New connections per address in the current minute, for
 // MAX_CONNECTS_PER_IP_PER_MIN. Cleared every minute, so it stays small.
 let connectsThisMinute = new Map<string, number>();
@@ -52,12 +56,11 @@ setInterval(() => { connectsThisMinute = new Map(); }, 60_000).unref();
 // without bound until the process ran out of memory.
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
-  const ip = socket.remoteAddress ?? "?";
+  const ip = addressKey(socket.remoteAddress);
   const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
   connectionsByIp.set(ip, openFromIp);
-  openConnections++;
   socket.once("close", () => {
-    openConnections--;
+    pendingLogins.delete(socket);
     const n = (connectionsByIp.get(ip) ?? 1) - 1;
     if (n <= 0) connectionsByIp.delete(ip);
     else connectionsByIp.set(ip, n);
@@ -71,15 +74,17 @@ const connectionHandler = (socket: net.Socket) => {
     socket.destroy();
     return;
   }
-  if (MAX_CONNECTIONS > 0 && openConnections > MAX_CONNECTIONS) {
-    console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS} connections in all, closing`);
-    socket.destroy();
-    return;
-  }
   if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
     console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${ip}, closing`);
     socket.destroy();
     return;
+  }
+  pendingLogins.add(socket);
+  if (MAX_PENDING_LOGINS > 0 && pendingLogins.size > MAX_PENDING_LOGINS) {
+    const oldest = pendingLogins.values().next().value!;
+    pendingLogins.delete(oldest);
+    console.log(`[${new Date().toISOString()}] ${oldest.remoteAddress}:${oldest.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest`);
+    oldest.destroy();
   }
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
@@ -211,8 +216,16 @@ const connectionHandler = (socket: net.Socket) => {
         console.log(`[${new Date().toISOString()}] ${peer} - already logged in, ignoring another login`);
         return;
       }
+      if (MAX_CONNECTIONS > 0 && loggedInCount >= MAX_CONNECTIONS) {
+        console.log(`[${new Date().toISOString()}] ${peer} - ${MAX_CONNECTIONS} players already online, closing`);
+        socket.destroy();
+        return;
+      }
       if (!handleLogin(params, ctx, socket)) return;
       loggedIn = true;
+      pendingLogins.delete(socket);
+      loggedInCount++;
+      socket.once("close", () => loggedInCount--);
       clearTimeout(watchdog);
       watch(IDLE_TIMEOUT_MS, `nothing received for ${IDLE_TIMEOUT_MS} ms`, () => lastInbound + IDLE_TIMEOUT_MS - Date.now());
       // Registered after login, once name, swid and room are known.

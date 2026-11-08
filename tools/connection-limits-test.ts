@@ -4,6 +4,7 @@
 import net from "node:net";
 import { makeChecker } from "./lib/harness.ts";
 import { SFSObjectWriter, encodePacket } from "../smartfox-server/src/sfs-wire.ts";
+import { addressKey } from "../smartfox-server/src/net-address.ts";
 
 const { check, finish } = makeChecker();
 let lastLog = "";
@@ -69,16 +70,26 @@ class Conn {
 }
 
 {
-  const sfs = await startSfs({ SFS_MAX_CONNECTIONS: "3", SFS_MAX_CONNECTIONS_PER_IP: "0", SFS_MAX_CONNECTS_PER_IP_PER_MIN: "0" });
+  // The overall cap counts players who logged in; connections still logging
+  // in have a pool of their own, where the oldest gives way to new ones.
+  const sfs = await startSfs({ SFS_MAX_CONNECTIONS: "2", SFS_MAX_PENDING_LOGINS: "3", SFS_MAX_CONNECTIONS_PER_IP: "0", SFS_MAX_CONNECTS_PER_IP_PER_MIN: "0" });
   try {
-    const conns = [];
-    for (let i = 0; i < 4; i++) { const c = new Conn(sfs.port); await c.ready(); conns.push(c); await sleep(50); }
+    const p1 = new Conn(sfs.port); await p1.ready(); p1.handshake(); await sleep(30); p1.login(11);
+    const p2 = new Conn(sfs.port); await p2.ready(); p2.handshake(); await sleep(30); p2.login(12);
     await sleep(200);
-    check(!conns[0]!.closed && !conns[2]!.closed && conns[3]!.closed, `over SFS_MAX_CONNECTIONS is refused (${conns.map((c) => c.closed)})`);
-    conns[0]!.close(); await sleep(200);
-    const again = new Conn(sfs.port); await again.ready(); await sleep(200);
-    check(!again.closed, "a slot frees up when a connection closes");
-    for (const c of [...conns, again]) c.close();
+    const pending = [];
+    for (let i = 0; i < 4; i++) { const c = new Conn(sfs.port); await c.ready(); pending.push(c); await sleep(30); }
+    await sleep(200);
+    check(!p1.closed && !p2.closed, "logged-in players aren't affected by connections still logging in");
+    check(pending[0]!.closed && !pending[1]!.closed && !pending[3]!.closed, `the oldest pending connection gives way when the pool is full (${pending.map((c) => c.closed)})`);
+    const p3 = new Conn(sfs.port); await p3.ready(); p3.handshake(); await sleep(30); p3.login(13);
+    await sleep(300);
+    check(p3.closed, "a login over SFS_MAX_CONNECTIONS players is refused");
+    p1.close(); await sleep(200);
+    const p4 = new Conn(sfs.port); await p4.ready(); p4.handshake(); await sleep(30); p4.login(14);
+    await sleep(300);
+    check(!p4.closed, "a slot frees up when a player leaves");
+    for (const c of [p2, p4, ...pending]) c.close();
   } finally {
     await sfs.stop();
   }
@@ -95,5 +106,10 @@ class Conn {
     await sfs.stop();
   }
 }
+// Per-address limits: IPv4-mapped IPv6 is the IPv4 address, IPv6 counts per /64.
+check(addressKey("::ffff:192.0.2.7") === "192.0.2.7", "IPv4-mapped IPv6 is keyed as IPv4");
+check(addressKey("2001:db8:1:2::1") === addressKey("2001:db8:1:2:ffff::9"), "one IPv6 /64 is one key");
+check(addressKey("2001:db8:1:2::1") !== addressKey("2001:db8:1:3::1"), "another /64 is another key");
+check(addressKey("10.0.0.1") === "10.0.0.1", "IPv4 unchanged");
 if (process.env.DEBUG_LOGS) console.log(lastLog);
 finish();

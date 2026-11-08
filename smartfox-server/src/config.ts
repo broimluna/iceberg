@@ -23,11 +23,16 @@ export const MAX_CONNECTIONS_PER_IP = Number(process.env.SFS_MAX_CONNECTIONS_PER
 // ones that send nothing for SFS_IDLE_TIMEOUT_MS, are closed. Clients ping
 // every 4 seconds once logged in (the lag monitor), so an idle player is
 // never affected, only a client that has gone away. SFS_MAX_CONNECTIONS
-// caps all connections; SFS_MAX_CONNECTS_PER_IP_PER_MIN caps how fast one
-// address may open them. 0 turns any of these off.
+// caps logged-in players; SFS_MAX_CONNECTS_PER_IP_PER_MIN caps how fast one
+// address may open connections. 0 turns any of these off. Behind a proxy
+// every client shares the proxy's address: turn the per-address limits off.
 export const LOGIN_TIMEOUT_MS = Number(process.env.SFS_LOGIN_TIMEOUT_MS ?? 10_000);
 export const IDLE_TIMEOUT_MS = Number(process.env.SFS_IDLE_TIMEOUT_MS ?? 120_000);
 export const MAX_CONNECTIONS = Number(process.env.SFS_MAX_CONNECTIONS ?? 2000);
+// Connections still logging in are kept apart from the cap above, in a pool
+// of their own; when it's full the oldest gives way, so a flood of
+// connections that never log in can't keep real players out.
+export const MAX_PENDING_LOGINS = Number(process.env.SFS_MAX_PENDING_LOGINS ?? 200);
 export const MAX_CONNECTS_PER_IP_PER_MIN = Number(process.env.SFS_MAX_CONNECTS_PER_IP_PER_MIN ?? 60);
 // Development only: accept joinRoomData without a valid web API signature.
 export const ALLOW_UNSIGNED_LOGIN = process.env.SFS_ALLOW_UNSIGNED_LOGIN === "1";
