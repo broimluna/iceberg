@@ -1,6 +1,6 @@
 # tools
 
-Test scripts for `web-api`. Each one starts a throwaway copy of the web
+Test scripts for `web-api` and `smartfox-server`. Each one starts a throwaway copy of the web
 API with its own empty database (`lib/harness.ts`), so your real
 `cpi_data.db` is never touched. Run them from the repo root with Bun.
 Each prints `PASS`/`FAIL` lines and ends with `ALL PASSED` (exit 0) or
@@ -21,6 +21,10 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `mix-content-test.ts` | Desktop bundle entries in the cpipe manifest (CRC32, mtime version, no `.meta`), serving them, and the base manifest when no bundles are installed. |
 | `mix-config-test.ts` | The boot config tool round-trips, and `openssl` decrypts what it writes. |
 | `webapi-auth-test.ts` | CPI access-token auth with default settings: valid tokens work, while expired, unknown or raw-SWID tokens get 401 and never create accounts. |
+| `party-games-data-test.ts` | Party game definitions from `smartfox-server/data/party-games.json`: rules, trigger props, placement rewards. |
+| `party-games-manager-test.ts` | The party game manager in-process: `pgame.start.v2` / `pgame.message` / `pgame.end` reach only the players, the game prop is shown to the room, rewards are granted and sent as `reward.add_delayed`, and bad messages are ignored. |
+| `party-games-findfour-test.ts` | Find Four rules in-process: turn order, column fixes, wins in every direction, draws, the turn timeout and forfeits. |
+| `party-games-test.ts` | Find Four end to end with a game server and three clients: the invitation, joining, a full match with coin rewards in the web API, and a forfeit by disconnect. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).

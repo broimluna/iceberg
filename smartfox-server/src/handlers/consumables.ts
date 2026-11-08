@@ -7,6 +7,8 @@ import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
 import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
+import { templateForTrigger } from "../party-games/definitions.ts";
+import { canStart, sessionOf, startPartyGame } from "../party-games/manager.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
 const ITEM_CATEGORY_CONSUMABLE = 1;
@@ -259,8 +261,10 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
     case "playerHeld":
       usePlayerHeldConsumable(ctx, type, def, partialCount);
       break;
+    case "partyGameLobby":
+      useInvitation(ctx, type, def);
+      break;
     default:
-      // TODO: partyGameLobby, with party games.
       log(`${ctx.peer} - ${cmd}: ${type} is a ${def.experience} consumable, not implemented yet`);
   }
   onConsumableUsed(ctx, type);
@@ -390,6 +394,62 @@ function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: Consuma
   log(`${ctx.peer} - ${type} held out with ${count} to share`);
 }
 
+// ==================== Party game invitations ====================
+//
+// A partyGameLobby consumable (e.g. FindFourGroup) is held out like a tray:
+// "con" + "con_prop" {"actionCount": open slots}, which the client's
+// InvitationalItemExperience reads. Other players fill a slot by
+// interacting with the holder; when the last slot fills, the invitation
+// goes and the party game starts with the holder first.
+
+// Players who have joined an invitation that still has open slots, by
+// holder user id.
+const invitationGuests = new Map<number, RegisteredSession[]>();
+
+function useInvitation(ctx: HandlerContext, type: string, def: ConsumableDef): void {
+  const template = templateForTrigger(type);
+  if (template === undefined || !canStart(template)) {
+    log(`${ctx.peer} - ${type}: no party game to start, not held out`);
+    return;
+  }
+  if (sessionOf(ctx.session)) return;
+  invitationGuests.delete(ctx.session.userId);
+  setHeldItem(ctx.session, type, def.totalItemQuantity ?? 1);
+  log(`${ctx.peer} - ${type} invitation held out (template ${template})`);
+}
+
+// Returns whether the interaction was with a held invitation.
+function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): boolean {
+  const holder = holderEntry.session;
+  const name = holder.equippedConsumable;
+  if (!name || CONSUMABLES[name]?.experience !== "partyGameLobby") return false;
+  const template = templateForTrigger(name);
+  const { session } = ctx;
+  if (template === undefined || !canStart(template) || !holder.heldActionCount) return true;
+  if (session.equippedConsumable || session.heldObject || sessionOf(session) || sessionOf(holder)) return true;
+  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => g.session.roomName === holder.roomName);
+  if (guests.some((g) => g.session === session)) return true;
+  const me = getByRoom(session.roomName).find((e) => e.session === session);
+  if (!me) return true;
+  guests.push(me);
+  const left = holder.heldActionCount - 1;
+  log(`${ctx.peer} - joined ${holder.userName}'s ${name} (${left} slots left)`);
+  if (left > 0) {
+    invitationGuests.set(holder.userId, guests);
+    setHeldActionCount(holder, left);
+    return true;
+  }
+  invitationGuests.delete(holder.userId);
+  setHeldActionCount(holder, 0);
+  removeHeldItem(holder);
+  startPartyGame(template, [holderEntry, ...guests]);
+  return true;
+}
+
+export function forgetInvitation(session: Session): void {
+  invitationGuests.delete(session.userId);
+}
+
 function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): void {
   const { session } = ctx;
   // Interacting with yourself while holding a taken item (or a
@@ -406,7 +466,9 @@ function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): 
     log(`${ctx.peer} - ate ${name}`);
     return;
   }
-  const holder = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId)?.session;
+  const holderEntry = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId);
+  if (holderEntry && joinInvitation(ctx, holderEntry)) return;
+  const holder = holderEntry?.session;
   const trayName = holder?.equippedConsumable;
   const tray = trayName ? CONSUMABLES[trayName] : undefined;
   if (!holder || !tray || tray.experience !== "playerHeld" || !tray.shareable || !holder.heldActionCount) return;
@@ -453,6 +515,7 @@ function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boo
   const { session } = ctx;
   const count = session.heldActionCount;
   if (count === undefined) return false;
+  invitationGuests.delete(session.userId);
   session.heldActionCount = undefined;
   if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0) {
     const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: count } };
