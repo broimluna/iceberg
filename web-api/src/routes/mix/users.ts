@@ -1,7 +1,6 @@
 import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
-import { filterText } from "../../services/moderation.ts";
 import { hashUserId, buildResponse, defaultAvatar } from "./common.ts";
 
 const router = express.Router();
@@ -109,27 +108,16 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
 
 /**
  * PUT /displayname
- * Set display name. The rules match CPI registration (3-20 characters)
- * plus the shared text filter and uniqueness: friend invitations and
- * searches look players up by name, so a duplicate would be ambiguous.
- * Both failure statuses are ones DisplayNameUpdater handles.
+ * Set display name
  */
 router.put('/displayname', authenticateMix, (req, res) => {
-    const { UserId, DisplayName } = req.body;
-    const name = typeof DisplayName === 'string' ? DisplayName.trim() : '';
-
-    if (name.length < 3 || name.length > 20 || db.isDisplayNameTaken(name, UserId)) {
-        return res.json({ Status: 'DISPLAYNAME_ASSIGNMENT_FAILED' });
-    }
-    const filtered = filterText(name);
-    if (filtered.blocked || filtered.moderated) {
-        return res.json({ Status: 'DISPLAYNAME_MODERATION_FAILED' });
-    }
-
-    db.setPlayerDisplayName(UserId, name);
-
+    const { UserId, DisplayName, Language } = req.body;
+    
+    // Update display name in database
+    db.setPlayerDisplayName(UserId, DisplayName);
+    
     res.json(buildResponse({
-        DisplayName: name
+        DisplayName: DisplayName
     }));
 });
 
@@ -258,6 +246,10 @@ router.post(['/registration/text', '/mix/registration/text'], (req, res) => {
             {
                 "TextCode": "gtou_ppv2_proxy_create",
                 "Text": "By creating an account, I agree to the <a target=\"_blank\" href=\"https://disneytermsofuse.com/english/\">Terms of Use</a> and acknowledge the <a target=\"_blank\" href=\"https://privacy.thewaltdisneycompany.com/en/current-privacy-policy/\">Privacy Policy</a>."
+            },
+            {
+                "TextCode": "WDIGFamilySites",
+                "Text": "Yes! Send me Disney updates and offers."
             }
         ]
     };
