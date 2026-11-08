@@ -25,9 +25,13 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `party-games-manager-test.ts` | The party game manager in-process: `pgame.start.v2` / `pgame.message` / `pgame.end` reach only the players, the game prop is shown to the room, rewards are granted and sent as `reward.add_delayed`, and bad messages are ignored. |
 | `party-games-findfour-test.ts` | Find Four rules in-process: turn order, column fixes, wins in every direction, draws, the turn timeout and forfeits. |
 | `party-games-test.ts` | Find Four end to end with a game server and three clients: the invitation, joining, a full match with coin rewards in the web API, and a forfeit by disconnect. |
+| `consumable-signature-test.ts` | Consumable spend verification: the web API signs uses and refuses them without stock; the game server plays `con.use` only with a signed, unused spend for that player; `con.partial` is signed and the web API stores only signed partials. Covers tampering, replay, another player's payload and non-canonical signatures. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).
+`lib/sfs-client.ts` exports `startGameServer()` and `GameClient`, a fake
+SFS2X client that logs in with signed joinRoomData and spends consumables
+through the web API.
 
 ## Mix boot config
 
