@@ -24,11 +24,11 @@ router.put('/chatThread', authenticateMix, (req, res) => mixRoute(res, () =>
 ));
 
 /**
- * PUT /chatThread/textMessage | stickerMessage | gagMessage
- * {ChatThreadId, ClientChatMessageId, Text | ContentId [, TargetUserId]}
+ * PUT /chatThread/textMessage | stickerMessage | gagMessage | gameStateMessage
+ * {ChatThreadId, ClientChatMessageId, Text | ContentId [, TargetUserId] | GameName, Payload}
  * -> {Status, Notification: AddChatThread<Type>Message}.
  */
-for (const [path, type] of [["textMessage", "TEXT"], ["stickerMessage", "STICKER"], ["gagMessage", "GAG"]] as const) {
+for (const [path, type] of [["textMessage", "TEXT"], ["stickerMessage", "STICKER"], ["gagMessage", "GAG"], ["gameStateMessage", "GAME_STATE"]] as const) {
     router.put(`/chatThread/${path}`, authenticateMix, (req, res) => mixRoute(res, () =>
         buildResponse({ Notification: addMessage(req.mixUserId, req.body.ChatThreadId, req.body.ClientChatMessageId, type as MessageType, req.body) })
     ));
