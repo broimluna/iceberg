@@ -1,5 +1,5 @@
 import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
-import { getUtfString } from "../wire-helpers.ts";
+import { getUtfString, fitsBytes } from "../wire-helpers.ts";
 import { grantReward, grantQuestObjective, type RewardGrant } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
 import { withAccount } from "../account.ts";
@@ -25,6 +25,10 @@ export function handleRewardBroadcast(innerParams: SFSObjectData, ctx: HandlerCo
 // quest's (status 1) completedObjectives seed the list that quest.s_obj
 // reports, so progress survives a room change.
 const QUEST_STATUS_ACTIVE = 1;
+// Real quests have at most 11 objectives, with names under 20 characters.
+const MAX_OBJECTIVES = 64;
+const MAX_OBJECTIVE_BYTES = 64;
+const isObjectiveName = (o: unknown): o is string => typeof o === "string" && o.length > 0 && fitsBytes(o, MAX_OBJECTIVE_BYTES);
 export function handleQuestSet(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const json = getUtfString(innerParams, "data");
   if (json) {
@@ -33,7 +37,8 @@ export function handleQuestSet(innerParams: SFSObjectData, ctx: HandlerContext):
       if (Array.isArray(quests)) {
         const active = quests.find((q) => q?.status === QUEST_STATUS_ACTIVE || q?.status === "ACTIVE");
         const objectives: unknown[] = Array.isArray(active?.completedObjectives) ? active.completedObjectives : [];
-        ctx.session.completedObjectives.splice(0, Infinity, ...objectives.filter((o): o is string => typeof o === "string"));
+        const kept = [...new Set(objectives.filter(isObjectiveName))].slice(0, MAX_OBJECTIVES);
+        ctx.session.completedObjectives.splice(0, Infinity, ...kept);
       }
     } catch (err) {
       console.log(`[${new Date().toISOString()}] ${ctx.peer} - quest.set: failed to parse "data" JSON: ${(err as Error).message}`);
@@ -48,10 +53,10 @@ export function handleQuestSet(innerParams: SFSObjectData, ctx: HandlerContext):
 // "quest.s_obj", whose data is the full list of objectives completed so far
 // in the active quest, not only the newest one.
 export function handleQuestCompleteObjective(innerParams: SFSObjectData, ctx: HandlerContext): void {
-  const objectiveName = getUtfString(innerParams, "obj");
-  if (objectiveName && !ctx.session.completedObjectives.includes(objectiveName)) {
-    ctx.session.completedObjectives.push(objectiveName);
-  }
+  const sent = getUtfString(innerParams, "obj");
+  const objectiveName = isObjectiveName(sent) ? sent : undefined;
+  const list = ctx.session.completedObjectives;
+  if (objectiveName && !list.includes(objectiveName) && list.length < MAX_OBJECTIVES) list.push(objectiveName);
   const payload = {
     goodUntil: 0,
     signature: "",
