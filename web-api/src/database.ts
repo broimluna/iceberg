@@ -274,6 +274,16 @@ function initializeDatabase() {
         )
     `);
 
+    // Once-a-day claims (quick-notification reward), by currentTaskDay().
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS daily_claims (
+            username TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            day INTEGER NOT NULL,
+            PRIMARY KEY (username, kind)
+        )
+    `);
+
     // Claimed reward IDs
     db.exec(`
         CREATE TABLE IF NOT EXISTS claimed_rewards (
@@ -1673,6 +1683,18 @@ function deleteEquipment(username, equipmentId) {
     db.prepare('DELETE FROM equipment WHERE username = ? AND equipment_id = ?').run(username, equipmentId);
 }
 
+// ========== ONCE-A-DAY CLAIMS ==========
+
+// Records today's claim of `kind`; false if it was already claimed today.
+function claimDaily(username, kind) {
+    const day = currentTaskDay();
+    const info = db.prepare(`
+        INSERT INTO daily_claims (username, kind, day) VALUES (?, ?, ?)
+        ON CONFLICT(username, kind) DO UPDATE SET day = excluded.day WHERE daily_claims.day < excluded.day
+    `).run(username, kind, day);
+    return info.changes === 1;
+}
+
 // ========== ROOM COLLECTIBLES ==========
 
 function getRoomCollectedAt(username, room, path) {
@@ -2770,6 +2792,7 @@ export {
     deleteEquipment,
     
     // Claimed rewards
+    claimDaily,
     getRoomCollectedAt,
     setRoomCollectedAt,
     getClaimedRewards,

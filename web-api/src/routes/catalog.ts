@@ -13,9 +13,14 @@
 
 import express from "express";
 const router = express.Router();
+
+// The one theme challenge this server runs, and what a first submission to it pays.
+const CURRENT_THEME_ID = 1;
+const SUBMISSION_REWARD = 100;
 import * as db from "../database.ts";
 import * as smartfox from "../smartfoxNotifier.ts";
 import { generateEquipmentId } from "../utils/session.ts";
+import { NOT_ENOUGH_COINS } from "../utils/counts.ts";
 
 /**
  * GET /catalog/v1/clothing/themes/stats
@@ -30,10 +35,10 @@ router.get('/catalog/v1/clothing/themes/stats', (req, res) => {
     // Response: CurrentThemeResponse
     res.json({
         themes: [{
-            scheduledThemeChallengeId: 1,
+            scheduledThemeChallengeId: CURRENT_THEME_ID,
             userSubmissionClothingCatalogId: 0,
             mostPopularItem: null,
-            submissionRewardCoinAmount: 100
+            submissionRewardCoinAmount: SUBMISSION_REWARD
         }]
     });
 });
@@ -120,7 +125,8 @@ router.post('/catalog/v1/clothing/purchase', (req, res) => {
     }
     
     // Deduct cost and add equipment
-    const cost = item.cost || 100;
+    const cost = Number.isSafeInteger(item.cost) && item.cost >= 0 ? item.cost : 100;
+    if (db.getPlayerCoins(username) < cost) return res.status(400).json({ code: NOT_ENOUGH_COINS });
     db.addPlayerCoins(username, -cost);
     
     // Create a copy of the equipment for the buyer
@@ -175,15 +181,13 @@ router.post('/catalog/v1/clothing/submit', (req, res) => {
         parts: equipment.parts || []
     };
     
-    db.saveEquipment(username, newEquipment);
-    
-    // Ensure the template is owned (so item shows in closet)
-    if (newEquipment.definitionId) {
-        db.addEquipmentTemplate(username, newEquipment.definitionId);
-    }
-    
-    const submissionReward = 100;
-    db.addPlayerCoins(username, submissionReward);
+    // A submission lists a design the player already made and creates no
+    // item. The first one to the current theme challenge pays
+    // SUBMISSION_REWARD (the client shows the coins as "rewarded"); it used
+    // to pay every time and grant the template too.
+    const firstForTheme = scheduledThemeChallengeId === CURRENT_THEME_ID
+        && !(db.getCatalogSubmissions?.(null) ?? []).some((x) => x.creatorName === username && x.scheduledThemeChallengeId === CURRENT_THEME_ID);
+    if (firstForTheme) db.addPlayerCoins(username, SUBMISSION_REWARD);
     
     // Update catalog task
     if (db.updateDailyTask) {
@@ -207,9 +211,8 @@ router.post('/catalog/v1/clothing/submit', (req, res) => {
     // Get updated coin total
     const newCoinTotal = db.getPlayerCoins(username);
     
-    // Notify SmartFox server of updates (send reward amount, not total)
     smartfox.notifyDailyTaskUpdate(username, 'ClothingCatalogSubmission', 1);
-    smartfox.notifyCoinsUpdate(username, submissionReward);
+    if (firstForTheme) smartfox.notifyCoinsUpdate(username, SUBMISSION_REWARD);
     
     // Response: ItemSubmissionResponse
     res.json({

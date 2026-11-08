@@ -11,9 +11,9 @@
  */
 
 import express from "express";
+import { consumableCost } from "../utils/prices.ts";
 const router = express.Router();
 import * as db from "../database.ts";
-import config from "../config.ts";
 import { signConsumable, checkConsumable, claimConsumable, claimsFrom } from "../utils/consumableSignature.ts";
 
 /**
@@ -106,9 +106,15 @@ function purchaseConsumable(req, res) {
     }
     console.log(`[CONSUMABLE] ${username} purchasing ${count}x ${type}`);
 
-    // Get price from config
-    const price = config.consumablePrices[type] || 10;
+    // Only consumables the game sells (Props.json PropType 0) can be bought.
+    const price = consumableCost(type);
+    if (price === null) {
+        return res.status(400).json({ code: 'UNKNOWN_CONSUMABLE' });
+    }
     const totalCost = price * count;
+    if (!Number.isSafeInteger(totalCost) || totalCost < 0) {
+        return res.status(400).json({ code: 'BAD_COUNT' });
+    }
     // 707 is the code the client shows as "not enough coins".
     if (db.getPlayerCoins(username) < totalCost) {
         console.log(`[CONSUMABLE] ${username} can't afford ${count}x ${type} (${totalCost})`);

@@ -21,6 +21,8 @@
 
 import express from "express";
 import { positiveCount, NOT_ENOUGH_COINS } from "../utils/counts.ts";
+import { decorationCost } from "../utils/prices.ts";
+import { logSafe } from "../utils/logSafe.ts";
 const router = express.Router();
 import * as db from "../database.ts";
 import config from "../config.ts";
@@ -350,13 +352,6 @@ router.get('/igloo/v1/decorations', (req, res) => {
     res.json(inventory);
 });
 
-// No decoration price list is loaded yet, so every decoration costs 10.
-function decorationPrice(key: string): number {
-    const prices = (config as any).decorationPrices;
-    const p = prices && Object.hasOwn(prices, key) ? Number(prices[key]) : 10;
-    return Number.isSafeInteger(p) && p >= 0 ? p : 10;
-}
-
 /**
  * POST /igloo/v1/decorations/:type/:definitionId
  * Create (purchase) a new decoration
@@ -370,7 +365,8 @@ router.post('/igloo/v1/decorations/:type/:definitionId', (req, res) => {
     const definitionId = parseInt(req.params.definitionId);
     const count = req.query.count === undefined ? 1 : positiveCount(req.query.count, 99);
     if (count === null || !Number.isSafeInteger(type) || !Number.isSafeInteger(definitionId)) return res.status(400).json({ code: 'BAD_COUNT' });
-    const price = decorationPrice(`${type}:${definitionId}`);
+    const price = decorationCost(type, definitionId);
+    if (price === null) return res.status(400).json({ code: 'UNKNOWN_DECORATION' });
     if (db.getPlayerCoins(username) < price * count) return res.status(400).json({ code: NOT_ENOUGH_COINS });
     
     console.log(`[IGLOO] ${username} creating decoration: type=${type}, defId=${definitionId}, count=${count}`);
@@ -409,12 +405,12 @@ router.post('/igloo/v1/decorations/:decorationId/increment/:count', (req, res) =
     const decorationIdStr = req.params.decorationId;
     const count = positiveCount(req.params.count, 99);
     if (count === null) return res.status(400).json({ code: 'BAD_COUNT' });
-    const price = decorationPrice(decorationIdStr);
+    const decorationId = parseDecorationId(String(decorationIdStr));
+    const price = decorationCost(decorationId.type, decorationId.definitionId);
+    if (price === null) return res.status(400).json({ code: 'UNKNOWN_DECORATION' });
     if (db.getPlayerCoins(username) < price * count) return res.status(400).json({ code: NOT_ENOUGH_COINS });
     
-    console.log(`[IGLOO] ${username} purchasing decoration: ${decorationIdStr}, count=${count}`);
-    
-    const decorationId = parseDecorationId(decorationIdStr);
+    console.log(`[IGLOO] ${username} purchasing decoration: ${logSafe(decorationIdStr)}, count=${count}`);
     
     // Add decoration to inventory
     if (db.addDecoration) {

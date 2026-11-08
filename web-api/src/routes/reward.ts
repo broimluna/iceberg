@@ -346,6 +346,11 @@ router.post('/reward/v1/claimDailySpin', (req, res) => {
     
     // Check if this is the first time spin
     const isFirstTimeSpin = spinData.timeOfLastSpinInMilliseconds === 0;
+    // One spin per day, as the client's CheckLastSpinTime allows; a respin
+    // outcome doesn't count as the day's spin (it leaves the time alone).
+    if (!isFirstTimeSpin && db.currentTaskDay() <= db.currentTaskDay(spinData.timeOfLastSpinInMilliseconds)) {
+        return res.status(400).json({ code: 'ALREADY_SPUN_TODAY' });
+    }
     
     let spinOutcomeId;
     let reward;
@@ -418,7 +423,7 @@ router.post('/reward/v1/claimDailySpin', (req, res) => {
     applyDailySpinReward(username, reward);
     
     // Update spin data
-    spinData.timeOfLastSpinInMilliseconds = Date.now();
+    if (spinOutcomeId !== dailySpinConfig.RespinSpinOutcomeId) spinData.timeOfLastSpinInMilliseconds = Date.now();
     spinData.numPunchesOnCurrentChest = (spinData.numPunchesOnCurrentChest || 0) + 1;
     
     // Check for chest completion reward
@@ -595,7 +600,10 @@ router.post('/reward/v1/claimQuickNotification', (req, res) => {
     const { swid, username } = req.player;
     console.log(`[REWARD] ${username} claiming quick notification reward`);
     
-    // Default quick notification reward
+    // Default quick notification reward, once a day.
+    if (!db.claimDaily(username, 'quickNotification')) {
+        return res.json({ reward: {} });
+    }
     const reward = {
         coins: 25,
         mascotXP: { AuntArctic: 10 }

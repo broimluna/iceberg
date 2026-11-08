@@ -102,6 +102,11 @@ try {
     check(negInc.status === 400 && p.coins() === 5, `a negative increment is refused (${negInc.status}, ${p.coins()})`);
     const poor = await p.call("POST", "/igloo/v1/decorations/0/1");
     check(poor.status === 400 && poor.json?.code === 707 && p.coins() === 5, `a decoration without the coins is refused with 707 (${poor.status})`);
+    p.setCoins(100);
+    const inc = await p.call("POST", "/igloo/v1/decorations/1:0/increment/2");
+    check(inc.status === 200 && p.coins() === 40, `two more of decoration 1 cost 2 x 30 (${inc.status}, ${p.coins()})`);
+    const unknownDeco = await p.call("POST", "/igloo/v1/decorations/0/999999");
+    check(unknownDeco.status === 400 && p.coins() === 40, `an unknown decoration is refused (${unknownDeco.status})`);
   }
 
   // ---- 7. room collectibles ----
@@ -134,6 +139,80 @@ try {
     await b.call("POST", "/inventory/v1/equipment", { equipmentId: 424242, definitionId: 1, parts: [{ x: "defaced" }] });
     const row = sql("SELECT * FROM equipment WHERE equipment_id = 424242")[0];
     check(row.username === a.username && row.definition_id === 7 && row.parts_json === "[]", `another player's item is untouched (${JSON.stringify(row)})`);
+  }
+  // ---- 10. creating clothing pays the template's cost and makes a new item ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/"); p.setCoins(39);
+    const poor = await p.call("POST", "/inventory/v1/equipment", { definitionId: 1, parts: [] });
+    check(poor.status === 400 && poor.json?.code === 707 && p.coins() === 39, `template 1 (40 coins) with 39 coins is refused with 707 (${poor.status})`);
+    const unknown = await p.call("POST", "/inventory/v1/equipment", { definitionId: 999999, parts: [] });
+    check(unknown.status === 400 && sql("SELECT * FROM equipment WHERE username = ?", p.username).length === 0, `an unknown template is refused (${unknown.status})`);
+    p.setCoins(100);
+    const ok = await p.call("POST", "/inventory/v1/equipment", { equipmentId: 5555, definitionId: 1, parts: [] });
+    check(ok.status === 200 && p.coins() === 60 && ok.json?.equipmentId !== 5555, `creating clothing costs 40 and gets a server id (${ok.status}, ${p.coins()}, ${ok.json?.equipmentId})`);
+  }
+
+  // ---- 11 and 12. clothing catalog ----
+  {
+    const a = await player(); await a.call("GET", "/player/v1/"); const before = a.coins();
+    for (let i = 0; i < 3; i++) await a.call("POST", "/catalog/v1/clothing/submit", { scheduledThemeChallengeId: 1, equipment: { definitionId: 77777, parts: [] } });
+    for (let i = 2; i < 5; i++) await a.call("POST", "/catalog/v1/clothing/submit", { scheduledThemeChallengeId: i, equipment: { definitionId: 77777, parts: [] } });
+    check(a.coins() === before + 100, `only the first submission to the current theme pays its 100 coins (${before} -> ${a.coins()})`);
+    check(sql("SELECT * FROM equipment WHERE username = ? AND definition_id = 77777", a.username).length === 0, "and creates no item");
+    const items = sql("SELECT * FROM catalog_submissions");
+    const b = await player(); await b.call("GET", "/player/v1/"); b.setCoins(0);
+    const id = items[0]?.clothing_catalog_item_id ?? items[0]?.clothingCatalogItemId;
+    const buy = await b.call("POST", "/catalog/v1/clothing/purchase", { clothingCatalogItemId: id });
+    check(buy.status === 400 && buy.json?.code === 707 && b.coins() === 0, `buying from the catalog without the coins is refused (${buy.status}, ${b.coins()})`);
+  }
+
+  // ---- 13. the quick-notification reward is daily ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/");
+    await p.call("POST", "/reward/v1/claimQuickNotification");
+    const after1 = p.coins();
+    for (let i = 0; i < 3; i++) await p.call("POST", "/reward/v1/claimQuickNotification");
+    check(p.coins() === after1, `the quick-notification reward pays once a day (${after1} -> ${p.coins()})`);
+  }
+
+  // ---- 14. one daily spin a day ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/");
+    sql("INSERT OR REPLACE INTO daily_spin_data (username, current_chest_id, num_chests_received, num_punches, time_of_last_spin, num_spins_since_chest) VALUES (?, 0, 0, 0, ?, 0)", p.username, Date.now() - 1000);
+    const before = p.coins();
+    const again = await p.call("POST", "/reward/v1/claimDailySpin");
+    check(again.status === 400 && p.coins() === before, `a second spin the same day is refused (${again.status}, ${before} -> ${p.coins()})`);
+    sql("UPDATE daily_spin_data SET time_of_last_spin = ? WHERE username = ?", Date.now() - 86_400_000 * 2, p.username);
+    const ok = await p.call("POST", "/reward/v1/claimDailySpin");
+    check(ok.status === 200, `a spin on a new day works (${ok.status})`);
+  }
+
+  // ---- 15. fishing pays for a prize from your own last cast, once ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/"); const before = p.coins();
+    await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: "coins_large" });
+    check(p.coins() === before, `a catch without a cast pays nothing (${before} -> ${p.coins()})`);
+    const cast = await p.call("POST", "/minigame/v1/fishing/cast", {});
+    const prizes = Object.values(cast.json?.data?.availablePrizeMap ?? {}) as string[];
+    await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: "not-a-prize" });
+    check(p.coins() === before, `a prize that wasn't offered pays nothing (${p.coins()})`);
+    await p.call("POST", "/minigame/v1/fishing/cast", {});
+    const cast2 = await p.call("POST", "/minigame/v1/fishing/cast", {});
+    const offered = Object.values(cast2.json?.data?.availablePrizeMap ?? {}) as string[];
+    const won = await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: offered[0] });
+    const paid = p.coins() - before;
+    check(won.status === 200 && paid > 0, `an offered prize pays (${paid}, ${prizes.length} offered)`);
+    await p.call("POST", "/minigame/v1/fishing/catch", { winningRewardName: offered[0] });
+    check(p.coins() - before === paid, `the same cast can't be caught twice (${p.coins() - before})`);
+  }
+
+  // ---- 16. consumables need a real type ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/"); p.setCoins(500);
+    for (const type of ["__proto__", "constructor", "MadeUpSnack"]) {
+      const r = await p.call("POST", `/consumable/v1/${type}/1`);
+      check(r.status === 400 && p.coins() === 500, `buying consumable ${type} is refused (${r.status}, ${p.coins()})`);
+    }
   }
 } finally {
   await api.stop();

@@ -157,35 +157,6 @@ const config = {
         165: { name: 'FlameHair', equipmentTemplates: [165], emotePacks: [] }
     } as Record<number, { name: string; equipmentTemplates?: number[]; emotePacks?: string[]; decals?: number[]; fabrics?: number[]; tubes?: number[] }>,
 
-    // Consumable prices
-    consumablePrices: {
-        HotChocolateSingle: 10,
-        HotCocoa: 10,
-        PizzaSliceSingle: 10,
-        PizzaSlice: 10,
-        StinkyCheese: 10,
-        FroYoCone: 10,
-        FireworksSingle: 10,
-        Fireworks: 10,
-        CakeSliceSingle: 10,
-        CakeSlice: 10,
-        InkOrSwim: 40,
-        MarbleHunt: 30,
-        SeaweedSmoothie: 10,
-        FossilFour: 30,
-        CocoaTray: 5,
-        FroYoTray: 5,
-        LargePizza: 5,
-        Pinata: 10,
-        FireworksXL: 15,
-        HydroHydrant: 15,
-        ChemistryBeaker: 25,
-        PartyBlaster: 10,
-        PartyBlasterJr: 25,
-        CheeseWheel: 5,
-        BirthdayCake: 5,
-        PartyBlastXL: 12
-    } as Record<string, number>,
 
     // Quest definitions - dynamically generated from quests.json
     // This ensures ALL quests in the game are properly handled

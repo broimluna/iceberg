@@ -16,6 +16,8 @@ import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
 import { generateEquipmentId } from "../utils/session.ts";
+import { templateCost } from "../utils/prices.ts";
+import { NOT_ENOUGH_COINS } from "../utils/counts.ts";
 
 // ========== EQUIPMENT ENDPOINTS ==========
 
@@ -46,23 +48,22 @@ router.post('/inventory/v1/equipment', (req, res) => {
     const { swid, username } = req.player;
     console.log(`[INVENTORY] ${username} creating equipment`);
     
-    const newEquipment = req.body;
-    
-    // Generate new equipment ID if not provided
-    if (!newEquipment.equipmentId || newEquipment.equipmentId === 0) {
-        newEquipment.equipmentId = generateEquipmentId();
-    }
-    if (!newEquipment.dateTimeCreated) {
-        newEquipment.dateTimeCreated = Date.now();
-    }
-    
-    // Save equipment to database. An id that's another player's item gets
-    // a fresh id instead of overwriting theirs.
-    if (!db.saveEquipment(username, newEquipment)) {
-        newEquipment.equipmentId = generateEquipmentId();
-        db.saveEquipment(username, newEquipment);
-    }
-    
+    // Making clothing costs the template's coins (the client's offline mode
+    // subtracts the same), and the server picks the id, as the client's
+    // offline mode does too.
+    const definitionId = Number(req.body?.definitionId);
+    const cost = templateCost(definitionId);
+    if (cost === null) return res.status(400).json({ code: 'UNKNOWN_TEMPLATE' });
+    if (db.getPlayerCoins(username) < cost) return res.status(400).json({ code: NOT_ENOUGH_COINS });
+    const newEquipment = {
+        equipmentId: generateEquipmentId(),
+        dateTimeCreated: Date.now(),
+        definitionId,
+        parts: Array.isArray(req.body?.parts) ? req.body.parts : [],
+    };
+    while (!db.saveEquipment(username, newEquipment)) newEquipment.equipmentId = generateEquipmentId();
+    if (cost > 0) db.addPlayerCoins(username, -cost);
+
     // Ensure the template is owned (so item shows in closet)
     if (newEquipment.definitionId) {
         db.addEquipmentTemplate(username, newEquipment.definitionId);

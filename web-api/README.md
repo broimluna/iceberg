@@ -50,5 +50,9 @@ against its own state instead of trusting what the client sends. That
 work is ongoing: `PUT /reward/v1` (the client's echo of a reward) is a
 no-op, and `tools/economy-test.ts` lists what is checked so far.
 
+Prices (consumables, clothing templates, decorations, igloo structures)
+come from `data/prices.json`, generated from the client's static game
+data.
+
 The endpoint reference is in
 [`../docs/API_ENDPOINTS_DOCUMENTATION.md`](../docs/API_ENDPOINTS_DOCUMENTATION.md).

@@ -24,6 +24,18 @@ function signedResponse(data, swid) {
     };
 }
 
+// What each prize id pays.
+const PRIZE_COINS = { fish_common: 10, fish_rare: 25, fish_epic: 50, coins_10: 10, coins_25: 25, coins_50: 50 };
+
+// Each player's last cast: the prize ids it offered. A catch must name one
+// of them, within CAST_TTL_MS, and uses the cast up.
+const CAST_TTL_MS = 5 * 60_000;
+const lastCast = new Map<string, { prizes: Set<string>; at: number }>();
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of lastCast) if (now - v.at > CAST_TTL_MS) lastCast.delete(k);
+}, 60_000).unref?.();
+
 // Available fishing prizes (can be configured)
 const FISHING_PRIZES = {
     'common_fish': 'fish_common',
@@ -59,6 +71,8 @@ router.post('/minigame/v1/fishing/cast', (req, res) => {
         availablePrizeMap[key] = FISHING_PRIZES[key];
     }
     
+    lastCast.set(username, { prizes: new Set(Object.values(availablePrizeMap)), at: Date.now() });
+
     // Response: SignedResponse<FishingResult>
     res.json(signedResponse({
         availablePrizeMap: availablePrizeMap
@@ -75,24 +89,14 @@ router.post('/minigame/v1/fishing/cast', (req, res) => {
 router.post('/minigame/v1/fishing/catch', (req, res) => {
     const { swid, username } = req.player;
     const catchRequest = req.body;
-    const winningRewardName = catchRequest.winningRewardName || 'common_fish';
-    
-    console.log(`[MINIGAME] ${username} caught: ${winningRewardName}`);
-    
-    // Determine reward based on catch
-    let coinReward = 10;
-    if (winningRewardName.includes('rare')) {
-        coinReward = 25;
-    } else if (winningRewardName.includes('epic')) {
-        coinReward = 50;
-    } else if (winningRewardName.includes('coins')) {
-        if (winningRewardName.includes('large')) coinReward = 50;
-        else if (winningRewardName.includes('medium')) coinReward = 25;
-        else coinReward = 10;
-    }
-    
+    const winningRewardName = typeof catchRequest?.winningRewardName === 'string' ? catchRequest.winningRewardName : '';
+    const cast = lastCast.get(username);
+    const offered = !!cast && Date.now() - cast.at <= CAST_TTL_MS && cast.prizes.has(winningRewardName);
+    if (cast) lastCast.delete(username);
+    const coinReward = offered && Object.hasOwn(PRIZE_COINS, winningRewardName) ? PRIZE_COINS[winningRewardName] : 0;
+
     // Add coins to player
-    db.addPlayerCoins(username, coinReward);
+    if (coinReward > 0) db.addPlayerCoins(username, coinReward);
     
     // Build reward structure
     const reward = {
