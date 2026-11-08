@@ -78,7 +78,8 @@ class Client {
       .putUtfString("o", `{"type":2,"id":"${sid}","tag":"Player"}`));
   }
   move(id: number, column: number) {
-    this.ext13("pgame.message", new SFSObjectWriter().putInt("id", id).putInt("type", 5)
+    // As the client sends them: LONG, not INT.
+    this.ext13("pgame.message", new SFSObjectWriter().putLong("id", BigInt(id)).putLong("type", 5n)
       .putUtfString("message", `{"PlayerId":${this.sid},"ScoreDelta":${column}}`));
   }
   clear() { this.ext = []; this.updates = []; }

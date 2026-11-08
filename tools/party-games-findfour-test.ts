@@ -23,7 +23,7 @@ let n = 0;
 function move(p: FakePlayer, column: unknown, playerId?: string) {
   const id = sessionOf(p.session)!.id;
   const body = `{"PlayerId":${playerId ?? p.sid},"ScoreDelta":${JSON.stringify(column)}}`;
-  const w = new SFSObjectWriter().putInt("id", id).putInt("type", 5).putUtfString("message", body);
+  const w = new SFSObjectWriter().putLong("id", BigInt(id)).putLong("type", 5n).putUtfString("message", body);
   handlePartyGameMessage(decodeSFSObject(w.encodeBody("sfs2x"), 0, "sfs2x").value, { session: p.session, peer: p.session.userName, send: p.entry.send });
 }
 async function newGame() {

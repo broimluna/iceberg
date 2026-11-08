@@ -7,8 +7,8 @@
 // The client starts a game (hides remote players, takes the camera) for any
 // pgame.start.v2 it gets, so all three go to the players only. Rewards go
 // out as reward.add_delayed; the end popup claims them.
-import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
-import { getUtfString, getInt } from "../wire-helpers.ts";
+import { SFSObjectWriter, SFSArrayWriter, SFSDataType, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
+import { getUtfString } from "../wire-helpers.ts";
 import { getAll, getByRoom, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import type { HandlerContext } from "../handlers/context.ts";
@@ -145,10 +145,20 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
   log(`session ${game.id} ended: ${[...placements].map(([p, place]) => `${p.session.userName}=${place}`).join(", ") || "no results"}`);
 }
 
-// "pgame.message" from a client: {id, type, message}.
+// The client's serialize() has no int overload, so its ints arrive as LONG.
+function getWholeNumber(obj: SFSObjectData, key: string): number | undefined {
+  const v = obj[key];
+  if (v?.type === SFSDataType.LONG) {
+    return v.value >= BigInt(Number.MIN_SAFE_INTEGER) && v.value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(v.value) : undefined;
+  }
+  if (v?.type === SFSDataType.INT || v?.type === SFSDataType.SHORT || v?.type === SFSDataType.BYTE) return v.value;
+  return undefined;
+}
+
+// "pgame.message" from a client: {id (long), type (long), message}.
 export function handlePartyGameMessage(innerParams: SFSObjectData, ctx: HandlerContext): void {
-  const id = getInt(innerParams, "id");
-  const type = getInt(innerParams, "type");
+  const id = getWholeNumber(innerParams, "id");
+  const type = getWholeNumber(innerParams, "type");
   const text = getUtfString(innerParams, "message");
   const game = id === undefined ? undefined : sessions.get(id);
   const player = game?.players.find((p) => p.entry.session === ctx.session && !p.left);

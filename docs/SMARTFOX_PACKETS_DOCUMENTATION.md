@@ -270,7 +270,7 @@ signature can be any string for a private server).
 | `pgame.start` | `PARTY_GAME_START` | IN | `owner` (long), `id` -> sessionId (int), `template` -> templateId (int), `players` (long array). The client builds the same player list as v2 from it. iceberg sends v2 only. |
 | `pgame.start.v2` | `PARTY_GAME_START_V2` | IN | `id` -> sessionId (int), `template` -> templateId (int, `PartyGameDefinition.GameTypes`), `players` -> JSON `PartyGamePlayerCollection` `{"Players":[{"TeamId":0,"UserSessionId":<long>,"RoleId":0}, ...]}`. `Players[0]` is the owner. |
 | `pgame.end` | `PARTY_GAME_END` | IN | `id` -> sessionId (int), `results` -> JSON `List<PartyGameEndPlayerResult>` `[{"PlayerSessionId":<long>,"Placement":<int>}]`, reshaped client-side into a `sessionId -> placement` map. An empty list closes the game with no end popup; otherwise `PartyGameEndGamePopup` shows every listed player. |
-| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | `id` = sessionId (int), `type` = int (`PartyGameSessionMessageTypes`), `message` = JSON of that type's `PartyGameSessionMessages` class. Same keys both ways. |
+| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | `id` = sessionId, `type` = `PartyGameSessionMessageTypes`, `message` = JSON of that type's `PartyGameSessionMessages` class. Same keys both ways, but OUT sends `id` and `type` as **LONG** (`SmartFoxGameServerClientShared.serialize` has no int overload, so ints widen to long); IN reads them as INT (`GetInt`). |
 
 The client's `PartyGameManager` starts a session for **any** `pgame.start.v2`
 it receives (the game hides remote players and takes over the camera), so

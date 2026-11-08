@@ -38,8 +38,9 @@ setRewardGranter((username, reward) => { grants.push({ username, reward }); });
 
 const ROOM = "Alpine:Town:en";
 const ctxOf = (p: FakePlayer) => ({ session: p.session, peer: p.session.userName, send: p.entry.send });
+// The client's serialize() has no int overload: id and type arrive as LONG.
 const msg = (id: number, type: number, message: string) => {
-  const w = new SFSObjectWriter().putInt("id", id).putInt("type", type).putUtfString("message", message);
+  const w = new SFSObjectWriter().putLong("id", BigInt(id)).putLong("type", BigInt(type)).putUtfString("message", message);
   return decodeSFSObject(w.encodeBody("sfs2x"), 0, "sfs2x").value;
 };
 
