@@ -131,7 +131,7 @@ key + SFS2X value type via `[SocketUserVar(key, type)]`:
 |---|---|---|---|
 | `outfit` | `OUTFIT` | STRING | `SetOutfit(SignedResponse<PlayerOutfitDetails>)` |
 | `proto` | `PROTOTYPE` | STRING | `PrototypeSetState(object)` |
-| `con` | `EQUIPPED_OBJECT` | OBJECT | `EquipConsumable(string type)` / `DequipeHeldObject()` (sic - typo in client) |
+| `con` | `EQUIPPED_OBJECT` | OBJECT | `EquipConsumable(string type)` / `DequipeHeldObject()` (sic - typo in client). While the server has `con_prop` set on the player, their own `con` change is not echoed as is (with the old `con_prop` it would read as a new held item): the server sends the removal and the new `con` instead, or nothing if it's the same item. |
 | `bubble` | `AIR_BUBBLE` | OBJECT | `SetAirBubble(float, int)` / `RemoveAirBubble()` |
 | `con_prop` | `EQUIPPED_OBJECT_PROPERTIES` | STRING | Server-set JSON `{"actionCount": n}`. With `con` it makes a `PlayerHeldItem` (a held tray or an item taken from one): `con` and `con_prop` changed together = item added, `con_prop` alone = item changed, both NULL = item removed. |
 | `sess` | `SESSION_ID` | STRING | Not set by this client code - read-only here (`getSessionId(User)` reads it back via `user.GetVariable(...)`); almost certainly set server-side per-connection |

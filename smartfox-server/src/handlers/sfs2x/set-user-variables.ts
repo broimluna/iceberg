@@ -27,10 +27,18 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
       type: SFSDataType.SFS_ARRAY,
       value: accepted.map((v) => unwrapSignedVariable(v, ctx)),
     };
-    const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", vl));
-    ctx.send(packet);
-    for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
-    console.log(`[${new Date().toISOString()}] ${ctx.peer} <- set user variables broadcast (u=${ctx.session.userId})`);
+    // While the server has "con_prop" set (a held tray or taken item), a
+    // "con" change alone reads as a new PlayerHeldItem on every client,
+    // the sender's included. handleClientConChanged sends the change
+    // instead, or nothing if the item is the same.
+    const echoed = ctx.session.heldActionCount === undefined ? vl.value : vl.value.filter((v) => !isConEntry(v));
+    if (echoed.length > 0) {
+      const echo: SFSValue = { type: SFSDataType.SFS_ARRAY, value: echoed };
+      const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", echo));
+      ctx.send(packet);
+      for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
+      console.log(`[${new Date().toISOString()}] ${ctx.peer} <- set user variables broadcast (u=${ctx.session.userId})`);
+    }
     // After the echo, so any follow-up (con.partial, clearing con_prop)
     // arrives after the client's own change.
     trackEquippedConsumable(vl.value, ctx);
@@ -83,6 +91,12 @@ function rejectVariable(v: SFSValue): string | null {
     }
   }
   return null;
+}
+
+function isConEntry(v: SFSValue): boolean {
+  if (v.type !== SFSDataType.SFS_ARRAY) return false;
+  const name = v.value[0];
+  return name?.type === SFSDataType.UTF_STRING && name.value === "con";
 }
 
 // The client equips consumables itself by setting "con" = {type: "consum",
