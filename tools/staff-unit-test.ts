@@ -2,6 +2,7 @@
 import { makeChecker } from "./lib/harness.ts";
 import { Session } from "../smartfox-server/src/session.ts";
 import { handleCommand } from "../smartfox-server/src/commands/index.ts";
+import { mute, mutedUntil } from "../smartfox-server/src/mutes.ts";
 
 const { check, finish } = makeChecker();
 const ctxFor = (session: Session) => {
@@ -23,5 +24,13 @@ const ctxFor = (session: Session) => {
   for (const text of [":)", ":D", ":P", ":D hi", ": hi", "::", ":x"]) check(handleCommand(text, ctx) === false, `staff "${text}" is chat`);
   check(handleCommand("  :help", ctx) === true, "leading spaces are ignored");
   check(handleCommand(":HELP", ctx) === true, "command names ignore case");
+}
+{
+  // Mutes follow the signed swid, which is known at login, so a muted
+  // player who reconnects is muted before the account lookup answers.
+  const s = new Session();
+  s.swid = "{unit-muted}";
+  mute({ swid: s.swid, accountName: "Muted" }, 5, "admin");
+  check(mutedUntil(s) !== undefined, "a reconnecting session is muted before its account is known");
 }
 finish();

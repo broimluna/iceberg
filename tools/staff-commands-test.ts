@@ -108,6 +108,28 @@ try {
     check(dave.roomChats.includes("back"), "unmuted chat is relayed");
     await SAY(bob, `:unmute ${carol.username}`);
     check(bob.errors.includes(`${carol.username} isn't muted`), `unmuting twice (${bob.errors})`);
+
+    // A mute holds against the muted person and anyone ranked below whoever set it.
+    await SAY(root, `:mute ${bob.username} 5`);
+    await SAY(bob, `:unmute ${bob.username}`);
+    check(bob.errors.includes("You can't unmute yourself"), `no unmuting yourself (${bob.errors})`);
+    await setRoleVia(carol, "moderator");
+    carol.disconnect(); await sleep(150); await carol.connect();
+    await SAY(carol, `:unmute ${bob.username}`);
+    check(carol.errors.includes(`${bob.username} was muted by an admin`), `a moderator can't lift an admin's mute (${carol.errors})`);
+    await root2.connect();
+    await SAY(root2, `:unmute ${bob.username}`);
+    check(root2.bubbles.includes(`Unmuted ${bob.username}`), `another admin can (${root2.bubbles})`);
+    await setRoleVia(carol, "player");
+
+    // Accounts whose names differ only in case are different accounts.
+    const twinA = new Client(servers, "{st-twin}", "TwinA"), twinB = new Client(servers, "{ST-TWIN}", "TwinB");
+    everyone.push(twinA, twinB);
+    await twinA.connect(); await twinB.connect();
+    check(twinA.username !== twinB.username && twinA.username.toLowerCase() === twinB.username.toLowerCase(), `test setup: look-alike names (${twinA.username}, ${twinB.username})`);
+    await SAY(root, `:mute ${twinA.username} 5`);
+    await SAY(twinB, "twin b talks");
+    check(dave.roomChats.includes("twin b talks"), "muting one account doesn't mute a look-alike");
     await disconnectAll();
   }
 

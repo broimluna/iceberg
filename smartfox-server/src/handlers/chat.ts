@@ -30,7 +30,7 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
     }
   }
   if (handleCommand(messageText, ctx)) return;
-  const muted = mutedUntil(ctx.session.accountName);
+  const muted = mutedUntil(ctx.session);
   if (muted !== undefined) {
     const minutes = Math.ceil((muted - Date.now()) / 60_000);
     replyError(ctx, `You are muted for ${minutes} more minute${minutes === 1 ? "" : "s"}`);

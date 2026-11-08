@@ -1,5 +1,5 @@
 import { SFSObjectWriter, encodePacket } from "../sfs-wire.ts";
-import { mute, unmute } from "../mutes.ts";
+import { canLift, findMute, mute, unmute } from "../mutes.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import type { RegisteredSession } from "../session-registry.ts";
 import { ROLE_LEVEL } from "./roles.ts";
@@ -57,7 +57,8 @@ export const commands: CommandDef[] = [
       if (!(minutes >= 1 && minutes <= MAX_MUTE_MINUTES)) return usage(ctx, this);
       const target = targetBelowCaller(ctx, args[0]!, "mute");
       if (!target) return;
-      mute(target.session.accountName!, minutes);
+      if (!target.session.swid) return replyError(ctx, `Can't mute ${target.session.accountName}`);
+      mute({ swid: target.session.swid, accountName: target.session.accountName! }, minutes, ctx.session.role);
       target.send(systemChatPacket(target.session, `You are muted for ${minutes} minute${minutes === 1 ? "" : "s"}`, true));
       reply(ctx, `Muted ${target.session.accountName} for ${minutes} minute${minutes === 1 ? "" : "s"}`);
     },
@@ -68,10 +69,15 @@ export const commands: CommandDef[] = [
     usage: ":unmute <user>",
     run(args, ctx) {
       if (args.length !== 1) return usage(ctx, this);
-      // Works for players who are offline too: mutes are kept by name.
-      const name = resolveTarget(ctx, args[0], { quiet: true })?.session.accountName ?? args[0]!;
-      if (unmute(name)) reply(ctx, `Unmuted ${name}`);
-      else replyError(ctx, `${name} isn't muted`);
+      // Works for players who are offline too.
+      const online = resolveTarget(ctx, args[0], { quiet: true });
+      const found = online?.session.swid ? findMute(online.session.accountName!) : findMute(args[0]!);
+      const name = found?.mute.accountName ?? online?.session.accountName ?? args[0]!;
+      if (!found) return replyError(ctx, `${name} isn't muted`);
+      if (found.swid === ctx.session.swid) return replyError(ctx, "You can't unmute yourself");
+      if (!canLift(found.mute, ctx.session.role)) return replyError(ctx, `${name} was muted by ${found.mute.setBy === "admin" ? "an" : "a"} ${found.mute.setBy}`);
+      unmute(found.swid);
+      reply(ctx, `Unmuted ${name}`);
     },
   },
 ];
