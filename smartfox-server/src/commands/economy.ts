@@ -2,7 +2,7 @@ import { grantReward, type RewardGrant } from "../webapi-client.ts";
 import { sendRewardPush } from "../reward-push.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import type { RegisteredSession } from "../session-registry.ts";
-import { reply, replyError, resolveTarget, usage, type CommandDef } from "./index.ts";
+import { reply, replyError, resolveTarget, usage, type CommandDef } from "./common.ts";
 
 const MAX_COINS = 1_000_000;
 

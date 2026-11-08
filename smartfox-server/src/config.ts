@@ -21,3 +21,7 @@ export const MAX_PACKETS_PER_SEC = Number(process.env.SFS_MAX_PACKETS_PER_SEC ??
 export const MAX_CONNECTIONS_PER_IP = Number(process.env.SFS_MAX_CONNECTIONS_PER_IP ?? 16);
 // Development only: accept joinRoomData without a valid web API signature.
 export const ALLOW_UNSIGNED_LOGIN = process.env.SFS_ALLOW_UNSIGNED_LOGIN === "1";
+
+// Exit code that asks the supervisor (supervisor.ts) to start the server
+// again after an admin's :restart. Without a supervisor the server stops.
+export const RESTART_EXIT_CODE = 75;

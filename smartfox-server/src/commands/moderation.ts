@@ -3,7 +3,7 @@ import { canLift, findMute, mute, unmute } from "../mutes.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import type { RegisteredSession } from "../session-registry.ts";
 import { ROLE_LEVEL } from "./roles.ts";
-import { reply, replyError, resolveTarget, usage, type CommandDef } from "./index.ts";
+import { reply, replyError, resolveTarget, usage, type CommandDef } from "./common.ts";
 import { systemChatPacket } from "./reply.ts";
 
 // System action 1005, ClientDisconnection: both client APIs read "dr" as a

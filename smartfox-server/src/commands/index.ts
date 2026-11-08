@@ -1,22 +1,22 @@
 import type { HandlerContext } from "../handlers/context.ts";
-import { getByAccountName, type RegisteredSession } from "../session-registry.ts";
-import { hasRole, type Role } from "./roles.ts";
-import { reply, replyError } from "./reply.ts";
+import { hasRole } from "./roles.ts";
+import { replyError } from "./reply.ts";
+import type { CommandDef } from "./common.ts";
 import { commands as info } from "./info.ts";
 import { commands as moderation } from "./moderation.ts";
 import { commands as economy } from "./economy.ts";
+import { commands as serverAdmin } from "./server-admin.ts";
 
 // Staff chat commands: chat starting with ":" and two or more letters, from a
 // moderator or admin. Anything else, including every player's chat and
 // emoticons like ":)" or ":D", is ordinary chat.
-export interface CommandDef {
-  name: string;
-  minRole: Role;
-  usage: string;
-  run(args: string[], ctx: HandlerContext): void | Promise<void>;
-}
 
-export const commandTable: CommandDef[] = [...info, ...moderation, ...economy];
+// Built on first use: the command files import shared helpers that would
+// otherwise form an import cycle with this table.
+let table: CommandDef[] | undefined;
+export function commandTable(): CommandDef[] {
+  return (table ??= [...info, ...moderation, ...economy, ...serverAdmin]);
+}
 
 /** Runs a staff command; false means the text is ordinary chat. */
 export function handleCommand(text: string, ctx: HandlerContext): boolean {
@@ -27,7 +27,7 @@ export function handleCommand(text: string, ctx: HandlerContext): boolean {
   if (!/^:[A-Za-z]{2,}(\s|$)/.test(trimmed)) return false;
   const [word, ...args] = trimmed.slice(1).split(/\s+/);
   const name = word!.toLowerCase();
-  const def = commandTable.find((c) => c.name === name);
+  const def = commandTable().find((c) => c.name === name);
   if (!def || !hasRole(session, def.minRole)) {
     replyError(ctx, "Unknown command");
     return true;
@@ -45,20 +45,3 @@ export function handleCommand(text: string, ctx: HandlerContext): boolean {
   }
   return true;
 }
-
-export function usage(ctx: HandlerContext, def: Pick<CommandDef, "usage">): void {
-  replyError(ctx, `Usage: ${def.usage}`);
-}
-
-/**
- * The named online player, or the caller when name is omitted. Replies
- * "<name> isn't online" on a miss unless quiet.
- */
-export function resolveTarget(ctx: HandlerContext, name: string | undefined, opts: { quiet?: boolean } = {}): RegisteredSession | undefined {
-  if (name === undefined) return { session: ctx.session, peer: ctx.peer, send: ctx.send, close: () => {} };
-  const target = getByAccountName(name);
-  if (!target && !opts.quiet) replyError(ctx, `${name} isn't online`);
-  return target;
-}
-
-export { reply, replyError };

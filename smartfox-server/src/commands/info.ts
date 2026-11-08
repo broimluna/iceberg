@@ -1,6 +1,7 @@
 import { getAll } from "../session-registry.ts";
 import { hasRole } from "./roles.ts";
-import { commandTable, reply, resolveTarget, usage, type CommandDef } from "./index.ts";
+import { reply, resolveTarget, usage, type CommandDef } from "./common.ts";
+import { commandTable } from "./index.ts";
 
 const MAX_BUBBLE = 200;
 
@@ -27,7 +28,7 @@ export const commands: CommandDef[] = [
     minRole: "moderator",
     usage: ":help",
     run(_args, ctx) {
-      const lines = commandTable.filter((c) => hasRole(ctx.session, c.minRole)).map((c) => c.usage);
+      const lines = commandTable().filter((c) => hasRole(ctx.session, c.minRole)).map((c) => c.usage);
       for (const b of bubbles(lines, "Commands: ")) reply(ctx, b);
     },
   },

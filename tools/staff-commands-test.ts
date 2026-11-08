@@ -171,6 +171,68 @@ try {
     await disconnectAll();
   }
 
+  if (run("announce")) {
+    await root.connect(); await bob.connect(); await carol.connect();
+    const alerts = (c: Client) => c.ext.filter((e) => e.cmd === "server.alert").map((e) => e.p.message!.value as string);
+    await SAY(root, ":announce Party at the dock!");
+    check([root, bob, carol].every((c) => alerts(c).includes("Party at the dock!")), "every player gets the server.alert popup");
+    check([root, bob, carol].every((c) => c.bubbles.includes("Party at the dock!")), "SFS2X players also get the bubble");
+    await SAY(root, ":announce " + "x".repeat(600));
+    check(alerts(carol)[0]?.length === 500, `the popup text is cut to 500 characters (${alerts(carol)[0]?.length})`);
+    await SAY(root, ":restart 600");
+    check(root.bubbles.some((b) => b.includes("not supervised")), `without the supervisor the admin is warned (${root.bubbles})`);
+    await SAY(root, ":restart cancel");
+    await SAY(root, ":announce");
+    check(root.errors.some((e) => e.startsWith("Usage:")) && alerts(carol).length === 0, "an empty announcement is refused");
+    await setRoleVia(bob, "moderator");
+    bob.disconnect(); await sleep(150); await bob.connect();
+    await SAY(bob, ":announce hi");
+    check(bob.errors.includes("Unknown command") && alerts(carol).length === 0, "a moderator can't announce");
+    await disconnectAll();
+  }
+
+  if (run("restart")) {
+    // :restart stops the process, so it gets its own servers under the supervisor.
+    const sup = await startServers({ sfsEntry: "src/supervisor.ts" });
+    try {
+      const admin = new Client(sup, "{rs-admin}", "RsAdmin"), mod = new Client(sup, "{rs-mod}", "RsMod"), player = new Client(sup, "{rs-player}", "RsPlayer");
+      for (const c of [admin, mod, player]) await c.account();
+      await sup.setStaffAdmins([admin.username]);
+      await fetch(`${sup.api.base}/api/internal/set-role`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: mod.username, role: "moderator" }) });
+      await admin.connect(); await mod.connect(); await player.connect();
+      const say = async (c: Client, text: string, wait = 300) => { for (const x of [admin, mod, player]) x.reset(); c.chat(text); await sleep(wait); };
+      const notices = (c: Client) => c.ext.filter((e) => e.cmd === "server.restarting" || e.cmd === "server.alert").map((e) => `${e.cmd}:${e.p.message!.value}`);
+      for (const bad of ["0", "-1", "1.5", "soon"]) {
+        await say(admin, `:restart ${bad}`);
+        check(admin.errors.some((e) => e.startsWith("Usage:")) && notices(player).length === 0, `:restart ${bad} is refused`);
+      }
+      await say(mod, ":restart 5");
+      check(mod.errors.includes("Unknown command") && notices(player).length === 0, "a moderator can't restart");
+      await say(admin, ":restart 65");
+      check(notices(player)[0] === "server.restarting:GlobalUI.ErrorMessages.ServerRestarting", `the countdown starts with server.restarting (${notices(player)})`);
+      check(player.bubbles.some((b) => b === "Server restarting in 1 minute 5 seconds"), `and a bubble with the time (${player.bubbles})`);
+      check(admin.bubbles.some((b) => b.includes("65")) && !admin.bubbles.some((b) => b.includes("not supervised")), `confirmed, supervised (${admin.bubbles})`);
+      await say(admin, ":restart cancel");
+      check(notices(player).includes("server.alert:Server restart cancelled"), `cancel is announced (${notices(player)})`);
+      for (const x of [admin, mod, player]) x.reset();
+      await sleep(6000);
+      check(notices(player).length === 0 && !player.closed, "a cancelled countdown sends nothing more");
+      await say(admin, ":restart 4");
+      await until(() => player.closed, 7000);
+      check(notices(player).includes("server.alert:Server restarting in 3 seconds"), `the 3 second notice (${notices(player)})`);
+      check(player.kickReason === 0 && player.closed && admin.closed, `everyone is disconnected (reason ${player.kickReason})`);
+      await sleep(1500);
+      const back = new Client(sup, "{rs-player}", "RsPlayer");
+      back.username = player.username;
+      await back.connect();
+      check(back.myId > 0 && !back.closed, "the server is back after the restart");
+      check(sup.sfsLog().includes("[supervisor] restarting"), "the supervisor restarted it");
+      back.disconnect();
+    } finally {
+      await sup.stop();
+    }
+  }
+
   if (run("unsigned")) {
     // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
     // the account, but never grants a staff role.
