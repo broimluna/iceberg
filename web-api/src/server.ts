@@ -12,6 +12,7 @@ import { logger, errorHandler, notFoundHandler, authenticate } from "./middlewar
 import * as routes from "./routes/index.ts";
 import { encryptionMiddleware } from "./routes/encryption.ts";
 import { incrementTask as incrementDailyTask } from "./routes/task.ts";
+import { effectiveRole, isStaffAdmin, isStaffRole } from "./utils/staffRoles.ts";
 
 // Initialize Express app
 const app = express();
@@ -177,6 +178,37 @@ app.post('/api/internal/task-increment', express.json(), (req, res) => {
     const result = incrementDailyTask(username, taskId, times);
     if (!result) return res.status(404).json({ error: 'Unknown task' });
     res.json(result);
+});
+
+/**
+ * POST /api/internal/identity
+ * The game server resolves the account and staff role behind a login's
+ * signed swid. Body: { swid }. Returns { username, role }.
+ */
+app.post('/api/internal/identity', express.json(), (req, res) => {
+    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    const swid = req.body?.swid;
+    if (typeof swid !== 'string') return res.status(400).json({ error: 'Missing or invalid swid' });
+    const row = db.getPlayerIdentityAndRole(swid);
+    if (!row) return res.status(404).json({ error: 'Unknown swid' });
+    res.json({ username: row.username, role: effectiveRole(row.username, row.role) });
+});
+
+/**
+ * POST /api/internal/set-role
+ * :promote / :demote. Body: { username (any case), role }. Returns
+ * { success, username, role }; 409 for STAFF_ADMINS accounts.
+ */
+app.post('/api/internal/set-role', express.json(), (req, res) => {
+    if (!isInternalCaller(req)) return res.status(403).json({ error: 'Forbidden' });
+    const { username, role } = req.body ?? {};
+    if (typeof username !== 'string' || !isStaffRole(role)) return res.status(400).json({ error: 'Missing username or unknown role' });
+    const canonical = db.findUsernameNoCase(username);
+    if (!canonical) return res.status(404).json({ error: 'Unknown username' });
+    if (isStaffAdmin(canonical)) return res.status(409).json({ error: 'config admin' });
+    db.setPlayerRole(canonical, role);
+    console.log(`[INTERNAL-API] Role of ${canonical} set to ${role}`);
+    res.json({ success: true, username: canonical, role });
 });
 
 // Mount all route modules

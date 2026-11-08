@@ -392,6 +392,9 @@ function initializeDatabase() {
     const sessionCols = db.prepare("SELECT name FROM pragma_table_info('player_sessions')").all().map(c => c.name);
     if (!sessionCols.includes('world')) db.exec("ALTER TABLE player_sessions ADD COLUMN world TEXT");
     if (!sessionCols.includes('instance_id')) db.exec("ALTER TABLE player_sessions ADD COLUMN instance_id TEXT DEFAULT ''");
+    // Staff role for the game server's chat commands (utils/staffRoles.ts).
+    const playerCols = db.prepare("SELECT name FROM pragma_table_info('players')").all().map(c => c.name);
+    if (!playerCols.includes('role')) db.exec("ALTER TABLE players ADD COLUMN role TEXT DEFAULT 'player'");
 
     // Referrals table - tracks who referred whom and pending rewards
     db.exec(`
@@ -735,6 +738,25 @@ function getPlayerProfile(username) {
 }
 
 // ========== PLAYER IDENTITY OPERATIONS ==========
+
+/** Account name and stored staff role (null if unset) for a swid, or null. */
+function getPlayerIdentityAndRole(swid) {
+    return db.prepare(`
+        SELECT i.username AS username, p.role AS role
+        FROM player_identity i LEFT JOIN players p ON p.username = i.username
+        WHERE i.swid = ?
+    `).get(swid) ?? null;
+}
+
+/** Canonical username for a case-insensitive match, or null. */
+function findUsernameNoCase(username) {
+    return db.prepare('SELECT username FROM players WHERE username = ? COLLATE NOCASE').get(username)?.username ?? null;
+}
+
+/** Writes players.role for an exact username; false when there's no such player. */
+function setPlayerRole(username, role) {
+    return db.prepare('UPDATE players SET role = ? WHERE username = ?').run(role, username).changes > 0;
+}
 
 /**
  * Get player info by SWID
@@ -2597,6 +2619,9 @@ initializeDatabase();
 // Export all functions
 export {
     inTransaction,
+    getPlayerIdentityAndRole,
+    setPlayerRole,
+    findUsernameNoCase,
     db,
     initializeDatabase,
     closeDatabase,
