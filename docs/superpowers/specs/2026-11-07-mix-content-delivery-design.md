@@ -1,7 +1,7 @@
 # Disney Mix content delivery (stickers and gags): design
 
 - **Date:** 2026-11-07
-- **Status:** awaiting review
+- **Status:** approved 2026-11-07; amended while planning (client items 1 and 4 follow the real startup flow)
 - **Repos:** iceberg (this repo) and the Mix client,
   [OpenCPIsland/DisneyMix](https://github.com/OpenCPIsland/DisneyMix)
   (local checkout `~/src/DisneyMix`)
@@ -58,13 +58,13 @@ and relays sticker and gag messages (`PUT /chatThread/stickerMessage`,
 ```
  Mix client (source build)                    iceberg web-api
  ─────────────────────────                    ───────────────
- CpipeFileManifestLoader.Load
+ CpipeFileManifestLoader.Load (refresh)
    └─ CpipeManifestApi.GetCpipeManifest ──►  GET /cpipe
         ok   → PrepareManifest(json)          base manifest 00134
-        fail → PrepareManifest(bundled)       + entries for files on disk:
+        fail → keep first-load manifest       + entries for files on disk:
                                                 AssetBundles/windows64/…
- ContentData.ParseJoeData                       AssetBundles/standalonelinux64/…
-   └─ drop Sticker/Gag not available          cdnRoot = <origin>/cpipe/files
+ EntitlementsManager.Refresh*                   AssetBundles/standalonelinux64/…
+   └─ skip Sticker/Gag not available          cdnRoot = <origin>/cpipe/files
       (not in manifest, not in
        StreamingAssets); drop empty packs
                                                        ▲
@@ -90,19 +90,28 @@ and relays sticker and gag messages (`PUT /chatThread/stickerMessage`,
 Paths are under `Assets/Scripts/Assembly-CSharp/`.
 
 **1. Manifest fetch** (`Mix/CpipeFileManifestLoader.cs`)
-- `Load()` calls `Singleton<CpipeManifestApi>.Instance.GetCpipeManifest(…)`
-  with the loader as the callback object, passing the cache policy and
+- Startup loads the manifest twice, as Disney's app did. The first load
+  (`IsFirstRun == true`, from `AssetManager` start) keeps using the
+  bundled or cached manifest. It has to: `cpipeManager.cpipe` is still
+  null then, so a network request would crash in
+  `AssetManager.GetCpipeUrl`. The second load comes from
+  `StartUpSequence`'s `CpipeUpdateOperation` (`LoadCpipe` with
+  `IsFirstRun == false`).
+- When `aIsFirstRun` is false, `Load()` calls
+  `Singleton<CpipeManifestApi>.Instance.GetCpipeManifest(…)` with the
+  loader as the callback object, passing the cache policy and
   `oldVersion` it already receives. That request is
   `GET {cpipe_url}?restrict=true&cv=…[&v=…]` and caches the response
   under the `cpipeManfiest` key, so the next boot's
-  `PreloadData.PreloadCpipeManifest` picks it up.
+  `PreloadData.PreloadCpipeManifest` starts from it.
 - `TextReady` keeps its handling: 304 → `onComplete(false)`, a body →
-  `PrepareManifest(text, false)`.
-- Every failure path (empty body, error status, or `Prepare` returning
-  false on bad JSON) falls back to `PrepareManifest(null, true)`, the
-  bundled or cached manifest, instead of calling `onError`. `onError`
-  is called only if the fallback also fails. A build with no server
-  boots exactly as today.
+  `PrepareManifest(text, false)`. A `CpipeData` event then makes
+  `AssetManager` call `EntitlementsManager.RefreshInventoy()`, which
+  rebuilds the sticker and gag lists against the new manifest.
+- Every refresh failure (empty body, error status, or `Prepare`
+  returning false on bad JSON) calls `onComplete(false)`
+  (`CpipeUnchanged`), which keeps the manifest from the first load,
+  instead of `onError`. A build with no server boots exactly as today.
 
 **2. Bundle platform** (`Mix/Assets/AssetManager.cs`,
 `Mix/SettingsManager.cs`, `Mix/Assets/BackgroundLoader.cs`)
@@ -124,13 +133,18 @@ Paths are under `Assets/Scripts/Assembly-CSharp/`.
   expect a bare path from the fallback. It's revisited only if the live
   check shows a remaining failure.
 
-**4. Hide unavailable content** (`Mix/Data/ContentData.cs`, after
-`ParseJoeData`)
-- A sticker or gag is *available* when the bundle at `GetHd()`, after
-  `GetCpipePrefix`, is listed in the loaded manifest **or** exists in the
-  build's StreamingAssets.
-- Unavailable `Sticker` and `Gag` entries are removed from `Data`.
-  `Sticker_Pack` entries with no remaining stickers are removed.
+**4. Hide unavailable content** (`Mix/Entitlements/EntitlementsManager.cs`,
+`Mix/Assets/AssetManager.cs`)
+- New `AssetManager.IsBundleAvailable(string entitlementPath)`: true when
+  `GetCpipePrefix(entitlementPath)` is listed in the loaded manifest
+  **or** exists under the build's StreamingAssets.
+- `RefreshStickers` and `RefreshGags` skip items whose `GetHd()` isn't
+  available. `RefreshStickerPacks` skips packs with no available sticker
+  in `GetStickers()`. These run again on every `RefreshInventoy()`, so
+  the lists follow the manifest from the refresh, not just the first
+  one. (`ContentData.ParseJoeData` runs once, possibly before the
+  refresh, so it's the wrong place.)
+- Games, avatar parts and other content types are not filtered.
 - The local check keeps a Windows build's bundled `windows64` stickers
   visible even with no server.
 
@@ -209,9 +223,9 @@ if needed
 2. **Boot:** the app requests `/cpipe` and gets the manifest with
    `cdnRoot = <origin>/cpipe/files` and entries for its platform. The
    manifest is cached for next boot.
-3. **Catalog:** `contentdata.joe` loads from StreamingAssets. Stickers
-   and gags with no available bundle are dropped. Empty packs are
-   dropped.
+3. **Catalog:** `contentdata.joe` loads from StreamingAssets. Each
+   inventory rebuild skips stickers and gags with no available bundle,
+   and packs left with none.
 4. **Display:** a sticker's path
    `AssetBundles/<platform>/hd/stickers/…` translates to
    `<origin>/cpipe/files/<v>/AssetBundles/<platform>/hd/stickers/…`.
@@ -223,8 +237,8 @@ if needed
 
 | Failure | Behaviour |
 |---|---|
-| `/cpipe` unreachable, error status, empty body | Client falls back to the bundled or cached manifest. Panels show only bundles in StreamingAssets. |
-| `/cpipe` returns malformed JSON | `Prepare` already deletes the cached manifest. The loader then falls back as above instead of failing boot. |
+| `/cpipe` unreachable, error status, empty body | The refresh reports "unchanged" and the client keeps the bundled or cached manifest from the first load. Panels show only bundles in StreamingAssets. |
+| `/cpipe` returns malformed JSON | `Prepare` already deletes the cached manifest. The refresh then reports "unchanged" as above instead of failing boot. |
 | Bundle listed but download fails | The client's existing per-item warning icon. Rare, because the manifest is built from files on disk. |
 | Content tree missing on the server | `scanContent` logs one line. `/cpipe` serves the base manifest, which is today's behaviour. |
 | Config refetch | Once the client fetches `/cpipe`, the boot-config refetch (MIX_API §2) goes live: every server restart advertises a newer `donotcopy/n7c4c656`, which must exist in `data/mix/cpipe/`. `import` warns when it's missing. |
