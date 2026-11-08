@@ -11,6 +11,7 @@
  * - BEARER: Requires "Authorization: BEARER {access-token}" header
  */
 
+import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -94,6 +95,16 @@ function verifyPassword(password, storedHash) {
 /**
  * Build a GuestControllerWebCallResponse error
  */
+/** Why a name was refused, for developerMessage. */
+function nameProblem(reason) {
+    return {
+        length: 'Names must be 3 to 20 characters',
+        chars: 'Names may use letters, digits, spaces, "_", "-" and "." only',
+        mixed: 'Names may use letters from only one alphabet',
+        spacing: 'Names may not contain double spaces',
+    }[reason];
+}
+
 function buildError(keyCategory, errorCode, inputName = null, message = null) {
     return {
         error: {
@@ -463,12 +474,22 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
         return res.status(400).json(buildError('REGISTER', 'PASSWORD_REQUIRED', 'password'));
     }
     
-    // Names other players already use (as a username or display name) are
-    // refused: name lookups (friend search, moderation) would be ambiguous.
-    // The check runs on exactly the value that's stored: NFKC-folded and
-    // trimmed, so padding or look-alike forms can't get past it.
-    const proposed = typeof displayName?.proposedDisplayName === 'string' ? db.normalizeName(displayName.proposedDisplayName) : '';
-    const chosenUsername = typeof profile?.username === 'string' ? db.normalizeName(profile.username) : '';
+    // Both names follow the shared name rule (utils/names.ts), and names
+    // other players already use (as a username or display name) are refused:
+    // name lookups (friend search, moderation) would be ambiguous. Every
+    // check runs on exactly the value that's stored.
+    let proposed = '';
+    if (displayName?.proposedDisplayName != null && displayName.proposedDisplayName !== '') {
+        const c = checkName(displayName.proposedDisplayName);
+        if (!c.ok) return res.status(400).json(buildError('REGISTER', c.reason === 'length' ? 'DISPLAY_NAME_INVALID_LENGTH' : 'INVALID_VALUE', 'displayName.proposedDisplayName', nameProblem(c.reason)));
+        proposed = c.name;
+    }
+    let chosenUsername = '';
+    if (!autogenerateUsername && profile?.username != null && profile.username !== '') {
+        const c = checkName(profile.username);
+        if (!c.ok) return res.status(400).json(buildError('REGISTER', c.reason === 'length' ? 'USERNAME_INVALID_LENGTH' : 'INVALID_VALUE', 'profile.username', nameProblem(c.reason)));
+        chosenUsername = c.name;
+    }
     if (proposed && db.isDisplayNameTaken(proposed, '')) {
         return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
     }
@@ -609,6 +630,10 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
     
     // Validate display name if provided
     if (displayName) {
+        const c = checkName(displayName);
+        if (!c.ok && c.reason !== 'length') {
+            errors.push({ code: 'INVALID_VALUE', inputName: 'displayName', developerMessage: nameProblem(c.reason) });
+        }
         if (displayName.length < 3 || displayName.length > 20) {
             errors.push({
                 code: 'DISPLAY_NAME_INVALID_LENGTH',
@@ -639,6 +664,10 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
     
     // Validate username if provided (skip if it's the dummy placeholder)
     if (username && !isDummyUsername) {
+        const c = checkName(username);
+        if (!c.ok && c.reason !== 'length') {
+            errors.push({ code: 'INVALID_VALUE', inputName: 'username', developerMessage: nameProblem(c.reason) });
+        }
         if (username.length < 3 || username.length > 20) {
             errors.push({
                 code: 'USERNAME_INVALID_LENGTH',
@@ -781,6 +810,10 @@ router.post('/jgc/v5/client/:clientId/guest/:swid', authenticateBearer, (req, re
     }
     
     // Update display name if provided
+    if (displayName?.proposedDisplayName) {
+        const c = checkName(displayName.proposedDisplayName);
+        if (!c.ok) return res.status(400).json(buildError('PROFILE', c.reason === 'length' ? 'DISPLAY_NAME_INVALID_LENGTH' : 'INVALID_VALUE', 'displayName.proposedDisplayName', nameProblem(c.reason)));
+    }
     if (displayName?.proposedDisplayName && !db.setPlayerDisplayName(swid, displayName.proposedDisplayName)) {
         return res.status(400).json(buildError('PROFILE', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
     }

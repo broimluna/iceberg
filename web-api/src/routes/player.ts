@@ -21,6 +21,7 @@
  * - POST /player/v1/id/online                  - GetOnlinePlayersBySwidsOperation
  */
 
+import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -428,6 +429,9 @@ router.post('/player/v1/displayName', (req, res) => {
     
     console.log(`[PLAYER] Setting display name for ${username} to: ${displayName}`);
     
+    const checked = checkName(displayName);
+    if (!checked.ok) return res.status(400).json({ error: `Invalid display name (${checked.reason})` });
+    displayName = checked.name;
     // Update the display name in the database (refused if another player has it)
     if (!db.setPlayerDisplayName(swid, displayName)) {
         return res.status(400).json({ error: 'Display name already in use' });

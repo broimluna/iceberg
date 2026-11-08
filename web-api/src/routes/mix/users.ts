@@ -1,3 +1,4 @@
+import { checkName } from '../../utils/names.ts';
 import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
@@ -116,12 +117,13 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
  */
 router.put('/displayname', authenticateMix, (req, res) => {
     const { UserId, DisplayName } = req.body;
-    // Every rule runs on the name as it will be stored (NFKC-folded and
-    // trimmed): folding can lengthen a name or turn fullwidth letters into
-    // a filtered word.
-    const name = typeof DisplayName === 'string' ? db.normalizeName(DisplayName) : '';
+    // Every rule runs on the name as it will be stored (utils/names.ts):
+    // folding can lengthen a name or turn fullwidth letters into a filtered
+    // word.
+    const checked = checkName(DisplayName);
+    const name = checked.ok ? checked.name : '';
 
-    if (name.length < 3 || name.length > 20 || db.isDisplayNameTaken(name, UserId)) {
+    if (!checked.ok || db.isDisplayNameTaken(name, UserId)) {
         return res.json({ Status: 'DISPLAYNAME_ASSIGNMENT_FAILED' });
     }
     const filtered = filterText(name);
