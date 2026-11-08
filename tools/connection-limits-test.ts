@@ -107,6 +107,32 @@ class Conn {
     await sfs.stop();
   }
 }
+// Behind a reverse proxy on this machine (SFS_TRUST_PROXY=1), WebSocket
+// clients count against the address the proxy puts in X-Forwarded-For,
+// the last entry (anything further left was written by the client).
+{
+  const sfs = await startSfs({ SFS_TRUST_PROXY: "1", SFS_MAX_CONNECTIONS_PER_IP: "2", SFS_MAX_CONNECTS_PER_IP_PER_MIN: "0" });
+  const wsVia = async (xff: string | null) => {
+    const c = new Conn(sfs.port); await c.ready();
+    c.sock.write(`GET /websocket HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n${xff === null ? "" : `X-Forwarded-For: ${xff}\r\n`}\r\n`);
+    await sleep(80);
+    return c;
+  };
+  try {
+    const a = [await wsVia("198.51.100.1"), await wsVia("198.51.100.1"), await wsVia("198.51.100.1")];
+    await sleep(150);
+    check(!a[0]!.closed && !a[1]!.closed && a[2]!.closed, `a 3rd connection from one forwarded address is refused (${a.map((c) => c.closed)})`);
+    const b = [await wsVia("198.51.100.2"), await wsVia("198.51.100.3")];
+    await sleep(150);
+    check(b.every((c) => !c.closed), "other forwarded addresses are counted on their own, though all arrive from 127.0.0.1");
+    const spoof = await wsVia("203.0.113.50, 198.51.100.1");
+    await sleep(150);
+    check(spoof.closed, "a client-written entry left of the proxy's doesn't dodge the limit");
+    for (const c of [...a, ...b, spoof]) c.close();
+  } finally {
+    await sfs.stop();
+  }
+}
 // Per-address limits: IPv4-mapped IPv6 is the IPv4 address, IPv6 counts per /64.
 check(addressKey("::ffff:192.0.2.7") === "192.0.2.7", "IPv4-mapped IPv6 is keyed as IPv4");
 check(addressKey("2001:db8:1:2::1") === addressKey("2001:db8:1:2:ffff::9"), "one IPv6 /64 is one key");

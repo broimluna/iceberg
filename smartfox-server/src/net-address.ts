@@ -12,3 +12,18 @@ export function addressKey(address: string | undefined): string {
   const groups = address.includes("::") ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right] : left;
   return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
+
+/**
+ * The client address a reverse proxy reports in an HTTP request's
+ * X-Forwarded-For headers: with `hops` proxies in front, the entry that
+ * many from the right (each proxy appends the address it received from;
+ * entries further left were written by the client). Undefined if the
+ * header is missing or too short.
+ */
+export function forwardedClient(headerText: string, hops: number): string | undefined {
+  const entries: string[] = [];
+  for (const m of headerText.matchAll(/^x-forwarded-for:[ \t]*(.*)$/gim)) {
+    entries.push(...m[1]!.split(",").map((e) => e.trim()).filter(Boolean));
+  }
+  return entries.length >= hops ? entries[entries.length - hops] : undefined;
+}

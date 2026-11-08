@@ -52,12 +52,13 @@ bun run start:supervised
 | `JOIN_SIGNING_KEY` | *(auto)* | Key that checks the web API's signature on `joinRoomData` at login. Must match `web-api`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
 | `SFS_ALLOW_UNSIGNED_LOGIN` | *(off)* | Development only: `1` accepts logins whose `joinRoomData` isn't signed by this server's web API. |
 | `SFS_MAX_PACKETS_PER_SEC` | `100` | A connection sending more packets than this in one second is closed. The retail client peaks around 6. `0` turns it off. |
-| `SFS_MAX_CONNECTIONS_PER_IP` | `16` | Further connections from the same address are closed. Set `0` if clients come through a proxy, since they'd all share its address (and `SFS_MAX_CONNECTS_PER_IP_PER_MIN` too). Per-address limits count IPv6 per /64. |
+| `SFS_MAX_CONNECTIONS_PER_IP` | `16` | Further connections from the same address are closed. Behind a proxy, set `SFS_TRUST_PROXY`, or `0` here (and in `SFS_MAX_CONNECTS_PER_IP_PER_MIN`), since clients would otherwise all share the proxy's address. Per-address limits count IPv6 per /64. |
 | `SFS_LOGIN_TIMEOUT_MS` | `10000` | Connections that haven't logged in by then are closed. `0` turns it off. |
 | `SFS_IDLE_TIMEOUT_MS` | `120000` | Logged-in connections that send nothing for this long are closed. Clients ping every 4 seconds, so this only drops clients that have gone away, never idle players. `0` turns it off. |
 | `SFS_MAX_CONNECTIONS` | `2000` | Logged-in players; further logins are closed. `0` turns it off. |
 | `SFS_MAX_PENDING_LOGINS` | `200` | Connections still logging in, kept apart from the cap above; when full, the oldest one from the address holding the most is closed, so a flood of connections that never log in can't keep players out. `0` turns it off. |
-| `SFS_MAX_CONNECTS_PER_IP_PER_MIN` | `60` | New connections one address may open per minute. `0` turns it off. Like `SFS_MAX_CONNECTIONS_PER_IP`, set it to `0` behind a proxy. |
+| `SFS_MAX_CONNECTS_PER_IP_PER_MIN` | `60` | New connections one address may open per minute. `0` turns it off. Like `SFS_MAX_CONNECTIONS_PER_IP`, set it to `0` behind a proxy unless `SFS_TRUST_PROXY` is set. |
+| `SFS_TRUST_PROXY` | `0` | The number of reverse proxies in front of the WebSocket ports (e.g. `1` for Caddy or nginx on the same machine). WebSocket connections from loopback then count against the client address in `X-Forwarded-For`, read that many entries from the right, so the per-address limits keep working behind the proxy. Leave it `0` when clients connect directly. |
 
 Behind a proxy that only forwards some ports (Cloudflare's, for example,
 forwards 8080 and 8443 but not 8088), keep using 8080 and 8443. For

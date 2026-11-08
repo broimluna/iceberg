@@ -19,7 +19,7 @@ export function looksLikeHttpRequest(buf: Buffer): boolean {
 
 // Returns null if the header block (terminated by \r\n\r\n) hasn't fully
 // arrived yet - caller should keep buffering and retry.
-export function tryHandleWebSocketHandshake(buf: Buffer): { response: string; consumed: number } | null {
+export function tryHandleWebSocketHandshake(buf: Buffer): { response: string; consumed: number; headerText: string } | null {
   const headerEnd = buf.indexOf("\r\n\r\n");
   if (headerEnd === -1) return null;
   const headerText = buf.subarray(0, headerEnd).toString("utf8");
@@ -36,7 +36,7 @@ export function tryHandleWebSocketHandshake(buf: Buffer): { response: string; co
     "Upgrade: websocket\r\n" +
     "Connection: Upgrade\r\n" +
     `Sec-WebSocket-Accept: ${accept}\r\n\r\n`;
-  return { response, consumed: headerEnd + 4 };
+  return { response, consumed: headerEnd + 4, headerText };
 }
 
 // Returns null until the whole frame has arrived.

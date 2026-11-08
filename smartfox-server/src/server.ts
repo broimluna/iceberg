@@ -21,8 +21,8 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS, BIND_HOST } from "./config.ts";
-import { addressKey } from "./net-address.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS, BIND_HOST, TRUST_PROXY } from "./config.ts";
+import { addressKey, forwardedClient } from "./net-address.ts";
 import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
 import { resolveIdentity } from "./account.ts";
@@ -55,36 +55,49 @@ setInterval(() => { connectsThisMinute = new Map(); }, 60_000).unref();
 // hold at most MAX_CONNECTIONS_PER_IP connections. Breaking a limit closes
 // the connection. Before this, a client could make the receive buffer grow
 // without bound until the process ran out of memory.
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
-  const ip = addressKey(socket.remoteAddress);
-  const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
-  connectionsByIp.set(ip, openFromIp);
+  // Counts the connection against an address and applies the per-address
+  // limits; false if it was closed. Behind a trusted proxy the address is
+  // only known once the WebSocket upgrade arrives, so admission waits for
+  // it (the login timeout still runs meanwhile).
+  let ip: string | undefined;
+  const admit = (key: string): boolean => {
+    ip = key;
+    const openFromIp = (connectionsByIp.get(key) ?? 0) + 1;
+    connectionsByIp.set(key, openFromIp);
+    const connectsFromIp = (connectsThisMinute.get(key) ?? 0) + 1;
+    connectsThisMinute.set(key, connectsFromIp);
+    if (MAX_CONNECTS_PER_IP_PER_MIN > 0 && connectsFromIp > MAX_CONNECTS_PER_IP_PER_MIN) {
+      if (connectsFromIp === MAX_CONNECTS_PER_IP_PER_MIN + 1) {
+        console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTS_PER_IP_PER_MIN} new connections a minute from ${key}, closing (further ones this minute aren't logged)`);
+      }
+      socket.destroy();
+      return false;
+    }
+    if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
+      console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${key}, closing`);
+      socket.destroy();
+      return false;
+    }
+    const evicted = pendingLogins.add(socket, key);
+    if (evicted) {
+      console.log(`[${new Date().toISOString()}] ${evicted.remoteAddress}:${evicted.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest from the busiest address`);
+      evicted.destroy();
+    }
+    return !socket.destroyed;
+  };
   socket.once("close", () => {
     pendingLogins.remove(socket);
+    if (ip === undefined) return;
     const n = (connectionsByIp.get(ip) ?? 1) - 1;
     if (n <= 0) connectionsByIp.delete(ip);
     else connectionsByIp.set(ip, n);
   });
-  const connectsFromIp = (connectsThisMinute.get(ip) ?? 0) + 1;
-  connectsThisMinute.set(ip, connectsFromIp);
-  if (MAX_CONNECTS_PER_IP_PER_MIN > 0 && connectsFromIp > MAX_CONNECTS_PER_IP_PER_MIN) {
-    if (connectsFromIp === MAX_CONNECTS_PER_IP_PER_MIN + 1) {
-      console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTS_PER_IP_PER_MIN} new connections a minute from ${ip}, closing (further ones this minute aren't logged)`);
-    }
-    socket.destroy();
-    return;
-  }
-  if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
-    console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${ip}, closing`);
-    socket.destroy();
-    return;
-  }
-  const evicted = pendingLogins.add(socket, ip);
-  if (evicted) {
-    console.log(`[${new Date().toISOString()}] ${evicted.remoteAddress}:${evicted.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest from the busiest address`);
-    evicted.destroy();
-  }
+  const viaProxy = TRUST_PROXY > 0 && LOOPBACK.has(socket.remoteAddress ?? "");
+  if (!viaProxy && !admit(addressKey(socket.remoteAddress))) return;
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
   let buffered = Buffer.alloc(0);
@@ -278,6 +291,7 @@ const connectionHandler = (socket: net.Socket) => {
       handshakeBuffer = Buffer.concat([handshakeBuffer, chunk]);
       if (!looksLikeHttpRequest(handshakeBuffer)) {
         transportMode = "raw";
+        if (viaProxy && !admit(addressKey(socket.remoteAddress))) return;
         buffered = Buffer.concat([buffered, handshakeBuffer]);
         handshakeBuffer = Buffer.alloc(0);
         parseBufferedPackets();
@@ -298,6 +312,7 @@ const connectionHandler = (socket: net.Socket) => {
         }
         return; // wait for the rest of the HTTP request headers to arrive
       }
+      if (viaProxy && !admit(addressKey(forwardedClient(handshakeResult.headerText, TRUST_PROXY) ?? socket.remoteAddress))) return;
       socket.write(handshakeResult.response);
       transportMode = "websocket";
       console.log(`[${new Date().toISOString()}] ${peer} - upgraded to WebSocket transport (OpenCPI-style client)`);
