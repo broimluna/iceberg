@@ -218,7 +218,7 @@ as normal chat; the prefix characters are invisible.
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
 | `quest.c_obj` | `COMPLETE_OBJECTIVE` | OUT | `obj` = objective identifier (string). |
-| `quest.set` | `SET_QUEST_STATES` | BOTH | OUT: `data` = JSON `SignedResponse<QuestStateCollection>`. IN: no payload consumed - just a sync-complete trigger (`QUEST_DATA_SYNCED`). |
+| `quest.set` | `SET_QUEST_STATES` | BOTH | OUT: `data` = JSON `SignedResponse<QuestStateCollection>`, the collection the web API returned (sent on every room join). iceberg seeds the session's objective list (what `quest.s_obj` reports) from the active quest's `completedObjectives`. The web API signs this collection with a placeholder, so the game server can't verify it: a client can seed any objectives. That changes only what `quest.s_obj` echoes back; quest rewards come from the objectives the web API recorded itself. IN: no payload consumed - just a sync-complete trigger (`QUEST_DATA_SYNCED`). |
 | `quest.s_obj` | `SERVER_OBJECTIVE_COMPLETED` | IN | `data` -> JSON `SignedResponse<QuestObjectives>`. |
 | `quest.error` | `SERVER_QUEST_ERROR` | IN | No payload - generic `QUEST_ERROR` event. |
 
