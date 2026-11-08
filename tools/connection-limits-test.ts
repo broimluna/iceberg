@@ -5,6 +5,7 @@ import net from "node:net";
 import { makeChecker } from "./lib/harness.ts";
 import { SFSObjectWriter, encodePacket } from "../smartfox-server/src/sfs-wire.ts";
 import { addressKey } from "../smartfox-server/src/net-address.ts";
+import { PendingPool } from "../smartfox-server/src/pending-pool.ts";
 
 const { check, finish } = makeChecker();
 let lastLog = "";
@@ -111,5 +112,19 @@ check(addressKey("::ffff:192.0.2.7") === "192.0.2.7", "IPv4-mapped IPv6 is keyed
 check(addressKey("2001:db8:1:2::1") === addressKey("2001:db8:1:2:ffff::9"), "one IPv6 /64 is one key");
 check(addressKey("2001:db8:1:2::1") !== addressKey("2001:db8:1:3::1"), "another /64 is another key");
 check(addressKey("10.0.0.1") === "10.0.0.1", "IPv4 unchanged");
+// A full pending pool evicts from the address holding the most pending
+// connections, so a flood from a few addresses can't push out a real
+// player who is partway through logging in.
+{
+  const pool = new PendingPool<string>(4);
+  const evicted: string[] = [];
+  const add = (id: string, ip: string) => { const out = pool.add(id, ip); if (out) evicted.push(out); };
+  add("player", "198.51.100.5");
+  for (let i = 0; i < 6; i++) add(`flood${i}`, "203.0.113.9");
+  check(!evicted.includes("player") && evicted.length === 3, `the flooding address gives way, not the player (${evicted})`);
+  check(evicted[0] === "flood0", "oldest from that address first");
+  pool.remove("player");
+  check(pool.size === 3, `remove() frees a slot (${pool.size})`);
+}
 if (process.env.DEBUG_LOGS) console.log(lastLog);
 finish();

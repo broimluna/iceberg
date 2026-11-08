@@ -23,6 +23,7 @@ import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
 import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS } from "./config.ts";
 import { addressKey } from "./net-address.ts";
+import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
 import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
@@ -38,7 +39,7 @@ const connectionsByIp = new Map<string, number>();
 // Logged-in players, for MAX_CONNECTIONS, and connections still logging in,
 // oldest first, for MAX_PENDING_LOGINS.
 let loggedInCount = 0;
-const pendingLogins = new Set<net.Socket>();
+const pendingLogins = new PendingPool<net.Socket>(MAX_PENDING_LOGINS);
 // New connections per address in the current minute, for
 // MAX_CONNECTS_PER_IP_PER_MIN. Cleared every minute, so it stays small.
 let connectsThisMinute = new Map<string, number>();
@@ -60,7 +61,7 @@ const connectionHandler = (socket: net.Socket) => {
   const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
   connectionsByIp.set(ip, openFromIp);
   socket.once("close", () => {
-    pendingLogins.delete(socket);
+    pendingLogins.remove(socket);
     const n = (connectionsByIp.get(ip) ?? 1) - 1;
     if (n <= 0) connectionsByIp.delete(ip);
     else connectionsByIp.set(ip, n);
@@ -79,12 +80,10 @@ const connectionHandler = (socket: net.Socket) => {
     socket.destroy();
     return;
   }
-  pendingLogins.add(socket);
-  if (MAX_PENDING_LOGINS > 0 && pendingLogins.size > MAX_PENDING_LOGINS) {
-    const oldest = pendingLogins.values().next().value!;
-    pendingLogins.delete(oldest);
-    console.log(`[${new Date().toISOString()}] ${oldest.remoteAddress}:${oldest.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest`);
-    oldest.destroy();
+  const evicted = pendingLogins.add(socket, ip);
+  if (evicted) {
+    console.log(`[${new Date().toISOString()}] ${evicted.remoteAddress}:${evicted.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest from the busiest address`);
+    evicted.destroy();
   }
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
@@ -223,7 +222,7 @@ const connectionHandler = (socket: net.Socket) => {
       }
       if (!handleLogin(params, ctx, socket)) return;
       loggedIn = true;
-      pendingLogins.delete(socket);
+      pendingLogins.remove(socket);
       loggedInCount++;
       socket.once("close", () => loggedInCount--);
       clearTimeout(watchdog);

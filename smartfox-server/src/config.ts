@@ -30,7 +30,7 @@ export const LOGIN_TIMEOUT_MS = Number(process.env.SFS_LOGIN_TIMEOUT_MS ?? 10_00
 export const IDLE_TIMEOUT_MS = Number(process.env.SFS_IDLE_TIMEOUT_MS ?? 120_000);
 export const MAX_CONNECTIONS = Number(process.env.SFS_MAX_CONNECTIONS ?? 2000);
 // Connections still logging in are kept apart from the cap above, in a pool
-// of their own; when it's full the oldest gives way, so a flood of
+// of their own; when it's full the busiest address's oldest gives way, so a flood of
 // connections that never log in can't keep real players out.
 export const MAX_PENDING_LOGINS = Number(process.env.SFS_MAX_PENDING_LOGINS ?? 200);
 export const MAX_CONNECTS_PER_IP_PER_MIN = Number(process.env.SFS_MAX_CONNECTS_PER_IP_PER_MIN ?? 60);

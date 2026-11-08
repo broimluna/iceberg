@@ -55,7 +55,7 @@ bun run start:supervised
 | `SFS_LOGIN_TIMEOUT_MS` | `10000` | Connections that haven't logged in by then are closed. `0` turns it off. |
 | `SFS_IDLE_TIMEOUT_MS` | `120000` | Logged-in connections that send nothing for this long are closed. Clients ping every 4 seconds, so this only drops clients that have gone away, never idle players. `0` turns it off. |
 | `SFS_MAX_CONNECTIONS` | `2000` | Logged-in players; further logins are closed. `0` turns it off. |
-| `SFS_MAX_PENDING_LOGINS` | `200` | Connections still logging in, kept apart from the cap above; when full the oldest is closed, so connections that never log in can't keep players out. `0` turns it off. |
+| `SFS_MAX_PENDING_LOGINS` | `200` | Connections still logging in, kept apart from the cap above; when full, the oldest one from the address holding the most is closed, so a flood of connections that never log in can't keep players out. `0` turns it off. |
 | `SFS_MAX_CONNECTS_PER_IP_PER_MIN` | `60` | New connections one address may open per minute. `0` turns it off. Like `SFS_MAX_CONNECTIONS_PER_IP`, set it to `0` behind a proxy. |
 
 Behind a proxy that only forwards some ports (Cloudflare's, for example,
