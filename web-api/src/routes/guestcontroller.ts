@@ -305,6 +305,9 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             console.log(`[LOGIN] ${loginValue} has too many failed logins; locked for now`);
             return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
         }
+        // Whatever path the request takes (an error included), the attempt is
+        // released when the response ends; an earlier done() decides the result.
+        res.on('close', () => attempt.done(false));
 
         // Verify password
         console.log(`[LOGIN] Getting stored password hash for SWID: ${swid}`);

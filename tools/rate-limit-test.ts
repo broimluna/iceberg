@@ -50,6 +50,22 @@ delete process.env.TRUST_PROXY;
   check(limiter.begin("victim", "8.8.8.8") === null, "victim locked");
   for (let i = 0; i < 60_000; i++) limiter.begin(`other${i}`, "9.9.9.9")?.done(false);
   check(limiter.begin("victim", "8.8.8.8") === null, "still locked after 60,000 other accounts failed once");
+  // A known address (one that logged in before) isn't a free pass: it loses
+  // that standing after failing as often as the limit, like a shared school IP.
+  const shared = accountFailureLimit();
+  shared.begin("owner", "10.1.1.1")!.done(true);
+  for (let i = 0; i < 3; i++) shared.begin("owner", "6.6.6.6")!.done(false);
+  check(shared.begin("owner", "6.6.6.6") === null, "owner's account locked for other addresses");
+  let allowed = 0;
+  for (let i = 0; i < 10; i++) { const a = shared.begin("owner", "10.1.1.1"); if (a) { allowed++; a.done(false); } }
+  check(allowed === 3, `the known address gets only the limit's worth of failures (${allowed})`);
+
+  // Locked accounts can't crowd out everyone else.
+  const crowd = accountFailureLimit();
+  for (let n = 0; n < 1500; n++) for (let i = 0; i < 3; i++) crowd.begin(`locked${n}`, "9.9.9.9")?.done(false);
+  for (let i = 0; i < 60_000; i++) crowd.begin(`filler${i}`, "9.9.9.9")?.done(false);
+  check(crowd.begin("brand-new", "1.2.3.4") !== null, "a new account can still log in when many others are locked");
+  check(crowd.begin("locked7", "1.2.3.4") === null, "and the locked ones stay locked");
   delete process.env.AUTH_ACCOUNT_FAILS_PER_15MIN;
 }
 finish();
