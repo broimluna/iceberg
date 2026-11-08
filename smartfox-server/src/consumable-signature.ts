@@ -23,26 +23,33 @@ const VALID_MS = 5 * 60_000;
 export type ConsumablePurpose = "use" | "partial";
 export type ConsumableClaims = { swid: unknown; type: unknown; partialCount: unknown; goodUntil: unknown; signature: unknown };
 
+const field = (v: unknown): v is string => typeof v === "string" && v.length > 0 && !v.includes("|");
+const NONCE = /^[A-Za-z0-9_-]{22}$/;
+
 function mac(purpose: ConsumablePurpose, swid: string, type: string, partialCount: number, goodUntil: number, nonce: string): Buffer {
   return crypto.createHmac("sha256", signingKey()).update(`${purpose}|${swid}|${type}|${partialCount}|${goodUntil}|${nonce}`).digest();
 }
 
 export function signConsumable(purpose: ConsumablePurpose, swid: string, type: string, partialCount: number, now = Date.now()): { goodUntil: number; signature: string } {
+  if (!field(swid) || !field(type)) throw new Error(`can't sign consumable ${JSON.stringify(type)} for ${JSON.stringify(swid)}`);
   const goodUntil = now + VALID_MS;
   const nonce = crypto.randomBytes(16).toString("base64url");
   return { goodUntil, signature: `${nonce}.${mac(purpose, swid, type, partialCount, goodUntil, nonce).toString("base64url")}` };
 }
 
-const field = (v: unknown): v is string => typeof v === "string" && v.length > 0 && !v.includes("|");
-
 /** Returns null when the claims are signed for `purpose` and current, else the reason. Doesn't claim them. */
 export function checkConsumable(purpose: ConsumablePurpose, c: ConsumableClaims, now = Date.now()): string | null {
   if (typeof c.signature !== "string" || c.signature.length === 0) return "no signature";
   const dot = c.signature.indexOf(".");
-  if (dot <= 0 || !field(c.swid) || !field(c.type)) return "bad signature";
+  const nonce = dot > 0 ? c.signature.slice(0, dot) : "";
+  if (!NONCE.test(nonce) || !field(c.swid) || !field(c.type)) return "bad signature";
   if (!Number.isSafeInteger(c.partialCount) || (c.partialCount as number) < 0 || !Number.isSafeInteger(c.goodUntil)) return "bad signature";
-  const expected = mac(purpose, c.swid, c.type, c.partialCount as number, c.goodUntil as number, c.signature.slice(0, dot));
-  const given = Buffer.from(c.signature.slice(dot + 1), "base64url");
+  if ((c.goodUntil as number) > now + VALID_MS) return "bad signature";
+  // Compared as text: base64url decoding ignores spare bits and padding, so
+  // comparing bytes would let one signature be written several ways, each
+  // a new entry for the replay set.
+  const expected = Buffer.from(mac(purpose, c.swid, c.type, c.partialCount as number, c.goodUntil as number, nonce).toString("base64url"));
+  const given = Buffer.from(c.signature.slice(dot + 1));
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return "bad signature";
   if ((c.goodUntil as number) < now) return "expired";
   return null;

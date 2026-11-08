@@ -52,6 +52,22 @@ const apiSig = await import("../web-api/src/utils/consumableSignature.ts");
   check(sfsSig.checkConsumable("use", sfsSig.claimsFrom(signed)) === null, "claimsFrom reads a SignedResponse");
   check(sfsSig.checkConsumable("use", sfsSig.claimsFrom("nonsense")) === "no signature", "claimsFrom on a non-object -> no signature");
 
+  // Only the canonical encoding verifies, so one signature can't be
+  // rewritten into several strings that each pass the replay set.
+  const sig = u.signature as string;
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const last = sig.at(-1)!;
+  const sameBytes = sig.slice(0, -1) + alphabet[alphabet.indexOf(last) ^ 1];
+  check(Buffer.from(sameBytes.split(".")[1]!, "base64url").equals(Buffer.from(sig.split(".")[1]!, "base64url")), "(the variant decodes to the same MAC bytes)");
+  check(sfsSig.checkConsumable("use", { ...u, signature: sameBytes }) === "bad signature", "non-canonical MAC encoding -> bad signature");
+  check(sfsSig.checkConsumable("use", { ...u, signature: sig + "=" }) === "bad signature", "padded MAC -> bad signature");
+  check(sfsSig.checkConsumable("use", { ...u, signature: "x|y." + sig.split(".")[1] }) === "bad signature", "malformed nonce -> bad signature");
+  const far = apiSig.signConsumable("use", swid, "PizzaGroup", 0, Date.now() + 3_600_000);
+  check(sfsSig.checkConsumable("use", { swid, type: "PizzaGroup", partialCount: 0, ...far }) === "bad signature", "goodUntil beyond five minutes -> bad signature");
+  let threw = false;
+  try { apiSig.signConsumable("use", swid, "Pizza|Group", 0); } catch { threw = true; }
+  check(threw, "signing a type containing | throws");
+
   // Replay set.
   check(sfsSig.claimConsumable(u.signature as string, u.goodUntil) === true, "first claim succeeds");
   check(sfsSig.claimConsumable(u.signature as string, u.goodUntil) === false, "second claim of the same signature fails");
