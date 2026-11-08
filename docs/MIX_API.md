@@ -1378,8 +1378,7 @@ Chat text worked end to end in a native Linux build of
 OpenCPIsland/DisneyMix, but the sticker, gag, game and "recents" panels
 showed nothing, or a warning icon per item. There were three causes, all
 on the content side rather than the chat API. They are fixed on the
-client branch `iceberg/content-delivery` and in iceberg
-(`docs/superpowers/specs/2026-11-07-mix-content-delivery-design.md`).
+client branch `iceberg/content-delivery` and in iceberg.
 Games (`hd/gogs`) are imported and served by the same pipeline, but
 nothing here makes in-chat games playable (live check: they load but are
 buggy; that's the next spec).

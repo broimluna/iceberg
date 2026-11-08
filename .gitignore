@@ -27,3 +27,6 @@ web-api/data/mix/cpipe/AssetBundles/
 
 # Key that signs joinRoomData for the SmartFox login (auto-created)
 .iceberg-join-key
+
+# Working specs and plans (kept locally, not published)
+docs/superpowers/
