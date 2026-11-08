@@ -2,7 +2,7 @@
 // clients that log in with real signed joinRoomData.
 //   bun tools/staff-commands-test.ts [section ...]   (default: all)
 import { makeChecker } from "./lib/harness.ts";
-import { startServers, Client, sleep, owns, type Servers } from "./lib/staff-client.ts";
+import { startServers, Client, sleep, owns, coins, type Servers } from "./lib/staff-client.ts";
 
 const { check, finish } = makeChecker();
 const wanted = process.argv.slice(2);
@@ -23,6 +23,9 @@ for (const c of [root, root2, bob, carol, dave]) await c.account();
 await servers.setStaffAdmins([root.username, root2.username, dave.username]);
 const everyone = [root, root2, bob, carol, dave];
 const disconnectAll = async () => { for (const c of everyone) if (c.sock && !c.closed) c.disconnect(); await sleep(150); };
+const setRoleVia = (c: Client, role: string) => fetch(`${servers.api.base}/api/internal/set-role`, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: c.username, role }),
+});
 const SAY = async (c: Client, text: string, wait = 300) => { for (const x of everyone) x.reset(); c.chat(text); await sleep(wait); };
 
 try {
@@ -71,9 +74,7 @@ try {
   }
 
   if (run("moderation")) {
-    await fetch(`${servers.api.base}/api/internal/set-role`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: bob.username, role: "moderator" }),
-    });
+    await setRoleVia(bob, "moderator");
     await root.connect(); await bob.connect(); await carol.connect(); await dave.connect();
     await SAY(bob, `:kick ${carol.username}`);
     await until(() => carol.closed);
@@ -107,6 +108,44 @@ try {
     check(dave.roomChats.includes("back"), "unmuted chat is relayed");
     await SAY(bob, `:unmute ${carol.username}`);
     check(bob.errors.includes(`${carol.username} isn't muted`), `unmuting twice (${bob.errors})`);
+    await disconnectAll();
+  }
+
+  if (run("economy")) {
+    await setRoleVia(bob, "moderator");
+    await root.connect(); await bob.connect(); await carol.connect();
+    const pushed = (c: Client) => c.ext.filter((e) => e.cmd === "reward.add").map((e) => JSON.parse(e.p.reward!.value as string).data.rewards[c.sid]);
+    const before = coins(servers.api.dbPath, root.username)!;
+    await SAY(root, ":ac 500");
+    check(coins(servers.api.dbPath, root.username) === before + 500, `:ac adds coins in the web API (${before} -> ${coins(servers.api.dbPath, root.username)})`);
+    check(pushed(root).some((r) => r?.coins === 500), `the client gets reward.add for its own sessionId (${JSON.stringify(pushed(root))})`);
+    check(root.bubbles.includes(`Gave 500 coins to ${root.username}`), `confirmed (${root.bubbles})`);
+    const carolBefore = coins(servers.api.dbPath, carol.username)!;
+    await SAY(root, `:ac 250 ${carol.username.toUpperCase()}`);
+    check(coins(servers.api.dbPath, carol.username) === carolBefore + 250 && pushed(carol).some((r) => r?.coins === 250), "coins for another player go to them");
+    check(pushed(root).length === 0, "and not to the admin");
+    for (const bad of ["-5", "0", "1e9", "abc", "1000001", "2.5"]) {
+      const was = coins(servers.api.dbPath, root.username);
+      await SAY(root, `:ac ${bad}`);
+      check(root.errors.some((e) => e.startsWith("Usage:")) && coins(servers.api.dbPath, root.username) === was && pushed(root).length === 0, `:ac ${bad} is refused`);
+    }
+    await SAY(root, ":ac 5 ghost");
+    check(root.errors.includes("ghost isn't online"), `:ac for someone offline (${root.errors})`);
+    await SAY(root, ":ai durable 77");
+    check(owns(servers.api.dbPath, "owned_durables", "durable_id", root.username, 77) && pushed(root).some((r) => r?.durables?.includes(77)), ":ai durable");
+    await SAY(root, `:ai tube 3 ${carol.username}`);
+    check(pushed(carol).some((r) => r?.tubes?.includes(3)), ":ai tube for another player");
+    await SAY(root, ":ai hat 3");
+    check(root.errors.some((e) => e.startsWith("Usage:") && e.includes("equipment")), `unknown item type lists the types (${root.errors})`);
+    await SAY(root, ":ai durable x");
+    check(root.errors.some((e) => e.startsWith("Usage:")), "non-numeric item id is refused");
+    await SAY(bob, ":ac 5");
+    check(bob.errors.includes("Unknown command"), `a moderator can't give coins (${bob.errors})`);
+    // The web API is down: nothing is pushed for a grant that wasn't saved.
+    await servers.api.stop();
+    await SAY(root, ":ac 5", 600);
+    check(root.errors.includes("Couldn't save the reward") && pushed(root).length === 0, `failed grant (${root.errors})`);
+    await servers.setStaffAdmins([root.username, root2.username, dave.username]);
     await disconnectAll();
   }
 

@@ -4,6 +4,7 @@ import { hasRole, type Role } from "./roles.ts";
 import { reply, replyError } from "./reply.ts";
 import { commands as info } from "./info.ts";
 import { commands as moderation } from "./moderation.ts";
+import { commands as economy } from "./economy.ts";
 
 // Staff chat commands: chat starting with ":" and two or more letters, from a
 // moderator or admin. Anything else, including every player's chat and
@@ -15,7 +16,7 @@ export interface CommandDef {
   run(args: string[], ctx: HandlerContext): void | Promise<void>;
 }
 
-export const commandTable: CommandDef[] = [...info, ...moderation];
+export const commandTable: CommandDef[] = [...info, ...moderation, ...economy];
 
 /** Runs a staff command; false means the text is ordinary chat. */
 export function handleCommand(text: string, ctx: HandlerContext): boolean {
