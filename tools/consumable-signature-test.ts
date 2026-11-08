@@ -5,6 +5,7 @@
 // that signature, for the same swid, once.
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { createPlayer } from "./lib/mix-client.ts";
+import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
 
 const { check, finish } = makeChecker();
 const KEY = "test-join-key-" + Math.random().toString(36).slice(2);
@@ -135,5 +136,66 @@ const partialBody = (swid: string, type: string, partialCount: number) => {
   await refusedPartial("unsigned partial", SWID_A, { goodUntil: 0, signature: "", swid: SWID_A, data: { type: "PizzaGroup", partialCount: 6 } });
 }
 
-await api.stop();
-finish(api.logs());
+// ---- game server: con.use needs a signed, unused spend for this player ----
+const sfs = await startGameServer(api, KEY);
+try {
+  const A = new GameClient(api, sfs.port, "{c0000000-0000-0000-0000-0000000000a1}", "SigUserA");
+  const B = new GameClient(api, sfs.port, "{c0000000-0000-0000-0000-0000000000b1}", "SigUserB");
+  await A.connect(); await B.connect();
+  check(A.myId > 0 && B.myId > 0, `both logged in (${A.myId}, ${B.myId})`);
+  await sleep(150);
+
+  // A one-shot is "played" when the rest of the room gets con.use from A.
+  const playedBy = (c: GameClient) => B.extOf("con.use").filter((p) => p.senderId?.value === c.myId).length;
+  const refusedLog = (reason: string) => sfs.logs().split("\n").filter((l) => l.includes(`con.use refused (${reason})`)).length;
+  const attempt = async (who: GameClient, json: string) => { B.clear(); who.sendUse(json); await sleep(150); return playedBy(who); };
+
+  const first = await A.spend("Firework");
+  check(await attempt(A, first) === 1, "a signed spend plays");
+  check(await attempt(A, first) === 0 && refusedLog("replayed") === 1, "the same con.use again -> refused (replayed)");
+
+  const fresh = await A.spend("Firework");
+  const tampered = JSON.parse(fresh); tampered.data.type = "Pinata";
+  check(await attempt(A, JSON.stringify(tampered)) === 0 && refusedLog("bad signature") >= 1, "tampered type -> refused (bad signature)");
+  check(await attempt(A, fresh) === 1, "the genuine payload still plays after a tampered copy");
+
+  const unsigned = JSON.stringify({ goodUntil: 0, signature: "", swid: A.swid, data: { type: "Firework", partialCount: 0 } });
+  check(await attempt(A, unsigned) === 0 && refusedLog("no signature") === 1, "unsigned con.use -> refused (no signature)");
+
+  const forB = await A.spend("Firework");
+  B.clear(); A.clear(); B.sendUse(forB); await sleep(150);
+  check(A.extOf("con.use").filter((p) => p.senderId?.value === B.myId).length === 0 && refusedLog("wrong swid") === 1, "another player's spend -> refused (wrong swid)");
+  check(await attempt(A, forB) === 1, "the owner can still use it after someone else tried");
+
+  const p = sfsSig.signConsumable("partial", A.swid, "Firework", 0);
+  check(await attempt(A, JSON.stringify({ ...p, swid: A.swid, data: { type: "Firework", partialCount: 0 } })) === 0, "a partial signature as con.use -> refused");
+
+  // Tray: hold out, B takes one, put away -> signed con.partial for 5,
+  // which the web API stores; the next spend returns it and the tray comes
+  // back with 5.
+  const actionCount = () => {
+    const v = B.varsOf(A.myId).map((x) => x.con_prop).filter((x) => typeof x === "string").at(-1) as string | undefined;
+    return v ? JSON.parse(v).actionCount : undefined;
+  };
+  A.setCon("PizzaGroup"); await sleep(100);
+  B.clear(); await A.use("PizzaGroup"); await sleep(150);
+  check(actionCount() === 6, `tray held out with 6 (${actionCount()})`);
+  B.interactWith(A.sid); await sleep(200);
+  check(actionCount() === 5, `B took one, 5 left (${actionCount()})`);
+  B.setCon(null); await sleep(100);
+  A.clear(); A.setCon(null); await sleep(200);
+  const partialJson = A.extOf("con.partial")[0]?.data?.value as string | undefined;
+  const partial = partialJson ? JSON.parse(partialJson) : undefined;
+  check(partial?.data?.partialCount === 5 && partial?.swid === A.swid && apiSig.checkConsumable("partial", apiSig.claimsFrom(partial)) === null,
+    `con.partial is signed for A with 5 (${partialJson})`);
+  const stored = await fetch(`${api.base}/consumable/v1/partial`, { method: "POST", headers: A.auth(), body: partialJson ?? "{}" });
+  check(stored.status === 200 && (await stock(A.swid, "PizzaGroup")).partialCount === 5, `the web API stores it (${stored.status})`);
+  A.setCon("PizzaGroup"); await sleep(100);
+  B.clear();
+  const again = JSON.parse(await A.use("PizzaGroup")); await sleep(150);
+  check(again.data?.partialCount === 5 && actionCount() === 5, `next spend returns the partial and the tray comes back with 5 (${again.data?.partialCount}, ${actionCount()})`);
+} finally {
+  sfs.stop();
+  await api.stop();
+}
+finish(sfs.logs() + api.logs());

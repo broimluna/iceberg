@@ -1,5 +1,6 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString, fitsBytes, MAX_NAME_BYTES } from "../wire-helpers.ts";
+import { signConsumable, checkConsumable, claimConsumable, claimsFrom } from "../consumable-signature.ts";
 import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
@@ -272,23 +273,26 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
 
 // "con.use" - type = JSON SignedResponse<UsedConsumable> {type,
 // partialCount}, prop = JSON properties. Sent after the client has spent
-// the item through the WebAPI.
+// the item through the WebAPI, with the WebAPI's response passed through.
+// Only played when the WebAPI signed it for this player and it hasn't been
+// played before; otherwise a client could use items it never paid for.
 export function handleConsumableUse(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const typeJson = getUtfString(innerParams, "type");
-  let type: string | undefined;
-  let partialCount = 0;
+  let signed: unknown;
   try {
-    const data = typeJson ? JSON.parse(typeJson)?.data : undefined;
-    if (typeof data?.type === "string") type = data.type;
-    if (typeof data?.partialCount === "number") partialCount = data.partialCount;
+    signed = typeJson ? JSON.parse(typeJson) : undefined;
   } catch (err) {
     log(`${ctx.peer} - con.use: failed to parse "type" JSON: ${(err as Error).message}`);
   }
-  if (!type) {
-    log(`${ctx.peer} - con.use: no consumable type in ${typeJson ?? "(none)"}, ignoring`);
+  const claims = claimsFrom(signed);
+  const refused = checkConsumable("use", claims)
+    ?? (claims.swid !== ctx.session.swid ? "wrong swid" : null)
+    ?? (claimConsumable(claims.signature as string, claims.goodUntil as number) ? null : "replayed");
+  if (refused) {
+    log(`${ctx.peer} - con.use refused (${refused}): ${JSON.stringify(claims.type ?? null)}`);
     return;
   }
-  useConsumable(ctx, "con.use", type, partialCount, getUtfString(innerParams, "prop"));
+  useConsumable(ctx, "con.use", claims.type as string, claims.partialCount as number, getUtfString(innerParams, "prop"));
 }
 
 // "con.reuse" - type = plain string, prop = JSON properties. The client
@@ -530,15 +534,17 @@ function sendUserVars(target: { send: (packet: OutgoingPacket) => void }, sessio
 // Drops a held tray or taken item from the session. A tray with items left
 // sends "con.partial" {data: JSON SignedResponse<UsedConsumable> {type,
 // partialCount}}, which the client stores through POST
-// /consumable/v1/partial. Returns whether anything was held.
+// /consumable/v1/partial. The WebAPI only stores it with this server's
+// signature. Returns whether anything was held.
 function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boolean {
   const { session } = ctx;
   const count = session.heldActionCount;
   if (count === undefined) return false;
   invitationGuests.delete(session.userId);
   session.heldActionCount = undefined;
-  if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0) {
-    const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: count } };
+  if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0 && session.swid) {
+    const { goodUntil, signature } = signConsumable("partial", session.swid, previous, count);
+    const payload = { goodUntil, signature, swid: session.swid, data: { type: previous, partialCount: count } };
     ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));
     log(`${ctx.peer} <- con.partial (${previous}, ${count} left)`);
   }
