@@ -8,7 +8,7 @@ import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
 import { templateForTrigger } from "../party-games/definitions.ts";
-import { canStart, canStartWith, sessionOf, startPartyGame } from "../party-games/manager.ts";
+import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
 const ITEM_CATEGORY_CONSUMABLE = 1;
@@ -571,6 +571,12 @@ function replaceHeldItem(ctx: HandlerContext, next: EquippedObject | undefined):
 // update has already been echoed to the room.
 export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject | undefined): void {
   const { session } = ctx;
+  // Putting a party game's prop away is how the client quits the game.
+  const game = sessionOf(session);
+  if (game && session.heldObject === game.def.playerProp && next?.name !== game.def.playerProp) {
+    session.heldObject = undefined;
+    onPartyGamePlayerQuit(session);
+  }
   const previous = session.equippedConsumable;
   // Replayed to late joiners, so an oversized name isn't kept.
   const name = fitsBytes(next?.name, MAX_NAME_BYTES) ? next?.name : undefined;

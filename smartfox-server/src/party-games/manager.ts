@@ -122,7 +122,7 @@ export function sendGameMessage(game: PartyGameSession, type: number, message: s
   for (const p of present(game)) p.send(packet);
 }
 
-export function endSession(game: PartyGameSession, placements: Map<RegisteredSession, number>): void {
+export function endSession(game: PartyGameSession, placements: Map<RegisteredSession, number>, unpaid?: Set<RegisteredSession>): void {
   if (game.ended) return;
   game.ended = true;
   game.clearTimers();
@@ -134,7 +134,7 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
 
   for (const [p, place] of placements) {
     const reward = rewardFor(game.def, place);
-    if (!reward || !p.session.playerSessionId) continue;
+    if (!reward || !p.session.playerSessionId || unpaid?.has(p)) continue;
     void granter(p.session.userName, reward);
     const payload = `{"goodUntil":0,"signature":"","swid":"","data":{"source":${REWARD_SOURCE_MINI_GAME},"sourceId":"${game.id}","rewards":{"${p.session.playerSessionId}":${JSON.stringify(reward)}}}}`;
     if (here.includes(p)) p.send(extensionPacket("reward.add_delayed", new SFSObjectWriter().putUtfString("reward", payload)));
@@ -178,6 +178,16 @@ export function handlePartyGameMessage(innerParams: SFSObjectData, ctx: HandlerC
     return;
   }
   guarded(game, () => game.onMessage(player, type, message));
+}
+
+// The client quits a party game by clearing its own "con" (the game prop);
+// it stays in the game until pgame.end arrives.
+export function onPartyGamePlayerQuit(s: Session): void {
+  const game = sessionByUser.get(s.userId);
+  const player = game?.players.find((p) => p.entry.session === s && !p.left);
+  if (!game || !player || game.ended) return;
+  log(`${s.userName} quit session ${game.id}`);
+  guarded(game, () => game.onPlayerQuit(player));
 }
 
 // Disconnects (and so room changes, which reconnect).

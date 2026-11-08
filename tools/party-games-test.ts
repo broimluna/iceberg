@@ -189,13 +189,27 @@ try {
   check(coins(O.username) === oBefore + 20 && coins(G.username) === gBefore + 10, `coins +20 / +10 (${oBefore}->${coins(O.username)}, ${gBefore}->${coins(G.username)})`);
   check(all.every((c) => c.varsOf(O.myId).at(-1)?.con === null && c.varsOf(G.myId).at(-1)?.con === null), "game props cleared for the room");
 
+  // ---- quitting: the client puts the game prop away and waits for pgame.end ----
+  O.setCon("FindFourGroup"); await sleep(100); O.use("FindFourGroup"); await sleep(150);
+  for (const c of all) c.clear();
+  G.interactWith(O.sid);
+  await until(() => O.extOf("pgame.start.v2").length > 0, 4000);
+  const qid = O.extOf("pgame.start.v2")[0]?.id?.value as number;
+  const oQuit = coins(O.username), gQuit = coins(G.username);
+  G.setCon(null);
+  check(await until(() => O.extOf("pgame.end").length === 1 && G.extOf("pgame.end").length === 1), `quit ends match ${qid} for both players`);
+  check(G.extOf("pgame.end")[0]?.results?.value === `[{"PlayerSessionId":${O.sid},"Placement":0},{"PlayerSessionId":${G.sid},"Placement":1}]`,
+    `quit results: ${G.extOf("pgame.end")[0]?.results?.value}`);
+  await until(() => coins(O.username) === oQuit + 20, 2000);
+  check(coins(O.username) === oQuit + 20 && coins(G.username) === gQuit, `stayer paid, quitter not (${oQuit}->${coins(O.username)}, ${gQuit}->${coins(G.username)})`);
+
   // ---- forfeit by disconnect ----
   O.setCon("FindFourGroup"); await sleep(100); O.use("FindFourGroup"); await sleep(150);
   for (const c of all) c.clear();
   G.interactWith(O.sid);
   await until(() => O.extOf("pgame.start.v2").length > 0, 4000);
   const id2 = O.extOf("pgame.start.v2")[0]?.id?.value as number;
-  check(id2 === id + 1, `second match started (${id2})`);
+  check(id2 === id + 2, `third match started (${id2})`);
   const before2 = coins(O.username);
   G.sock.destroy();
   check(await until(() => O.extOf("pgame.end").length === 1), "owner's match ends when the guest disconnects");

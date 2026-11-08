@@ -116,6 +116,19 @@ export class FindFour extends PartyGameSession {
     this.timer(this.seconds("OutroTimeInSeconds", 4), () => this.endWith(placements));
   }
 
+  onPlayerQuit(player: PartyGamePlayer): void {
+    if (this.decided) {
+      this.endWith(this.decided);
+      return;
+    }
+    const stayer = this.players.find((p) => p !== player && !p.left);
+    const placements = new Map<RegisteredSession, number>();
+    if (stayer) placements.set(stayer.entry, 0);
+    // The quitter is still here, and the owner's end screen looks up its own placement.
+    placements.set(player.entry, 1);
+    this.endWith(placements, new Set([player.entry]));
+  }
+
   // Results list only players still here (the end popup looks up every
   // listed player). Before a result is decided, the player who stays wins;
   // after, the decided result stands.

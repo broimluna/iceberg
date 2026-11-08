@@ -28,6 +28,7 @@ class TestGame extends PartyGameSession {
     this.messages.push({ player, type, message });
   }
   onPlayerLeft(player: PartyGamePlayer) { this.left.push(player); }
+  onPlayerQuit(_player: PartyGamePlayer) {}
   arm(seconds: number, fn: () => void) { this.timer(seconds, fn); }
   finishWith(p: Map<RegisteredSession, number>) { this.endWith(p); }
 }

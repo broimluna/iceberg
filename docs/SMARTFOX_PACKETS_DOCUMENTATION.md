@@ -320,7 +320,10 @@ the whole room and cleared at the end.
 `Players[0]` is red and moves first. iceberg decides turns, columns (a full
 or invalid column becomes the nearest open one), wins, draws (both players
 get placement 1) and forfeits (the player who stays gets placement 0 and is
-the only one in `results`). Rules and timings come from `GameData` in
+the only one in `results`). A player quits by putting the game prop away
+(their own `con` change); the client then waits for `pgame.end`, so the match
+ends at once for both: the one who stays at 0, the quitter listed at 1 with
+no reward (the owner's end screen looks up its own placement). Rules and timings come from `GameData` in
 `smartfox-server/data/party-games.json`.
 
 ---

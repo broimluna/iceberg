@@ -5,7 +5,7 @@ import { makeChecker } from "./lib/harness.ts";
 import { makePlayer, type FakePlayer } from "./lib/party-fakes.ts";
 import { SFSObjectWriter, decodeSFSObject } from "../smartfox-server/src/sfs-wire.ts";
 import { unregister } from "../smartfox-server/src/session-registry.ts";
-const { startPartyGame, handlePartyGameMessage, onPartyGamePlayerLeft, setRewardGranter, sessionOf } =
+const { startPartyGame, handlePartyGameMessage, onPartyGamePlayerLeft, onPartyGamePlayerQuit, setRewardGranter, sessionOf } =
   await import("../smartfox-server/src/party-games/manager.ts");
 const { normaliseColumn } = await import("../smartfox-server/src/party-games/find-four.ts");
 
@@ -13,7 +13,8 @@ const { check, finish } = makeChecker();
 const quiet = console.log;
 console.log = (...a: unknown[]) => { if (!(typeof a[0] === "string" && a[0].startsWith("["))) quiet(...a); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-setRewardGranter(() => {});
+const grants: { username: string; reward: any }[] = [];
+setRewardGranter((username, reward) => { grants.push({ username, reward }); });
 
 // Scaled timings (0.01): intro 50 ms, chip 20 ms, backstop 220 ms, outro 40 ms.
 const INTRO = 80, CHIP = 40, BACKSTOP = 300, OUTRO = 80;
@@ -146,6 +147,32 @@ try {
     unregister(owner.session);
     onPartyGamePlayerLeft(owner.session);
     check(results(guest)[0] === resultsOf([[guest, 1]]), `winner leaving in the outro doesn't hand the loser the win: ${results(guest)[0]}`);
+  }
+
+  // ---- quitting (putting the game prop away) mid-game ----
+  {
+    const { owner, guest } = await newGame();
+    await play(owner, guest, [3, 3]);
+    owner.clear(); guest.clear(); grants.length = 0;
+    onPartyGamePlayerQuit(guest.session);
+    const expect = resultsOf([[owner, 0], [guest, 1]]);
+    check(results(owner)[0] === expect && results(guest)[0] === expect, `quit ends the match for both at once: ${results(owner)[0]} / ${results(guest)[0]}`);
+    check(grants.length === 1 && grants[0]!.username === owner.session.userName, `only the player who stayed is paid (${JSON.stringify(grants)})`);
+    check(guest.extOf("reward.add_delayed").length === 0, "quitter gets no reward.add_delayed");
+    check(sessionOf(owner.session) === undefined && sessionOf(guest.session) === undefined, "both free after a quit");
+  }
+  {
+    const { owner, guest } = await newGame();
+    owner.clear(); grants.length = 0;
+    onPartyGamePlayerQuit(owner.session);
+    check(results(guest)[0] === resultsOf([[guest, 0], [owner, 1]]) && results(owner).length === 1, "owner quitting: guest wins, owner still gets pgame.end");
+  }
+  {
+    const { owner, guest } = await newGame();
+    await play(owner, guest, [0, 6, 1, 6, 2, 6, 3]);
+    grants.length = 0;
+    onPartyGamePlayerQuit(owner.session);
+    check(results(guest)[0] === resultsOf([[owner, 0], [guest, 1]]) && grants.length === 2, `quit during the outro keeps the decided result, all paid (${results(guest)[0]})`);
   }
 
   // ---- forfeit mid-game and during the intro ----

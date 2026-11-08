@@ -6,7 +6,7 @@ import type { PartyGameDef } from "./definitions.ts";
 // Filled in by manager.ts (which imports the games, so this module can't
 // import it back).
 export const host = {
-  end: (_game: PartyGameSession, _placements: Map<RegisteredSession, number>): void => {},
+  end: (_game: PartyGameSession, _placements: Map<RegisteredSession, number>, _unpaid?: Set<RegisteredSession>): void => {},
   guarded: (_game: PartyGameSession, fn: () => void): void => fn(),
   send: (_game: PartyGameSession, _type: number, _message: string): void => {},
 };
@@ -52,11 +52,15 @@ export abstract class PartyGameSession {
     host.send(this, type, typeof body === "string" ? body : JSON.stringify(body));
   }
 
-  protected endWith(placements: Map<RegisteredSession, number>): void {
-    host.end(this, placements);
+  // `unpaid` players are listed in the results but get no reward.
+  protected endWith(placements: Map<RegisteredSession, number>, unpaid?: Set<RegisteredSession>): void {
+    host.end(this, placements, unpaid);
   }
 
   abstract onStart(): void;
   abstract onMessage(player: PartyGamePlayer, type: number, message: unknown): void;
   abstract onPlayerLeft(player: PartyGamePlayer): void;
+  // The player put the game prop away (the client's quit). They're still in
+  // the room and waiting for pgame.end.
+  abstract onPlayerQuit(player: PartyGamePlayer): void;
 }
