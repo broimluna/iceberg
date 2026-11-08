@@ -87,7 +87,8 @@ export function accountFailureLimit() {
     const KNOWN_PER_ACCOUNT = 5;
     const counts = new Map<string, { fails: number; inFlight: number; resetAt: number }>();
     const locked = new Map<string, number>(); // account -> lock end
-    const known = new Map<string, Map<string, number>>(); // account -> address -> failures since it last logged in
+    // account -> address -> failures since it last logged in, plus attempts in flight
+    const known = new Map<string, Map<string, { fails: number; inFlight: number }>>();
     const noop = { done: () => {} };
 
     const sweep = setInterval(() => {
@@ -108,7 +109,15 @@ export function accountFailureLimit() {
         if (e && e.resetAt <= Date.now() && e.inFlight === 0) { counts.delete(key); e = undefined; }
         if (!e) {
             if (counts.size >= MAX_TRACKED) {
-                for (const [k, old] of counts) if (old.inFlight === 0) { counts.delete(k); break; }
+                // Drop the entry with the fewest failures among the oldest
+                // (entries exist only for real accounts, so filling the
+                // table takes that many accounts).
+                let victim: string | undefined, fewest = Infinity, scanned = 0;
+                for (const [k, old] of counts) {
+                    if (++scanned > 100) break;
+                    if (old.inFlight === 0 && old.fails < fewest) { victim = k; fewest = old.fails; if (fewest === 0) break; }
+                }
+                if (victim !== undefined) counts.delete(victim);
             }
             e = { fails: 0, inFlight: 0, resetAt: Date.now() + windowMs };
             counts.set(key, e);
@@ -120,18 +129,19 @@ export function accountFailureLimit() {
         /** null when this address may not try this account now; otherwise call done(ok) after checking the password. */
         begin(key: string, address: string): { done: (ok: boolean) => void } | null {
             if (!(limit > 0)) return noop;
-            const addresses = known.get(key);
-            const knownFails = addresses?.get(address);
-            const isKnown = knownFails !== undefined && knownFails < limit;
+            const standing = known.get(key)?.get(address);
+            const isKnown = standing !== undefined && standing.fails + standing.inFlight < limit;
             const e = countFor(key);
             if (!isKnown && (isLocked(key) || e.fails + e.inFlight >= limit)) return null;
             e.inFlight++;
+            if (isKnown) standing!.inFlight++;
             let finished = false;
             return {
                 done(ok: boolean) {
                     if (finished) return;
                     finished = true;
                     e.inFlight--;
+                    if (isKnown) standing!.inFlight--;
                     if (ok) {
                         let set = known.get(key);
                         if (!set) {
@@ -139,13 +149,13 @@ export function accountFailureLimit() {
                             known.set(key, (set = new Map()));
                         }
                         set.delete(address);
-                        set.set(address, 0);
+                        set.set(address, { fails: 0, inFlight: 0 });
                         if (set.size > KNOWN_PER_ACCOUNT) set.delete(set.keys().next().value!);
                         return;
                     }
                     e.fails++;
                     if (e.fails >= limit && !locked.has(key)) locked.set(key, e.resetAt);
-                    if (isKnown) addresses!.set(address, knownFails! + 1);
+                    if (isKnown) standing!.fails++;
                 },
             };
         },

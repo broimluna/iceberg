@@ -60,6 +60,15 @@ delete process.env.TRUST_PROXY;
   for (let i = 0; i < 10; i++) { const a = shared.begin("owner", "10.1.1.1"); if (a) { allowed++; a.done(false); } }
   check(allowed === 3, `the known address gets only the limit's worth of failures (${allowed})`);
 
+  // Guesses sent all at once from a known address can't get past its limit either.
+  const burst = accountFailureLimit();
+  burst.begin("acct", "10.2.2.2")!.done(true);
+  for (let i = 0; i < 3; i++) burst.begin("acct", "6.6.6.6")!.done(false);
+  const inFlight = Array.from({ length: 10 }, () => burst.begin("acct", "10.2.2.2"));
+  check(inFlight.filter(Boolean).length === 3, `parallel guesses from a known address: at most the limit (${inFlight.filter(Boolean).length})`);
+  for (const a of inFlight) a?.done(false);
+  check(burst.begin("acct", "10.2.2.2") === null, "and afterwards it has lost its standing");
+
   // Locked accounts can't crowd out everyone else.
   const crowd = accountFailureLimit();
   for (let n = 0; n < 1500; n++) for (let i = 0; i < 3; i++) crowd.begin(`locked${n}`, "9.9.9.9")?.done(false);
