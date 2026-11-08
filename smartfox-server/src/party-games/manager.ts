@@ -9,7 +9,7 @@
 // out as reward.add_delayed; the end popup claims them.
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString, getInt } from "../wire-helpers.ts";
-import { getByRoom, type RegisteredSession } from "../session-registry.ts";
+import { getAll, getByRoom, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
@@ -50,6 +50,18 @@ export function canStart(templateId: number): boolean {
   return !!def && !!def.playerProp && factories.has(def.gameType);
 }
 
+// Whether startPartyGame(templateId, players) would start: a known game,
+// the right player count, each player connected, distinct, with a session
+// id and not already in a game.
+export function canStartWith(templateId: number, players: RegisteredSession[]): boolean {
+  const def = getPartyGame(templateId);
+  if (!def || !canStart(templateId)) return false;
+  if (players.length < def.minPlayers || players.length > def.maxPlayers) return false;
+  if (new Set(players.map((p) => p.session.userId)).size !== players.length) return false;
+  const connected = new Set(getAll().map((e) => e.session));
+  return players.every((p) => connected.has(p.session) && !!p.session.playerSessionId && !sessionByUser.has(p.session.userId));
+}
+
 export function sessionOf(s: Session): PartyGameSession | undefined {
   return sessionByUser.get(s.userId);
 }
@@ -85,16 +97,8 @@ function present(game: PartyGameSession): RegisteredSession[] {
 export function startPartyGame(templateId: number, players: RegisteredSession[]): PartyGameSession | undefined {
   const def = getPartyGame(templateId);
   const factory = def ? factories.get(def.gameType) : undefined;
-  if (!def || !factory || !def.playerProp) {
-    log(`can't start template ${templateId}: no definition, game or player prop`);
-    return undefined;
-  }
-  if (players.length < def.minPlayers || players.length > def.maxPlayers) {
-    log(`can't start template ${templateId} with ${players.length} players`);
-    return undefined;
-  }
-  if (players.some((p) => sessionByUser.has(p.session.userId) || !p.session.playerSessionId)) {
-    log(`can't start template ${templateId}: a player is already in a game or has no session id`);
+  if (!def || !factory || !def.playerProp || !canStartWith(templateId, players)) {
+    log(`can't start template ${templateId} with ${players.map((p) => p.session.userName).join(", ")}`);
     return undefined;
   }
   const game = factory(nextSessionId++, def, players);

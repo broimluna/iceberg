@@ -9,7 +9,7 @@ import { unregister, type RegisteredSession } from "../smartfox-server/src/sessi
 import { PartyGameSession, type PartyGamePlayer } from "../smartfox-server/src/party-games/session.ts";
 import {
   registerGameType, startPartyGame, endSession, sessionOf, handlePartyGameMessage,
-  onPartyGamePlayerLeft, setRewardGranter, canStart,
+  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith,
 } from "../smartfox-server/src/party-games/manager.ts";
 
 const { check, finish } = makeChecker();
@@ -49,6 +49,12 @@ try {
 
   check(canStart(2), "template 2 can start");
   check(!canStart(99), "unknown template can't start");
+  check(canStartWith(2, [owner.entry, guest.entry]), "canStartWith: two free players");
+  check(!canStartWith(2, [owner.entry]), "canStartWith: too few players");
+  check(!canStartWith(2, [owner.entry, owner.entry]), "canStartWith: the same player twice");
+  const gone = makePlayer("gone", ROOM);
+  unregister(gone.session);
+  check(!canStartWith(2, [owner.entry, gone.entry]), "canStartWith: a disconnected player");
 
   // ---- start ----
   const s1 = startPartyGame(2, [owner.entry, guest.entry])!;

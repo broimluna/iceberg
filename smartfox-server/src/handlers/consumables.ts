@@ -8,7 +8,7 @@ import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
 import { templateForTrigger } from "../party-games/definitions.ts";
-import { canStart, sessionOf, startPartyGame } from "../party-games/manager.ts";
+import { canStart, canStartWith, sessionOf, startPartyGame } from "../party-games/manager.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
 const ITEM_CATEGORY_CONSUMABLE = 1;
@@ -427,22 +427,32 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
   const { session } = ctx;
   if (template === undefined || !canStart(template) || !holder.heldActionCount) return true;
   if (session.equippedConsumable || session.heldObject || sessionOf(session) || sessionOf(holder)) return true;
-  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => g.session.roomName === holder.roomName);
+  // Guests who have since left the room or joined a game no longer count.
+  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
+  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
   if (guests.some((g) => g.session === session)) return true;
   const me = getByRoom(session.roomName).find((e) => e.session === session);
   if (!me) return true;
   guests.push(me);
-  const left = holder.heldActionCount - 1;
+  const left = (CONSUMABLES[name]!.totalItemQuantity ?? 1) - guests.length;
   log(`${ctx.peer} - joined ${holder.userName}'s ${name} (${left} slots left)`);
   if (left > 0) {
     invitationGuests.set(holder.userId, guests);
     setHeldActionCount(holder, left);
     return true;
   }
+  const players = [holderEntry, ...guests];
+  if (!canStartWith(template, players)) {
+    log(`${ctx.peer} - ${holder.userName}'s ${name} can't start yet, invitation kept`);
+    guests.pop();
+    invitationGuests.set(holder.userId, guests);
+    return true;
+  }
   invitationGuests.delete(holder.userId);
+  // The invitation goes only once the start is certain.
   setHeldActionCount(holder, 0);
   removeHeldItem(holder);
-  startPartyGame(template, [holderEntry, ...guests]);
+  startPartyGame(template, players);
   return true;
 }
 
