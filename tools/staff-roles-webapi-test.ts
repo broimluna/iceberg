@@ -81,6 +81,16 @@ try {
   check(reg.status === 400 && ((await reg.json()) as any)?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with a taken display name is refused (${reg.status})`);
   reg = await register({ password: "hunter22", profile: { username: "Bob" } });
   check(reg.status === 400, `register with a username equal to a display name is refused (${reg.status})`);
+  // Padding or look-alike Unicode forms don't get around the check
+  // (U+FF22 is a fullwidth "B", which NFKC folds to "B").
+  for (const body of [
+    { password: "hunter22", profile: { username: "  Bob " } },
+    { password: "hunter22", profile: { username: "\uFF22ob" } },
+    { password: "hunter22", profile: {}, displayName: { proposedDisplayName: " root  " } },
+  ]) {
+    reg = await register(body);
+    check(reg.status === 400, `register with ${JSON.stringify(body.profile.username ?? (body as any).displayName.proposedDisplayName)} is refused (${reg.status})`);
+  }
   const displayNameOf = (swid: string) => {
     const db = new Database(api.dbPath, { readonly: true });
     const row = db.query("SELECT display_name FROM player_identity WHERE swid = ?").get(swid) as { display_name: string } | null;

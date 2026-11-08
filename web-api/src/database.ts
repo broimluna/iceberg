@@ -906,8 +906,14 @@ function isDisplayNameTaken(displayName, exceptSwid) {
         .get(exceptSwid, displayName, displayName);
 }
 
+/** How names are stored and compared: NFKC-folded (fullwidth and other look-alike forms) and trimmed. */
+function normalizeName(name) {
+    return String(name).normalize('NFKC').trim();
+}
+
 /** Returns false (and changes nothing) when the name is empty or another player's. */
 function setPlayerDisplayName(swid, displayName) {
+    displayName = displayName == null ? displayName : normalizeName(displayName);
     // Don't allow empty display names
     if (!displayName || displayName.trim() === '') {
         console.warn(`[DATABASE] Attempted to set empty display name for SWID ${swid}, ignoring`);
@@ -2641,6 +2647,7 @@ export {
     setPlayerRole,
     findUsernameNoCase,
     usernameTakenNoCase,
+    normalizeName,
     db,
     initializeDatabase,
     closeDatabase,

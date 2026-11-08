@@ -465,11 +465,14 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
     
     // Names other players already use (as a username or display name) are
     // refused: name lookups (friend search, moderation) would be ambiguous.
-    const proposed = displayName?.proposedDisplayName?.trim();
+    // The check runs on exactly the value that's stored: NFKC-folded and
+    // trimmed, so padding or look-alike forms can't get past it.
+    const proposed = typeof displayName?.proposedDisplayName === 'string' ? db.normalizeName(displayName.proposedDisplayName) : '';
+    const chosenUsername = typeof profile?.username === 'string' ? db.normalizeName(profile.username) : '';
     if (proposed && db.isDisplayNameTaken(proposed, '')) {
         return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
     }
-    if (!autogenerateUsername && profile?.username && db.isDisplayNameTaken(profile.username, '')) {
+    if (!autogenerateUsername && chosenUsername && db.isDisplayNameTaken(chosenUsername, '')) {
         return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'profile.username', 'The username already exists in the system.'));
     }
 
@@ -478,10 +481,10 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
     
     // Determine username
     let username;
-    if (autogenerateUsername || !profile?.username) {
+    if (autogenerateUsername || !chosenUsername) {
         username = db.createPlayerFromSwid(swid);
     } else {
-        username = profile.username;
+        username = chosenUsername;
         // A taken username (in any case) is refused: registering it must
         // never repoint an existing account, and its role, at a new swid.
         if (db.usernameTakenNoCase(username)) {
@@ -491,15 +494,15 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
         db.db.prepare(`
             INSERT INTO player_identity (swid, username, display_name)
             VALUES (?, ?, ?)
-        `).run(swid, username, displayName?.proposedDisplayName || username);
+        `).run(swid, username, proposed || username);
     }
     
     // Set password
     db.setPlayerPassword(swid, hashPassword(password));
     
     // Set display name if provided
-    if (displayName?.proposedDisplayName) {
-        db.setPlayerDisplayName(swid, displayName.proposedDisplayName);
+    if (proposed) {
+        db.setPlayerDisplayName(swid, proposed);
     }
     
     // Generate ETags and tokens
