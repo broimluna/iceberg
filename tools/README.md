@@ -36,6 +36,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `internal-bridge-test.ts` | The internal bridge between the servers: the shared secret is always required (set or derived from the join key), proxied requests are refused, the web API's notifier sends the secret to `SFS_NOTIFY_PORT`, and `HOST` / `SFS_BIND_HOST` / the notify port keep listeners on localhost. |
 | `log-hygiene-test.ts` | Client text can't forge or flood the web API log (escaped, length- and count-capped), the logged address isn't a client-written header, and error responses carry no stack traces or echoed URLs. |
 | `anonymous-access-test.ts` | Without a login the CPI game API answers 401 `{code: 3}` instead of acting as a shared fallback account; only the calls the client makes without credentials (other-player lookups, the encryption key, diagnostics) stay open. |
+| `economy-test.ts` | Requests can't name their own rewards; counts can't go negative and purchases need the coins (Coins for Change, Disney store, igloo decorations); quests pay only for defined quests with every objective recorded; room collectibles pay once per respawn by the server's clock; unknown reward ids grant nothing; one player can't overwrite another's item. |
 
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).

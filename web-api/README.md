@@ -47,8 +47,8 @@ on first run.
 Response signatures (`SignedResponse<T>`) are placeholders. The client
 never verifies them. Anti-tamper comes from the server checking requests
 against its own state instead of trusting what the client sends. That
-work is ongoing, and `PUT /reward/v1` still accepts rewards from the
-client without validation.
+work is ongoing: `PUT /reward/v1` (the client's echo of a reward) is a
+no-op, and `tools/economy-test.ts` lists what is checked so far.
 
 The endpoint reference is in
 [`../docs/API_ENDPOINTS_DOCUMENTATION.md`](../docs/API_ENDPOINTS_DOCUMENTATION.md).

@@ -262,6 +262,18 @@ function initializeDatabase() {
         )
     `);
 
+    // Room collectibles a player picked up, by the server's clock, so each
+    // one pays once per respawn (routes/reward.ts POST /reward/v1/room).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS room_collectibles (
+            username TEXT NOT NULL,
+            room TEXT NOT NULL,
+            path TEXT NOT NULL,
+            collected_at INTEGER NOT NULL,
+            PRIMARY KEY (username, room, path)
+        )
+    `);
+
     // Claimed reward IDs
     db.exec(`
         CREATE TABLE IF NOT EXISTS claimed_rewards (
@@ -1633,6 +1645,8 @@ function getEquipmentById(username, equipmentId) {
 /**
  * Create or update equipment
  */
+// Inserts, or updates the player's own item with that id. Returns false
+// (and changes nothing) when the id belongs to another player.
 function saveEquipment(username, equipment) {
     getOrCreatePlayer(username);
     return db.prepare(`
@@ -1642,13 +1656,14 @@ function saveEquipment(username, equipment) {
             date_time_created = excluded.date_time_created,
             definition_id = excluded.definition_id,
             parts_json = excluded.parts_json
+        WHERE equipment.username = excluded.username
     `).run(
         equipment.equipmentId,
         username,
         equipment.dateTimeCreated,
         equipment.definitionId,
         JSON.stringify(equipment.parts || [])
-    );
+    ).changes === 1;
 }
 
 /**
@@ -1656,6 +1671,20 @@ function saveEquipment(username, equipment) {
  */
 function deleteEquipment(username, equipmentId) {
     db.prepare('DELETE FROM equipment WHERE username = ? AND equipment_id = ?').run(username, equipmentId);
+}
+
+// ========== ROOM COLLECTIBLES ==========
+
+function getRoomCollectedAt(username, room, path) {
+    const row = db.prepare('SELECT collected_at FROM room_collectibles WHERE username = ? AND room = ? AND path = ?').get(username, room, path);
+    return row ? row.collected_at : null;
+}
+
+function setRoomCollectedAt(username, room, path, at) {
+    db.prepare(`
+        INSERT INTO room_collectibles (username, room, path, collected_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(username, room, path) DO UPDATE SET collected_at = excluded.collected_at
+    `).run(username, room, path, at);
 }
 
 // ========== CLAIMED REWARDS OPERATIONS ==========
@@ -2741,6 +2770,8 @@ export {
     deleteEquipment,
     
     // Claimed rewards
+    getRoomCollectedAt,
+    setRoomCollectedAt,
     getClaimedRewards,
     addClaimedReward,
     

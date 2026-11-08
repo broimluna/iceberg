@@ -7,6 +7,7 @@
  * - POST /disneystore/v1/purchase/:type/:count - Purchase item (PurchaseDisneyStoreItemOperation)
  */
 
+import { positiveCount, NOT_ENOUGH_COINS } from "../utils/counts.ts";
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -156,7 +157,8 @@ function applyReward(username, reward, count) {
 router.post('/disneystore/v1/purchase/:type/:count', (req, res) => {
     const { swid, username } = req.player;
     const itemId = parseInt(req.params.type);
-    const count = parseInt(req.params.count) || 1;
+    const count = positiveCount(req.params.count, 99);
+    if (count === null) return res.status(400).json({ code: 'BAD_COUNT' });
     
     console.log(`[DISNEYSTORE] ${username} purchasing item ${itemId} x${count}`);
     
@@ -170,6 +172,8 @@ router.post('/disneystore/v1/purchase/:type/:count', (req, res) => {
     
     // Calculate total cost
     const totalCost = storeItem.Cost * count;
+    if (!Number.isSafeInteger(totalCost) || totalCost < 0) return res.status(400).json({ code: 'BAD_COUNT' });
+    if (db.getPlayerCoins(username) < totalCost) return res.status(400).json({ code: NOT_ENOUGH_COINS });
     
     console.log(`[DISNEYSTORE] Item found: Cost=${storeItem.Cost}, Total=${totalCost}`);
     console.log(`[DISNEYSTORE] Reward:`, JSON.stringify(storeItem.Reward));

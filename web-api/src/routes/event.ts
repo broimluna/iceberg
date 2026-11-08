@@ -8,6 +8,7 @@
  * - POST /event/v1/cfc/:coins - Make CFC donation (PostCFCDonationOperation)
  */
 
+import { positiveCount, NOT_ENOUGH_COINS } from "../utils/counts.ts";
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -44,7 +45,9 @@ router.get('/event/v1/cfc', (req, res) => {
  */
 router.post('/event/v1/cfc/:coins', (req, res) => {
     const { swid, username } = req.player;
-    const coins = parseInt(req.params.coins) || 0;
+    const coins = positiveCount(req.params.coins, 1_000_000);
+    if (coins === null) return res.status(400).json({ code: 'BAD_COUNT' });
+    if (db.getPlayerCoins(username) < coins) return res.status(400).json({ code: NOT_ENOUGH_COINS });
     
     console.log(`[EVENT] ${username} donating ${coins} coins to CFC`);
     

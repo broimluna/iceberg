@@ -56,8 +56,12 @@ router.post('/inventory/v1/equipment', (req, res) => {
         newEquipment.dateTimeCreated = Date.now();
     }
     
-    // Save equipment to database
-    db.saveEquipment(username, newEquipment);
+    // Save equipment to database. An id that's another player's item gets
+    // a fresh id instead of overwriting theirs.
+    if (!db.saveEquipment(username, newEquipment)) {
+        newEquipment.equipmentId = generateEquipmentId();
+        db.saveEquipment(username, newEquipment);
+    }
     
     // Ensure the template is owned (so item shows in closet)
     if (newEquipment.definitionId) {

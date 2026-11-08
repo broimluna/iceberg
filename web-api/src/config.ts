@@ -22,6 +22,12 @@ console.log(`[CONFIG] Loaded quests.json, ClaimableReward.json, DailySpin.json, 
 
 // Build collectible exchange rates map from reference data
 const collectibleExchangeRates: Record<string, number> = {};
+// CollectibleType -> respawn rule. SpawnCategory 0 (ElapsedTime) respawns
+// RespawnSeconds after pickup, 1 (Daily) at the next daily reset.
+const collectibleRespawn: Record<string, { seconds: number; daily: boolean }> = {};
+for (const c of collectibleDefinitionData as any[]) {
+    collectibleRespawn[c.CollectibleType] = { seconds: Number(c.RespawnSeconds) || 0, daily: c.SpawnCategory === 1 };
+}
 for (const collectible of collectibleDefinitionData as any[]) {
     collectibleExchangeRates[collectible.CollectibleType] = collectible.ExchangeRate;
 }
@@ -114,6 +120,7 @@ const config = {
     // Collectible exchange rates - loaded from CollectibleDefinition.json
     // Maps collectible type to coin exchange rate (e.g., Shell: 0.25 means 4 shells = 1 coin)
     collectibleExchangeRates: collectibleExchangeRates,
+    collectibleRespawn,
 
     // Room pickupables - loaded from pickupables.json
     // Maps room name -> path -> reward definition for collectible items in each room

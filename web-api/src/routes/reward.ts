@@ -15,6 +15,7 @@
  * - GET  /reward/v1/calculateexchangeall  - Calculate exchange value (CalculateExchangeForCoinsOperation)
  */
 
+import { logSafe } from "../utils/logSafe.ts";
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -99,62 +100,52 @@ router.put('/reward/v1', (req, res) => {
  * Request: SignedResponse<InRoomRewards> { room, collected: { rewardKey: timestamp } }
  * Response: RewardGrantedResponse { assets }
  */
+// At most this many pickups are looked at per request.
+const MAX_ROOM_PICKUPS = 200;
+// Slack for the client's clock running ahead of ours.
+const RESPAWN_SLACK_MS = 5000;
+
 router.post('/reward/v1/room', (req, res) => {
-    const { swid, username } = req.player;
-    console.log(`[REWARD] ${username} claiming in-room rewards`);
-    
-    const inRoomRewards = req.body.data || req.body.Data || req.body;
-    const room = inRoomRewards.room || 'Unknown';
-    const collected = inRoomRewards.collected || {};
-    
-    console.log(`[REWARD] Room: ${room}, collected items: ${Object.keys(collected).length}`);
-    
-    // Look up pickupables for this room
-    const roomPickupables = config.pickupables[room] || {};
-    
+    const { username } = req.player;
+    const inRoomRewards = req.body?.data || req.body?.Data || req.body || {};
+    const room = typeof inRoomRewards.room === 'string' ? inRoomRewards.room : '';
+    const collected = inRoomRewards.collected && typeof inRoomRewards.collected === 'object' ? inRoomRewards.collected : {};
+    const roomPickupables = Object.hasOwn(config.pickupables, room) ? config.pickupables[room] : {};
+
+    // Each pickup pays once per respawn, timed by our clock; the times the
+    // client sends are ignored. Paths not in the room's pickupables pay
+    // nothing.
+    const now = Date.now();
     let totalCoins = 0;
-    let collectibleCurrenciesGranted = {};
-    
-    // Process each collected item
-    for (const rewardPath of Object.keys(collected)) {
+    const currencies = {};
+    for (const rewardPath of Object.keys(collected).slice(0, MAX_ROOM_PICKUPS)) {
+        if (!Object.hasOwn(roomPickupables, rewardPath)) continue;
         const pickupable = roomPickupables[rewardPath];
-        
-        if (pickupable && pickupable.reward) {
-            const reward = pickupable.reward;
-            
-            // Add coins
-            if (reward.coins > 0) {
-                totalCoins += reward.coins;
-            }
-            
-            // Add collectible currencies
-            if (reward.collectibleCurrency) {
-                for (const [currencyType, amount] of Object.entries(reward.collectibleCurrency)) {
-                    if (amount > 0) {
-                        db.addCollectibleCurrency(username, currencyType, amount);
-                        collectibleCurrenciesGranted[currencyType] = (collectibleCurrenciesGranted[currencyType] || 0) + amount;
-                    }
-                }
-            }
-        } else {
-            // Fallback for unknown collectibles - grant 1 coin
-            totalCoins += 1;
-            console.log(`[REWARD] Unknown pickupable in ${room}: ${rewardPath}`);
+        const respawn = config.collectibleRespawn[pickupable.tag] ?? { seconds: 0, daily: true };
+        const last = db.getRoomCollectedAt(username, room, rewardPath);
+        if (last !== null) {
+            const ready = respawn.daily
+                ? db.currentTaskDay(now) > db.currentTaskDay(last)
+                : now - last >= respawn.seconds * 1000 - RESPAWN_SLACK_MS;
+            if (!ready) continue;
+        }
+        db.setRoomCollectedAt(username, room, rewardPath, now);
+        const reward = pickupable.reward || {};
+        if (reward.coins > 0) totalCoins += reward.coins;
+        for (const [currencyType, amount] of Object.entries(reward.collectibleCurrency || {})) {
+            if (typeof amount === 'number' && amount > 0) currencies[currencyType] = (currencies[currencyType] || 0) + amount;
         }
     }
-    
-    if (totalCoins > 0) {
-        db.addPlayerCoins(username, totalCoins);
-        console.log(`[REWARD] Granted ${totalCoins} coins for room collectibles`);
+
+    for (const [currencyType, amount] of Object.entries(currencies)) db.addCollectibleCurrency(username, currencyType, amount);
+    if (totalCoins > 0) db.addPlayerCoins(username, totalCoins);
+    if (totalCoins > 0 || Object.keys(currencies).length > 0) {
+        console.log(`[REWARD] ${username} room pickups in ${logSafe(room)}: ${totalCoins} coins, ${JSON.stringify(currencies)}`);
     }
-    
-    if (Object.keys(collectibleCurrenciesGranted).length > 0) {
-        console.log(`[REWARD] Granted collectible currencies:`, collectibleCurrenciesGranted);
-    }
-    
+
     // Response: RewardGrantedResponse
-    res.json({ 
-        assets: db.getPlayerAssets(username) 
+    res.json({
+        assets: db.getPlayerAssets(username)
     });
 });
 
@@ -174,50 +165,8 @@ router.put('/reward/v1/claim/:type', claimRewardHandler);
  */
 router.post('/reward/v1/claim/:type', claimRewardHandler);
 
-/**
- * POST /reward/v1
- * Generic reward claim endpoint
- * 
- * Request: { rewards: { xp?, coins?, ... } }
- * Response: { wsEvents: [], reward }
- */
-router.post('/reward/v1', (req, res) => {
-    const { swid, username } = req.player;
-    console.log(`[REWARD] ${username} claiming generic reward:`, JSON.stringify(req.body));
-    
-    const rewards = req.body.rewards || req.body || {};
-    
-    // Apply XP rewards
-    if (rewards.xp) {
-        for (const [mascot, xp] of Object.entries(rewards.xp)) {
-            const currentXp = db.getMascotXP(username)[mascot] || 0;
-            const newXp = addXpToInternal(mascot, xp, currentXp);
-            db.setMascotXP(username, mascot, newXp);
-            console.log(`[REWARD] Granted ${xp} XP to ${mascot}`);
-        }
-    }
-    
-    // Apply mascotXP rewards (alternate format)
-    if (rewards.mascotXP) {
-        for (const [mascot, xp] of Object.entries(rewards.mascotXP)) {
-            const currentXp = db.getMascotXP(username)[mascot] || 0;
-            const newXp = addXpToInternal(mascot, xp, currentXp);
-            db.setMascotXP(username, mascot, newXp);
-            console.log(`[REWARD] Granted ${xp} XP to ${mascot}`);
-        }
-    }
-    
-    // Apply coin rewards
-    if (rewards.coins) {
-        db.addPlayerCoins(username, rewards.coins);
-        console.log(`[REWARD] Granted ${rewards.coins} coins`);
-    }
-    
-    res.json({
-        wsEvents: [],
-        reward: rewards
-    });
-});
+// POST /reward/v1 granted whatever the body named; the client never calls
+// it (its AddRewardOperation is PUT, above), so there is no such route.
 
 /**
  * Shared handler for claiming rewards by ID
@@ -238,26 +187,13 @@ function claimRewardHandler(req, res) {
     // Get reward definition
     const rewardDef = config.rewardDefinitions[rewardId];
     
+    // Unknown ids used to be granted as an equipment template of that id,
+    // which unlocked any item.
     if (!rewardDef) {
-        // Fallback: treat as equipment template
-        db.addEquipmentTemplate(username, rewardId);
-        
-        const newEquipment = {
-            equipmentId: generateEquipmentId(),
-            dateTimeCreated: Date.now(),
-            definitionId: rewardId,
-            parts: []
-        };
-        db.saveEquipment(username, newEquipment);
-        db.addClaimedReward(username, rewardId);
-        
-        console.log(`[REWARD] ${username} claimed reward ${rewardId} (fallback as equipment template)`);
-        
-        return res.json({
-            reward: { equipmentTemplates: [rewardId] }
-        });
+        console.log(`[REWARD] ${username} tried to claim unknown reward ${logSafe(req.params.type)}`);
+        return res.status(404).json({ error: 'Unknown reward' });
     }
-    
+
     // Build reward response object
     const reward = {};
     

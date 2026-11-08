@@ -158,13 +158,20 @@ router.post('/quest/v1/progress', (req, res) => {
         });
     }
     
-    // Extract objectives from SignedResponse<QuestObjectives>
+    // Extract objectives from SignedResponse<QuestObjectives>. Only the
+    // objectives the active quest defines count (names exactly as in its
+    // definition); anything else is ignored, so made-up names can't be
+    // recorded or paid.
     let objectives = [];
     if (req.body.data || req.body.Data) {
         objectives = req.body.data || req.body.Data;
     } else if (Array.isArray(req.body)) {
         objectives = req.body;
     }
+    const definedObjectives = config.questDefinitions[activeQuest.questId]?.objectives ?? {};
+    objectives = (Array.isArray(objectives) ? objectives : [])
+        .slice(0, 100)
+        .filter((o) => typeof o === 'string' && Object.hasOwn(definedObjectives, o));
     
     console.log(`[QUEST] Objectives received: ${JSON.stringify(objectives)}`);
     
@@ -235,17 +242,6 @@ router.post('/quest/v1/progress', (req, res) => {
                     mergeRewards(granted);
                 }
             }
-        } else {
-            // Fallback for quests not in config: Default XP
-            const mascotName = getMascotFromQuestId(activeQuest.questId);
-            const totalRawXp = config.rewards.objectiveXP * newObjectives.length;
-            
-            const currentXp = db.getMascotXP(username)[mascotName] || 0;
-            const newXp = addXpToInternal(mascotName, totalRawXp, currentXp);
-            db.setMascotXP(username, mascotName, newXp);
-            
-            reward = { mascotXP: { [mascotName]: totalRawXp } };
-            console.log(`[QUEST] ${username} completed ${newObjectives.length} objectives (fallback), granted ${totalRawXp} raw XP (${newXp} internal) to ${mascotName}`);
         }
     }
     
@@ -341,8 +337,14 @@ router.post('/quest/v1/:questId', (req, res) => {
         
         db.updateQuestStatus(username, questId, QuestStatus.COMPLETED, newTimesCompleted, completedTime);
         
-        if (wasFirstCompletion) {
-            const questDef = config.questDefinitions[questId];
+        // The completion reward needs a quest we know, completed for the
+        // first time, with every objective it defines recorded.
+        const questDef = Object.hasOwn(config.questDefinitions, questId) ? config.questDefinitions[questId] : null;
+        const missing = questDef ? Object.keys(questDef.objectives || {}).filter((o) => !quest.completedObjectives.includes(o)) : [];
+        if (wasFirstCompletion && (!questDef || missing.length > 0)) {
+            console.log(`[QUEST] ${username} completed ${logSafe(questId)} without ${questDef ? `objectives ${logSafe(missing.join(','))}` : 'a quest definition'}: no completion reward`);
+        }
+        if (wasFirstCompletion && questDef && missing.length === 0) {
             
             if (questDef && questDef.completeReward) {
                 const granted = grantRewards(username, questDef.completeReward);
