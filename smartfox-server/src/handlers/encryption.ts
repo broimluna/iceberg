@@ -3,6 +3,9 @@ import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.t
 import { getUtfString } from "../wire-helpers.ts";
 import type { HandlerContext } from "./context.ts";
 
+const MAX_MODULUS_BYTES = 512; // 4096 bits
+const MAX_EXPONENT_BYTES = 4;
+
 function toBase64Url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -25,6 +28,11 @@ export function handleEncryptionGet(innerParams: SFSObjectData, ctx: HandlerCont
     let modulus = Buffer.from(pkm, "base64");
     if (modulus.length > 0 && modulus[0] === 0x00) modulus = modulus.subarray(1);
     const exponent = Buffer.from(pke, "base64");
+    // The client's key is 1024-bit with exponent 65537. Bigger keys cost a
+    // long modular power each, so they're refused.
+    if (modulus.length > MAX_MODULUS_BYTES || exponent.length > MAX_EXPONENT_BYTES) {
+      throw new Error(`unsupported ${modulus.length * 8}-bit key with a ${exponent.length}-byte exponent`);
+    }
     const publicKey = crypto.createPublicKey({
       key: { kty: "RSA", n: toBase64Url(modulus), e: toBase64Url(exponent) },
       format: "jwk",

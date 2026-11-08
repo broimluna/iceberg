@@ -16,6 +16,8 @@ import { rateLimit } from "../utils/rateLimit.ts";
 
 // No login is needed and every call stores a key, so calls are limited per
 // address. The client asks once and reuses the key until it stops working.
+const MAX_MODULUS_BYTES = 512; // 4096 bits
+const MAX_EXPONENT_BYTES = 4;
 const keyLimit = rateLimit({
     name: 'encryption-key', envVar: 'AUTH_ENCRYPTION_KEY_PER_MIN', defaultLimit: 30, windowMs: 60_000,
     onLimited: (res) => res.status(429).json({ error: 'Too many requests' }),
@@ -47,6 +49,13 @@ router.post('/encryption-trusted/v1/encryptionKey', keyLimit, (req, res) => {
         // Decode the base64-encoded public key components
         const exponentBytes = Buffer.from(publicKeyData.exponent, 'base64');
         const modulusBytes = Buffer.from(publicKeyData.modulus, 'base64');
+        // The client's key is 1024-bit with exponent 65537. Bigger keys cost
+        // a long modular power each, so they're refused.
+        const modulusLength = modulusBytes.length - (modulusBytes[0] === 0 ? 1 : 0);
+        if (modulusLength > MAX_MODULUS_BYTES || exponentBytes.length > MAX_EXPONENT_BYTES) {
+            console.log(`[ENCRYPTION] Refused a ${modulusLength * 8}-bit key with a ${exponentBytes.length}-byte exponent`);
+            return res.status(400).json({ error: 'Unsupported public key' });
+        }
         
         console.log(`[ENCRYPTION] Decoded exponent bytes: ${exponentBytes.length}, modulus bytes: ${modulusBytes.length}`);
         
