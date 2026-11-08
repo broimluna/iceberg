@@ -12,6 +12,14 @@ const router = express.Router();
 import crypto from "crypto";
 import * as db from "../database.ts";
 import { buildRsaPublicKeyFromBytes, decryptAesCbc, encryptAesCbc } from "../lib/crypto.ts";
+import { rateLimit } from "../utils/rateLimit.ts";
+
+// No login is needed and every call stores a key, so calls are limited per
+// address. The client asks once and reuses the key until it stops working.
+const keyLimit = rateLimit({
+    name: 'encryption-key', envVar: 'AUTH_ENCRYPTION_KEY_PER_MIN', defaultLimit: 30, windowMs: 60_000,
+    onLimited: (res) => res.status(429).json({ error: 'Too many requests' }),
+});
 
 /**
  * POST /encryption-trusted/v1/encryptionKey
@@ -20,7 +28,7 @@ import { buildRsaPublicKeyFromBytes, decryptAesCbc, encryptAesCbc } from "../lib
  * Request: PublicKeyData { exponent: number[], modulus: number[] }
  * Response: EncryptionKey { keyId, encryptedSymmetricKey }
  */
-router.post('/encryption-trusted/v1/encryptionKey', (req, res) => {
+router.post('/encryption-trusted/v1/encryptionKey', keyLimit, (req, res) => {
     const { swid, username } = req.player;
     const publicKeyData = req.body;
     

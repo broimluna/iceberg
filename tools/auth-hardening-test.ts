@@ -90,6 +90,33 @@ try {
   const keys: number[] = [];
   for (let i = 0; i < 31; i++) keys.push((await fetch(`${gc}/api-key`, { method: "POST" })).status);
   check(keys.filter((s) => s === 429).length >= 1, `API-key creation is limited (${keys.filter((s) => s === 429).length} limited)`);
+
+  // ---- encryption keys: no login, one stored row per call ----
+  const jwk = crypto.generateKeyPairSync("rsa", { modulusLength: 1024 }).publicKey.export({ format: "jwk" }) as any;
+  const b64 = (s: string) => Buffer.from(s, "base64url").toString("base64");
+  const keyRequest = () => fetch(`${api.base}/encryption-trusted/v1/encryptionKey`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exponent: b64(jwk.e), modulus: b64(jwk.n) }),
+  }).then((r) => r.status);
+  await api.restart({ ALLOW_SWID_AUTH: "1", AUTH_ENCRYPTION_KEY_PER_MIN: "5" });
+  const encKeys: number[] = [];
+  for (let i = 0; i < 6; i++) encKeys.push(await keyRequest());
+  check(encKeys.slice(0, 5).every((s) => s === 200) && encKeys[5] === 429, `6th encryption key in a minute is limited (${encKeys})`);
+
+  // Expired keys are deleted, not kept forever.
+  sql("INSERT INTO encryption_keys (key_id, symmetric_key, expires_at) VALUES ('old-key', x'00', datetime('now', '-1 hour'))");
+  await api.restart({ ALLOW_SWID_AUTH: "1" });
+  check(sql("SELECT 1 FROM encryption_keys WHERE key_id = 'old-key'").length === 0, "expired encryption keys are purged");
+
+  // ---- expired API keys and tokens: refused, then deleted ----
+  const oldKey = await issueApiKey(api.base);
+  sql("UPDATE guest_controller_api_keys SET expires_at = datetime('now', '-1 hour') WHERE api_key = ?", oldKey);
+  check((await register("hunter22", oldKey)).status === 401, "an expired API key is refused");
+  check(sql("SELECT 1 FROM guest_controller_api_keys WHERE api_key = ? AND datetime(expires_at) > datetime('now')", oldKey).length === 0, "and isn't renewed");
+  sql("INSERT INTO guest_controller_tokens (token, token_type, swid, expires_at) VALUES ('old-token', 'access', '{x}', datetime('now', '-1 hour'))");
+  await api.restart({ ALLOW_SWID_AUTH: "1" });
+  check(sql("SELECT 1 FROM guest_controller_api_keys WHERE api_key = ?", oldKey).length === 0, "expired API keys are purged");
+  check(sql("SELECT 1 FROM guest_controller_tokens WHERE token = 'old-token'").length === 0, "expired tokens are purged");
 } finally {
   await api.stop();
 }

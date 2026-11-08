@@ -268,6 +268,17 @@ process.on('SIGTERM', shutdown);
 // Start Server
 // =============================================================================
 
+// Expired encryption keys, API keys and tokens can't be used; delete them at
+// startup and every 10 minutes. Encryption and API keys need no login, so
+// the tables would otherwise grow with every anonymous call.
+const purgeExpired = () => {
+    db.cleanupExpiredEncryptionKeys();
+    db.cleanupExpiredApiKeys();
+    db.cleanupExpiredGuestTokens();
+};
+purgeExpired();
+setInterval(purgeExpired, 10 * 60_000).unref?.();
+
 app.listen(Number(config.server.port), config.server.host, () => {
     console.log(`CPI Web API listening at http://${config.server.host}:${config.server.port}`);
     console.log('[DATABASE] Using SQLite for persistent storage (bun:sqlite)');

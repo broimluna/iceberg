@@ -178,15 +178,10 @@ function authenticateApiKey(req, res, next) {
     const apiKey = authHeader.slice(7);
     
     // Only keys this server issued (POST /api-key; kept in the database, so
-    // they survive restarts) are accepted.
+    // they survive restarts) and not yet expired are accepted.
     const stored = apiKey ? db.getGuestApiKey(apiKey) : null;
     if (!stored) {
         return res.status(401).json(buildError('AUTHORIZATION', 'API_KEY_INVALID'));
-    }
-
-    if (new Date(stored.expiresAt) < new Date()) {
-        // Refresh expired key instead of rejecting
-        db.storeGuestApiKey(apiKey, 24 * 60 * 60);
     }
     
     db.incrementApiKeyRequestCount(apiKey);
