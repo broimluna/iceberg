@@ -62,6 +62,28 @@ try {
   r = await post("identity", { swid: "{root}" });
   check(r.json?.role === "admin", "config admin is still admin");
 
+  // Registering with an existing username must not take that account over
+  // (it used to repoint the username at the new swid, roles and all).
+  for (const name of [root, root.toUpperCase(), bob]) {
+    const reg = await fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
+      method: "POST", headers: { Authorization: "APIKEY test", "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "hunter22", profile: { username: name } }),
+    });
+    const regBody: any = await reg.json().catch(() => null);
+    check(reg.status === 400 && regBody?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with taken username ${name} is refused (${reg.status})`);
+  }
+  r = await post("identity", { swid: "{root}" });
+  check(r.json?.username === root && r.json?.role === "admin", `the admin's account still belongs to them (${JSON.stringify(r.json)})`);
+  r = await post("identity", { swid: "{bob}" });
+  check(r.json?.username === bob, `and bob's to bob (${JSON.stringify(r.json)})`);
+  // Generated names use the swid's first 8 letters and digits, so {r-o-o-t}
+  // would also be Penguinroot: it gets a suffix instead of taking root's account.
+  await createPlayer(api.base, api.dbPath, "{r-o-o-t}", "Collider");
+  const collide = usernameOf("{r-o-o-t}");
+  check(collide !== root, `a colliding generated name gets a different username (${collide})`);
+  r = await post("identity", { swid: "{root}" });
+  check(r.json?.username === root, `a colliding generated name doesn't replace the account (${collide}, root ${JSON.stringify(r.json)})`);
+
   await api.restart({ ALLOW_SWID_AUTH: "1" });
   r = await post("identity", { swid: "{bob}" });
   check(r.json?.role === "moderator", `role survives a restart (${r.json?.role})`);

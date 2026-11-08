@@ -867,21 +867,27 @@ function getPlayersByDisplayNames(displayNames) {
  * @returns {string} The generated username
  */
 function createPlayerFromSwid(swid) {
-    // Generate a username from the SWID
-    // Use a short hash to make it readable
-    const hash = swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-    const username = `Penguin${hash}`;
-    
-    // Create the player record
+    const existing = db.prepare('SELECT username FROM player_identity WHERE swid = ?').get(swid);
+    if (existing) return existing.username;
+    // Penguin + the swid's first 8 letters and digits. Two swids can share
+    // those, so a taken name gets a number: an existing player row must
+    // never be handed to a new swid.
+    const base = `Penguin${swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`;
+    let username = base;
+    for (let n = 2; db.prepare('SELECT 1 FROM players WHERE username = ?').get(username); n++) username = `${base}${n}`;
+
     getOrCreatePlayer(username);
-    
-    // Create identity mapping
     db.prepare(`
-        INSERT OR REPLACE INTO player_identity (swid, username, display_name)
+        INSERT INTO player_identity (swid, username, display_name)
         VALUES (?, ?, ?)
     `).run(swid, username, username);
-    
+
     return username;
+}
+
+/** Whether any player has this username, ignoring case. */
+function usernameTakenNoCase(username) {
+    return !!db.prepare('SELECT 1 FROM players WHERE username = ? COLLATE NOCASE').get(username);
 }
 
 /**
@@ -2628,6 +2634,7 @@ export {
     getPlayerIdentityAndRole,
     setPlayerRole,
     findUsernameNoCase,
+    usernameTakenNoCase,
     db,
     initializeDatabase,
     closeDatabase,

@@ -472,14 +472,16 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
         username = db.createPlayerFromSwid(swid);
     } else {
         username = profile.username;
+        // A taken username (in any case) is refused: registering it must
+        // never repoint an existing account, and its role, at a new swid.
+        if (db.usernameTakenNoCase(username)) {
+            return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'profile.username', 'The username already exists in the system.'));
+        }
         db.getOrCreatePlayer(username);
-        // Create identity mapping
-        const hash = swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-        const stmt = db.db.prepare(`
-            INSERT OR REPLACE INTO player_identity (swid, username, display_name)
+        db.db.prepare(`
+            INSERT INTO player_identity (swid, username, display_name)
             VALUES (?, ?, ?)
-        `);
-        stmt.run(swid, username, displayName?.proposedDisplayName || username);
+        `).run(swid, username, displayName?.proposedDisplayName || username);
     }
     
     // Set password
