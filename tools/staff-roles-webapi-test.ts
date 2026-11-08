@@ -1,7 +1,7 @@
 // Staff roles in the web API: the players.role column, STAFF_ADMINS and
 // the internal identity / set-role endpoints the game server uses.
 import { Database } from "bun:sqlite";
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
 import { createPlayer } from "./lib/mix-client.ts";
 
 const { check, finish } = makeChecker();
@@ -66,7 +66,7 @@ try {
   // (it used to repoint the username at the new swid, roles and all).
   for (const name of [root, root.toUpperCase(), bob]) {
     const reg = await fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
-      method: "POST", headers: { Authorization: "APIKEY test", "Content-Type": "application/json" },
+      method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" },
       body: JSON.stringify({ password: "hunter22", profile: { username: name } }),
     });
     const regBody: any = await reg.json().catch(() => null);
@@ -74,8 +74,8 @@ try {
   }
   // Nor can a new account take an existing display name ("Root", "Bob"),
   // or a username equal to one: name lookups would find the wrong player.
-  const register = (body: unknown) => fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
-    method: "POST", headers: { Authorization: "APIKEY test", "Content-Type": "application/json" }, body: JSON.stringify(body),
+  const register = async (body: unknown) => fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
+    method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   let reg = await register({ password: "hunter22", profile: {}, displayName: { proposedDisplayName: "root" } });
   check(reg.status === 400 && ((await reg.json()) as any)?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with a taken display name is refused (${reg.status})`);

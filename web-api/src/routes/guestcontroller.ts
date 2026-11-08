@@ -11,6 +11,8 @@
  * - BEARER: Requires "Authorization: BEARER {access-token}" header
  */
 
+import { hashPassword, verifyPassword, MIN_PASSWORD, MAX_PASSWORD } from '../utils/passwords.ts';
+import { rateLimit } from '../utils/rateLimit.ts';
 import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
@@ -72,27 +74,6 @@ function generateEtags(swid, username) {
 }
 
 /**
- * Hash a password using PBKDF2
- */
-function hashPassword(password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return `${salt}:${hash}`;
-}
-
-/**
- * Verify a password against a stored hash
- */
-function verifyPassword(password, storedHash) {
-    if (!storedHash) return false;
-    const [salt, originalHash] = storedHash.split(':');
-    if (!salt || !originalHash) return false;
-    
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return hash === originalHash;
-}
-
-/**
  * Build a GuestControllerWebCallResponse error
  */
 /** Why a name was refused, for developerMessage. */
@@ -104,6 +85,13 @@ function nameProblem(reason) {
         spacing: 'Names may not contain double spaces',
     }[reason];
 }
+
+// Unauthenticated endpoints that cost the server (password hashing) or
+// create things are rate limited per address.
+const tooMany = (res) => res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
+const loginLimit = rateLimit({ name: 'login', envVar: 'AUTH_LOGIN_PER_MIN', defaultLimit: 10, windowMs: 60_000, onLimited: tooMany });
+const registerLimit = rateLimit({ name: 'register', envVar: 'AUTH_REGISTER_PER_HOUR', defaultLimit: 5, windowMs: 3_600_000, onLimited: tooMany });
+const apiKeyLimit = rateLimit({ name: 'api-key', envVar: 'AUTH_APIKEY_PER_MIN', defaultLimit: 30, windowMs: 60_000, onLimited: tooMany });
 
 function buildError(keyCategory, errorCode, inputName = null, message = null) {
     return {
@@ -187,20 +175,13 @@ function authenticateApiKey(req, res, next) {
     
     const apiKey = authHeader.slice(7);
     
-    // For private server: accept any non-empty API key.
-    // The client obtains one from /api-key and sends it here; we trust it.
-    // If strict validation is desired, uncomment the store check below.
-    if (!apiKey || apiKey.length === 0) {
+    // Only keys this server issued (POST /api-key; kept in the database, so
+    // they survive restarts) are accepted.
+    const stored = apiKey ? db.getGuestApiKey(apiKey) : null;
+    if (!stored) {
         return res.status(401).json(buildError('AUTHORIZATION', 'API_KEY_INVALID'));
     }
-    
-    // Auto-register unknown keys so restarts don't break existing clients
-    if (!db.getGuestApiKey(apiKey)) {
-        db.storeGuestApiKey(apiKey, 24 * 60 * 60); // 24 hours
-    }
-    
-    const stored = db.getGuestApiKey(apiKey);
-    
+
     if (new Date(stored.expiresAt) < new Date()) {
         // Refresh expired key instead of rejecting
         db.storeGuestApiKey(apiKey, 24 * 60 * 60);
@@ -249,7 +230,7 @@ function authenticateBearer(req, res, next) {
  * No authentication required.
  * Returns API key in response header.
  */
-router.post('/jgc/v5/client/:clientId/api-key', (req, res) => {
+router.post('/jgc/v5/client/:clientId/api-key', apiKeyLimit, (req, res) => {
     // START FIX: Use hardcoded reference key to ensure client acceptance
     // The client may have strict validation on key format/length
     // This key is from the reference Java implementation (APIKey.java)
@@ -284,7 +265,7 @@ router.post('/jgc/v5/client/:clientId/api-key', (req, res) => {
  * Requires APIKEY authentication.
  * Query params: expand=profile,displayName,marketing
  */
-router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, res) => {
+router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiKey, async (req, res) => {
     try {
         // Never log the body: it carries the plaintext password.
         console.log(`[LOGIN] Login attempt for loginValue: ${JSON.stringify(req.body?.loginValue ?? null)}`);
@@ -323,14 +304,24 @@ router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, re
         const storedHash = db.getPlayerPassword(swid);
         console.log(`[LOGIN] Stored hash exists: ${!!storedHash}`);
     
-        // Migration strategy: If no password is set (legacy account), set it to the provided password.
-        // This effectively "claims" the account with the first password used after this update.
+        // An account with no password can't be logged into: claiming it with
+        // the first password anyone types would let anyone take it.
+        // LEGACY_PASSWORD_CLAIM=1 restores that for databases from before
+        // passwords existed.
         if (!storedHash) {
-            console.log(`[LOGIN] No password set for ${loginValue}, setting it now.`);
-            db.setPlayerPassword(swid, hashPassword(password));
+            if (process.env.LEGACY_PASSWORD_CLAIM !== '1') {
+                console.log(`[LOGIN] ${loginValue} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
+                return res
+                    .status(400)
+                    .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
+            }
+            console.log(`[LOGIN] No password set for ${loginValue}, setting it now (LEGACY_PASSWORD_CLAIM).`);
+            db.setPlayerPassword(swid, await hashPassword(password));
         } else {
             console.log(`[LOGIN] Verifying password...`);
-            if (!verifyPassword(password, storedHash)) {
+            const verified = await verifyPassword(password, storedHash);
+            if (verified.upgrade) db.setPlayerPassword(swid, await hashPassword(password));
+            if (!verified.ok) {
                 console.log(`[LOGIN] Password verification FAILED for ${loginValue}`);
                 return res
                     .status(400)
@@ -466,12 +457,18 @@ router.post('/jgc/v5/client/:clientId/guest/refresh-auth/:refreshToken', (req, r
  * Requires APIKEY authentication.
  * Query params: autogenerateUsername=true, langPref=en
  */
-router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req, res) => {
+router.post('/jgc/v5/client/:clientId/guest/register', registerLimit, authenticateApiKey, async (req, res) => {
     const { password, profile, marketing, displayName, legalAssertions } = req.body;
     const autogenerateUsername = req.query.autogenerateUsername === 'true';
     
     if (!password) {
         return res.status(400).json(buildError('REGISTER', 'PASSWORD_REQUIRED', 'password'));
+    }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD) {
+        return res.status(400).json(buildError('REGISTER', 'PASSWORD_TOO_SHORT', 'password'));
+    }
+    if (password.length > MAX_PASSWORD) {
+        return res.status(400).json(buildError('REGISTER', 'PASSWORD_TOO_LONG', 'password'));
     }
     
     // Both names follow the shared name rule (utils/names.ts), and names
@@ -519,7 +516,7 @@ router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req,
     }
     
     // Set password
-    db.setPlayerPassword(swid, hashPassword(password));
+    db.setPlayerPassword(swid, await hashPassword(password));
     
     // Set display name if provided
     if (proposed) {

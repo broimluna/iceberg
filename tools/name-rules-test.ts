@@ -1,6 +1,6 @@
 // The shared name rule (web-api/src/utils/names.ts) and every path that
 // sets a username or display name.
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 import { checkName } from "../web-api/src/utils/names.ts";
 
@@ -36,8 +36,8 @@ for (const [label, input, reason] of bad) {
 // ---- every path uses it ----
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1" } });
 try {
-  const register = (body: unknown) => fetch(`${api.base}/jgc/v5/client/T/guest/register?langPref=en`, {
-    method: "POST", headers: { Authorization: "APIKEY t", "Content-Type": "application/json" }, body: JSON.stringify(body),
+  const register = async (body: unknown) => fetch(`${api.base}/jgc/v5/client/T/guest/register?langPref=en`, {
+    method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   for (const n of ["Cool😎Guy", "<color=red>Mod</color>", "аdmin", "x".repeat(5000), "ㅤㅤㅤ"]) {
     let r = await register({ password: "hunter22", profile: { username: n } });
