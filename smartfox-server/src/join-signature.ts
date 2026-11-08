@@ -19,7 +19,7 @@ const KEY_FILE = path.resolve(import.meta.dir, "../../.iceberg-join-key");
 const GRACE_MS = 24 * 3_600_000;
 
 let key: string | null = null;
-function signingKey(): string {
+export function signingKey(): string {
   if (key) return key;
   if (process.env.JOIN_SIGNING_KEY) return (key = process.env.JOIN_SIGNING_KEY);
   try {

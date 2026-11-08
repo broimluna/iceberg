@@ -17,7 +17,7 @@ import path from "node:path";
 const KEY_FILE = path.resolve(import.meta.dir, "../../../.iceberg-join-key");
 
 let key: string | null = null;
-function signingKey(): string {
+export function signingKey(): string {
     if (key) return key;
     if (process.env.JOIN_SIGNING_KEY) return (key = process.env.JOIN_SIGNING_KEY);
     try {
