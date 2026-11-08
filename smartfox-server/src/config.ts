@@ -19,6 +19,16 @@ export const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET ?? "";
 // this server through a proxy, since they'd all share its address.
 export const MAX_PACKETS_PER_SEC = Number(process.env.SFS_MAX_PACKETS_PER_SEC ?? 100);
 export const MAX_CONNECTIONS_PER_IP = Number(process.env.SFS_MAX_CONNECTIONS_PER_IP ?? 16);
+// Connections that don't log in within SFS_LOGIN_TIMEOUT_MS, and logged-in
+// ones that send nothing for SFS_IDLE_TIMEOUT_MS, are closed. Clients ping
+// every 4 seconds once logged in (the lag monitor), so an idle player is
+// never affected, only a client that has gone away. SFS_MAX_CONNECTIONS
+// caps all connections; SFS_MAX_CONNECTS_PER_IP_PER_MIN caps how fast one
+// address may open them. 0 turns any of these off.
+export const LOGIN_TIMEOUT_MS = Number(process.env.SFS_LOGIN_TIMEOUT_MS ?? 10_000);
+export const IDLE_TIMEOUT_MS = Number(process.env.SFS_IDLE_TIMEOUT_MS ?? 120_000);
+export const MAX_CONNECTIONS = Number(process.env.SFS_MAX_CONNECTIONS ?? 2000);
+export const MAX_CONNECTS_PER_IP_PER_MIN = Number(process.env.SFS_MAX_CONNECTS_PER_IP_PER_MIN ?? 60);
 // Development only: accept joinRoomData without a valid web API signature.
 export const ALLOW_UNSIGNED_LOGIN = process.env.SFS_ALLOW_UNSIGNED_LOGIN === "1";
 
