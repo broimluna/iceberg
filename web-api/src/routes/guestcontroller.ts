@@ -12,7 +12,7 @@
  */
 
 import { hashPassword, verifyPassword, MIN_PASSWORD, MAX_PASSWORD } from '../utils/passwords.ts';
-import { rateLimit } from '../utils/rateLimit.ts';
+import { rateLimit, accountFailureLimit } from '../utils/rateLimit.ts';
 import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
@@ -91,6 +91,7 @@ function nameProblem(reason) {
 const tooMany = (res) => res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
 const loginLimit = rateLimit({ name: 'login', envVar: 'AUTH_LOGIN_PER_MIN', defaultLimit: 10, windowMs: 60_000, onLimited: tooMany });
 const registerLimit = rateLimit({ name: 'register', envVar: 'AUTH_REGISTER_PER_HOUR', defaultLimit: 5, windowMs: 3_600_000, onLimited: tooMany });
+const accountFails = accountFailureLimit();
 const apiKeyLimit = rateLimit({ name: 'api-key', envVar: 'AUTH_APIKEY_PER_MIN', defaultLimit: 30, windowMs: 60_000, onLimited: tooMany });
 
 function buildError(keyCategory, errorCode, inputName = null, message = null) {
@@ -299,6 +300,11 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         const swid = playerInfo.swid;
         console.log(`[LOGIN] Found SWID: ${swid}`);
     
+        if (accountFails.locked(swid)) {
+            console.log(`[LOGIN] ${loginValue} has too many failed logins; locked for now`);
+            return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
+        }
+
         // Verify password
         console.log(`[LOGIN] Getting stored password hash for SWID: ${swid}`);
         const storedHash = db.getPlayerPassword(swid);
@@ -322,6 +328,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
             const verified = await verifyPassword(password, storedHash);
             if (verified.upgrade) db.setPlayerPassword(swid, await hashPassword(password));
             if (!verified.ok) {
+                accountFails.fail(swid);
                 console.log(`[LOGIN] Password verification FAILED for ${loginValue}`);
                 return res
                     .status(400)

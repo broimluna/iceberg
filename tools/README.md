@@ -25,6 +25,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `party-games-manager-test.ts` | The party game manager in-process: `pgame.start.v2` / `pgame.message` / `pgame.end` reach only the players, the game prop is shown to the room, rewards are granted and sent as `reward.add_delayed`, and bad messages are ignored. |
 | `party-games-findfour-test.ts` | Find Four rules in-process: turn order, column fixes, wins in every direction, draws, the turn timeout and forfeits. |
 | `auth-hardening-test.ts` | Guest login and registration: only issued API keys, password length, 210,000-round hashes (old ones still log in and are upgraded), no claiming password-less accounts, and per-address rate limits. |
+| `rate-limit-test.ts` | The rate limiter in-process: `TRUST_PROXY` reads the proxy-appended address, not one the client wrote; IPv6 is limited per /64; the address table stays bounded. |
 | `name-rules-test.ts` | The shared username/display-name rule (`web-api/src/utils/names.ts`): emoji, rich-text tags, invisible and control characters, look-alike alphabets, padding and Unicode folding are refused on registration, profile updates and both renames. |
 | `staff-roles-webapi-test.ts` | Staff roles in the web API: `STAFF_ADMINS` (exact names, so a look-alike account isn't an admin), `players.role`, and the internal identity / set-role endpoints. |
 | `staff-unit-test.ts` | Staff command pieces in-process: what counts as a command (emoticons don't), roles before the account lookup answers, mutes at reconnect, the restart countdown schedule. |

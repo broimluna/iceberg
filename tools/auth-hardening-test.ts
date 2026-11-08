@@ -56,6 +56,13 @@ try {
   await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "1" });
   check((await login("NoPassword", "mine-now")).status === 200, "LEGACY_PASSWORD_CLAIM=1 allows the old claim");
 
+  // ---- one account: failed logins are limited whatever address they come from ----
+  await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "0", AUTH_ACCOUNT_FAILS_PER_15MIN: "3" });
+  const fails: number[] = [];
+  for (let i = 0; i < 4; i++) fails.push((await login(username, "guess" + i)).status);
+  check(fails.slice(0, 3).every((s) => s === 400) && fails[3] === 429, `4th failed login to one account is limited (${fails})`);
+  check((await login(username, "oldpass1")).status === 429, "even the right password waits out the lock");
+
   // ---- rate limits (per IP) ----
   await api.restart({ ALLOW_SWID_AUTH: "1", LEGACY_PASSWORD_CLAIM: "0", AUTH_LOGIN_PER_MIN: "5", AUTH_REGISTER_PER_HOUR: "3", AUTH_APIKEY_PER_MIN: "30" });
   const statuses: number[] = [];
