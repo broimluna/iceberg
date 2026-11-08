@@ -299,7 +299,11 @@ a shareable tray: `con` {type `consum`, name} plus `con_prop`
 `{"actionCount": open slots}` (`TotalItemQuantity`), read by the client's
 `InvitationalItemExperience`. Another player accepts by interacting with
 the holder (`l.a` Interact on the player). When the last slot fills, the
-invitation is removed (`con` + `con_prop` NULL) and the game starts. During
+invitation is removed (`con` + `con_prop` NULL) and the game starts about a
+second later. The gap matters: the SFS client applies user variables on
+arrival but dispatches their change events once per frame, so a game `con`
+landing in the same frame as the removal makes the removal's handler throw
+(it reads the new `con` with no `con_prop`) and the invitation never closes. During
 the game each player holds the game's `PlayerProp` as `con` {type `pgame`,
 name} with no `con_prop` (the client raises `PARTYGAME_EQUIPPED`), shown to
 the whole room and cleared at the end.
