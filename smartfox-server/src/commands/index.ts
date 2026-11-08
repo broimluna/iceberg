@@ -6,6 +6,7 @@ import { commands as info } from "./info.ts";
 import { commands as moderation } from "./moderation.ts";
 import { commands as economy } from "./economy.ts";
 import { commands as serverAdmin } from "./server-admin.ts";
+import { commands as roleAdmin } from "./role-admin.ts";
 
 // Staff chat commands: chat starting with ":" and two or more letters, from a
 // moderator or admin. Anything else, including every player's chat and
@@ -15,7 +16,7 @@ import { commands as serverAdmin } from "./server-admin.ts";
 // otherwise form an import cycle with this table.
 let table: CommandDef[] | undefined;
 export function commandTable(): CommandDef[] {
-  return (table ??= [...info, ...moderation, ...economy, ...serverAdmin]);
+  return (table ??= [...info, ...moderation, ...economy, ...serverAdmin, ...roleAdmin]);
 }
 
 /** Runs a staff command; false means the text is ordinary chat. */

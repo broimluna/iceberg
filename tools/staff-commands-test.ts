@@ -233,6 +233,39 @@ try {
     }
   }
 
+  if (run("roles")) {
+    await setRoleVia(bob, "moderator"); await setRoleVia(carol, "player");
+    await root.connect(); await bob.connect(); await carol.connect();
+    await SAY(root, `:promote ${carol.username} moderator`);
+    check(root.bubbles.includes(`${carol.username} is now moderator`), `promote confirmed (${root.bubbles})`);
+    await SAY(carol, ":online");
+    check(carol.bubbles.some((b) => b.includes("online")), "the promoted player can use commands straight away");
+    await SAY(root, `:demote ${carol.username.toUpperCase()}`);
+    check(root.bubbles.includes(`${carol.username} is now player`), `demote confirmed, any case (${root.bubbles})`);
+    await SAY(carol, ":online");
+    check(bob.roomChats.includes(":online") && carol.bubbles.length === 0, "the demoted player's commands are chat again");
+    await SAY(root, `:promote ${carol.username} owner`);
+    check(root.errors.some((e) => e.startsWith("Usage:")), "unknown role is refused");
+    await SAY(root, ":promote ghost admin");
+    check(root.errors.includes("No account named ghost"), `unknown account (${root.errors})`);
+    // Offline players can be promoted; the role applies at their next login.
+    await SAY(root, `:promote ${dave.username} moderator`);
+    check(root.errors.includes(`${dave.username} is an admin in STAFF_ADMINS`), `config admins can't be changed (${root.errors})`);
+    const erin = new Client(servers, "{st-erin}", "Erin");
+    await erin.account(); everyone.push(erin);
+    await SAY(root, `:promote ${erin.username} moderator`);
+    check(root.bubbles.includes(`${erin.username} is now moderator`), "promote an offline account");
+    await erin.connect();
+    await SAY(erin, ":online");
+    check(erin.bubbles.some((b) => b.includes("online")), "the role applies when they log in");
+    await SAY(root, `:demote ${root.username}`);
+    check(root.errors.includes("You can't demote yourself"), `no demoting yourself (${root.errors})`);
+    await SAY(bob, `:promote ${bob.username} admin`);
+    check(bob.errors.includes("Unknown command"), "a moderator can't promote");
+    await setRoleVia(carol, "player");
+    await disconnectAll();
+  }
+
   if (run("unsigned")) {
     // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
     // the account, but never grants a staff role.
