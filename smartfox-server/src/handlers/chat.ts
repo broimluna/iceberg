@@ -4,6 +4,8 @@ import { getByRoomExcluding } from "../session-registry.ts";
 import { onChatMessage } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 import { handleCommand } from "../commands/index.ts";
+import { replyError } from "../commands/reply.ts";
+import { mutedUntil } from "../mutes.ts";
 
 // "chat.msg"
 // Client -> server: "msg" = JSON SignedResponse<ChatMessage>, encrypted once
@@ -28,6 +30,12 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
     }
   }
   if (handleCommand(messageText, ctx)) return;
+  const muted = mutedUntil(ctx.session.accountName);
+  if (muted !== undefined) {
+    const minutes = Math.ceil((muted - Date.now()) / 60_000);
+    replyError(ctx, `You are muted for ${minutes} more minute${minutes === 1 ? "" : "s"}`);
+    return;
+  }
   const receivedChatMessage = `{"senderSessionId":${ctx.session.playerSessionId ?? "0"},"message":${JSON.stringify(
     messageText
   )},"emotion":${emotion}}`;

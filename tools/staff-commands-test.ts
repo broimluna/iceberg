@@ -70,6 +70,46 @@ try {
     await disconnectAll();
   }
 
+  if (run("moderation")) {
+    await fetch(`${servers.api.base}/api/internal/set-role`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: bob.username, role: "moderator" }),
+    });
+    await root.connect(); await bob.connect(); await carol.connect(); await dave.connect();
+    await SAY(bob, `:kick ${carol.username}`);
+    await until(() => carol.closed);
+    check(carol.kickReason === 1 && carol.closed, `kicked player gets reason 1 and is disconnected (${carol.kickReason}, ${carol.closed})`);
+    check(bob.bubbles.includes(`Kicked ${carol.username}`), `kick is confirmed (${bob.bubbles})`);
+    await SAY(bob, `:kick ${root.username}`);
+    check(bob.errors.includes(`You can't kick ${root.username}`) && !root.closed, `a moderator can't kick an admin (${bob.errors})`);
+    await SAY(bob, `:kick ${bob.username}`);
+    check(bob.errors.includes("You can't kick yourself") && !bob.closed, `nobody can kick themselves (${bob.errors})`);
+
+    await carol.connect();
+    await SAY(bob, `:mute ${carol.username} 5`);
+    check(bob.bubbles.some((b) => b.includes(`Muted ${carol.username}`)), `mute is confirmed (${bob.bubbles})`);
+    check(carol.errors.some((e) => e.includes("muted")), `the muted player is told (${carol.errors})`);
+    await SAY(carol, "hello?");
+    check(!dave.roomChats.includes("hello?") && carol.errors.some((e) => e.includes("muted")), `muted chat isn't relayed (${carol.errors})`);
+    carol.disconnect(); await sleep(150); await carol.connect();
+    await SAY(carol, "still here");
+    check(!dave.roomChats.includes("still here"), "a mute survives reconnecting");
+    for (const bad of ["0", "1441", "abc", "1.5"]) {
+      await SAY(bob, `:mute ${dave.username} ${bad}`);
+      check(bob.errors.some((e) => e.startsWith("Usage:")), `:mute with ${bad} minutes is refused (${bob.errors})`);
+    }
+    await SAY(dave, "dave talks");
+    check(carol.roomChats.includes("dave talks"), "a refused mute mutes nobody");
+    await SAY(bob, `:mute ${root.username}`);
+    check(bob.errors.includes(`You can't mute ${root.username}`), `a moderator can't mute an admin (${bob.errors})`);
+    await SAY(bob, `:unmute ${carol.username}`);
+    check(bob.bubbles.includes(`Unmuted ${carol.username}`), `unmute is confirmed (${bob.bubbles})`);
+    await SAY(carol, "back");
+    check(dave.roomChats.includes("back"), "unmuted chat is relayed");
+    await SAY(bob, `:unmute ${carol.username}`);
+    check(bob.errors.includes(`${carol.username} isn't muted`), `unmuting twice (${bob.errors})`);
+    await disconnectAll();
+  }
+
   if (run("unsigned")) {
     // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
     // the account, but never grants a staff role.
