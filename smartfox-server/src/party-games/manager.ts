@@ -14,7 +14,8 @@ import type { Session } from "../session.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
-import type { PartyGameSession } from "./session.ts";
+import { host, type PartyGameSession } from "./session.ts";
+import { FindFour } from "./find-four.ts";
 
 export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[]) => PartyGameSession;
 
@@ -176,3 +177,9 @@ export function onPartyGamePlayerLeft(s: Session): void {
   log(`${s.userName} left session ${game.id}`);
   guarded(game, () => game.onPlayerLeft(player));
 }
+
+host.end = endSession;
+host.guarded = guarded;
+host.send = sendGameMessage;
+
+registerGameType(2, (id, def, players) => new FindFour(id, def, players));
