@@ -18,7 +18,7 @@ const router = express.Router();
  * Response format based on cpi-web-service reference implementation
  */
 router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
-    const { UserId, InvitationId, IsTrusted } = req.body;
+    const { UserId, InvitationId } = req.body;
     
     console.log(`[FRIENDSHIP] Accept invitation request from ${UserId}, InvitationId: ${InvitationId} (type: ${typeof InvitationId})`);
     
@@ -36,7 +36,9 @@ router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
         }
     }
     
-    if (!invitation) {
+    // Only the invitee accepts. The inviter has a row for the same
+    // invitation (isInviter), which used to let them accept it themselves.
+    if (!invitation || invitation.isInviter) {
         console.log(`[FRIENDSHIP] Invitation ${InvitationId} not found for user ${UserId}`);
         return res.json({
             Status: 'INVITATION_DOES_NOT_EXIST',
@@ -44,8 +46,11 @@ router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
         });
     }
     
-    // Get friend's user ID from display name
-    const friend = db.getPlayerByDisplayName(invitation.friendDisplayName);
+    // The inviter, by the SWID stored with the invitation. Rows from before
+    // friend_swid existed fall back to the display name.
+    const friend = invitation.friendSwid
+        ? db.getPlayerBySwid(invitation.friendSwid)
+        : db.getPlayerByDisplayName(invitation.friendDisplayName);
     if (!friend) {
         console.log(`[FRIENDSHIP] Friend ${invitation.friendDisplayName} not found`);
         return res.json({
@@ -54,9 +59,10 @@ router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
         });
     }
     
-    // Add friendship for both users in database
-    db.addMixFriendship(UserId, friend.swid, IsTrusted || false);
-    db.addMixFriendship(friend.swid, UserId, IsTrusted || false);
+    // Trust is what the inviter asked for, not what the accepter sends.
+    const isTrusted = invitation.isTrusted;
+    db.addMixFriendship(UserId, friend.swid, isTrusted);
+    db.addMixFriendship(friend.swid, UserId, isTrusted);
     
     // Remove invitation from database
     db.removeMixFriendshipInvitation(InvitationId);
@@ -67,7 +73,7 @@ router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
     notify(friend.swid, 'AddFriendship', {
         Friend: mixUser(UserId, accepter),
         FriendshipInvitationId: InvitationId,
-        IsTrusted: IsTrusted || false
+        IsTrusted: isTrusted
     });
     
     console.log(`[FRIENDSHIP] Friendship created between ${UserId} and ${friend.swid}`);
@@ -76,7 +82,7 @@ router.put('/friendship', authenticateMix, (req, res) => inTransaction(() => {
         Notification: notify(UserId, 'AddFriendship', {
             Friend: mixUser(friend.swid, friend),
             FriendshipInvitationId: InvitationId,
-            IsTrusted: IsTrusted || false
+            IsTrusted: isTrusted
         })
     });
     
@@ -173,8 +179,8 @@ router.put('/friendship/invitation', authenticateMix, (req, res) => inTransactio
     const inviterName = inviterPlayer?.displayName || inviterPlayer?.username || 'Unknown';
     
     // One row per side of the invitation.
-    db.addMixFriendshipInvitation(invitationId, UserId, InviteeDisplayName, true, IsTrusted || false);
-    db.addMixFriendshipInvitation(invitationId, invitee.swid, inviterName, false, IsTrusted || false);
+    db.addMixFriendshipInvitation(invitationId, UserId, InviteeDisplayName, true, IsTrusted || false, invitee.swid);
+    db.addMixFriendshipInvitation(invitationId, invitee.swid, inviterName, false, IsTrusted || false, UserId);
     
     // The invitee receives it through /notifications/sinceSequence.
     notify(invitee.swid, 'AddFriendshipInvitation', {

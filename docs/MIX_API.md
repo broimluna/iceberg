@@ -975,6 +975,42 @@ IDs:
 
 They also send different cellophane client tokens.
 
+### Friend invitations and display names in iceberg (fixed 2026-11-07)
+
+A security review after the phase 0-3 merge found three ways to abuse
+names and invitations. All are fixed and covered by
+`tools/mix-security-test.ts`.
+
+- **Only the invitee can accept.** An invitation is stored as two rows
+  with the same `invitation_id`, one per side, with `is_inviter` set on
+  the inviter's row. `PUT /friendship` looked up the id among the
+  *caller's* rows, so the inviter found their own row and could accept
+  their own invitation, forcing a friendship. Now a match on an
+  `is_inviter` row is answered with `INVITATION_DOES_NOT_EXIST`, as if
+  it weren't there.
+- **Trust comes from the invitation.** The accept call's `IsTrusted`
+  used to be copied onto both friendship rows, so the accepting player
+  could upgrade an untrusted invitation to trusted on their own. In Mix,
+  trust is what unlocks free text chat (§7), so it has to be what the
+  inviter offered. iceberg now ignores the accept call's `IsTrusted` and
+  uses the stored one.
+- **Invitations remember SWIDs, not just names.** Accepting found the
+  inviter with `getPlayerByDisplayName(friend_display_name)`. If the
+  inviter renamed, the name could point at someone else, and the
+  friendship went to them. Invitation rows now carry `friend_swid`
+  (added by a column migration). Rows from before it still fall back to
+  the name.
+- **`PUT /displayname` enforces rules.** It used to store anything.
+  Now the name is trimmed and must be 3-20 characters (CPI
+  registration's limit, `guestcontroller.ts`). It must not be used by
+  another player as a display name or username, case-insensitively,
+  because `getPlayerByDisplayName` matches both. Failing any of these
+  gives `DISPLAYNAME_ASSIGNMENT_FAILED`. A name the shared filter
+  (§9, "Text moderation") blocks or masks gives
+  `DISPLAYNAME_MODERATION_FAILED`. Both are the statuses the client's
+  `DisplayNameUpdater` switches on, so the app shows its own error for
+  each.
+
 ---
 
 ## 9. Moderation: alerts, bans and the escalation ladder
@@ -1103,7 +1139,16 @@ Two consequences:
   repeat offenders climb the ladder by default.
 - Enforcement is server-side only: Mix calls get 401
   `UNAUTHORIZED_BANNED`, and Guest Controller login/refresh get the
-  400 codes above. A ban is active while `lifted_at IS NULL` and
+  400 codes above. CPI web-api calls (`middleware/auth.ts`) get
+  401 `{code: 3}`, which is CPI's "refresh your token". The refresh is
+  then refused with the ban, which the game shows. Before 2026-11-07
+  CPI only checked bans at login and refresh, so an access token issued
+  before the ban kept working for up to its 1-hour lifetime. Tokens
+  aren't deleted on a ban: Mix needs a valid token to receive
+  `UNAUTHORIZED_BANNED`, the status that makes it log the user out with
+  a ban message. A player already inside a SmartFox room stays there
+  until they disconnect, but can't join again, because joining goes
+  through web-api. A ban is active while `lifted_at IS NULL` and
   `until` (ISO-8601 UTC, so it compares as text) is null or in the
   future.
 - Operator CLI: `bun tools/mod.ts sanction <swid|name> <TYPE> [level]`

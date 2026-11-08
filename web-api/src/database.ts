@@ -497,6 +497,12 @@ function initializeDatabase() {
         console.log('[DATABASE] Migrated mix_friendship_invitations to a per-side primary key');
     }
 
+    // The other side's SWID. Accepting used to find the inviter by display
+    // name, so renaming onto a pending inviter's old name redirected the
+    // friendship. Rows from before this column fall back to the name.
+    const invitationCols = db.prepare("SELECT name FROM pragma_table_info('mix_friendship_invitations')").all().map((c: any) => c.name);
+    if (!invitationCols.includes('friend_swid')) db.exec("ALTER TABLE mix_friendship_invitations ADD COLUMN friend_swid TEXT");
+
     // Mix alerts
     db.exec(`
         CREATE TABLE IF NOT EXISTS mix_alerts (
@@ -855,6 +861,17 @@ function createPlayerFromSwid(swid) {
  * @param {string} swid - The player's SWID
  * @param {string} displayName - The new display name
  */
+/**
+ * Whether another player already uses this name as a display name or a
+ * username (case-insensitive). getPlayerByDisplayName matches either, so
+ * both have to be unique for name lookups to be unambiguous.
+ */
+function isDisplayNameTaken(displayName, exceptSwid) {
+    return !!db.prepare(`SELECT 1 FROM player_identity
+        WHERE swid != ? AND (display_name = ? COLLATE NOCASE OR username = ? COLLATE NOCASE) LIMIT 1`)
+        .get(exceptSwid, displayName, displayName);
+}
+
 function setPlayerDisplayName(swid, displayName) {
     // Don't allow empty display names
     if (!displayName || displayName.trim() === '') {
@@ -2336,7 +2353,8 @@ function getMixFriendshipInvitations(swid) {
         invitationId: row.invitation_id,
         friendDisplayName: row.friend_display_name,
         isInviter: row.is_inviter === 1,
-        isTrusted: row.is_trusted === 1
+        isTrusted: row.is_trusted === 1,
+        friendSwid: row.friend_swid ?? null
     }));
 }
 
@@ -2347,12 +2365,13 @@ function getMixFriendshipInvitations(swid) {
  * @param {string} friendDisplayName - The friend's display name
  * @param {boolean} isInviter - Whether this user is the inviter
  * @param {boolean} isTrusted - Whether this is a trusted invitation
+ * @param {string} friendSwid - The other side's SWID
  */
-function addMixFriendshipInvitation(invitationId, swid, friendDisplayName, isInviter = false, isTrusted = false) {
+function addMixFriendshipInvitation(invitationId, swid, friendDisplayName, isInviter = false, isTrusted = false, friendSwid = null) {
     db.prepare(`
-        INSERT INTO mix_friendship_invitations (invitation_id, swid, friend_display_name, is_inviter, is_trusted)
-        VALUES (?, ?, ?, ?, ?)
-    `).run(invitationId, swid, friendDisplayName, isInviter ? 1 : 0, isTrusted ? 1 : 0);
+        INSERT INTO mix_friendship_invitations (invitation_id, swid, friend_display_name, is_inviter, is_trusted, friend_swid)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(invitationId, swid, friendDisplayName, isInviter ? 1 : 0, isTrusted ? 1 : 0, friendSwid);
 }
 
 /**
@@ -2597,6 +2616,7 @@ export {
     getPlayersByDisplayNames,
     createPlayerFromSwid,
     setPlayerDisplayName,
+    isDisplayNameTaken,
     setPlayerPassword,
     getPlayerPassword,
     registerPlayerSession,

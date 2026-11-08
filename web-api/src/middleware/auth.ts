@@ -9,6 +9,7 @@
 import type { Request, Response, NextFunction } from "express";
 import * as db from "../database.ts";
 import { tokenStore } from "../routes/guestcontroller.ts";
+import { isBanned } from "../services/moderation.ts";
 
 /**
  * Parse Basic Auth header and extract credentials
@@ -64,6 +65,15 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
                 return res.status(401).json({ code: 3 });
             }
             swid = authValue;
+        }
+
+        // A ban applies to tokens issued before it, too. 401 {code: 3}
+        // makes the client refresh, and the guest controller's refresh
+        // answers with the ban (a 400 the client shows), as Mix's
+        // authenticateMix already does with UNAUTHORIZED_BANNED.
+        if (isBanned(swid)) {
+            console.log(`[AUTH] ${req.method} ${req.path}: ${swid} is banned, 401 (refresh shows the ban)`);
+            return res.status(401).json({ code: 3 });
         }
 
         // Look up player by SWID
