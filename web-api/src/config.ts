@@ -55,17 +55,28 @@ console.log(`[CONFIG] Loaded ${Object.keys(questsData).length} quest definitions
 console.log(`[CONFIG] Loaded ${claimableRewardsData.length} claimable reward definitions`);
 console.log(`[CONFIG] Mascot XP thresholds: ${Object.keys(mascotXPThresholds).join(', ')}`)
 
+// Ports reach the client as JSON numbers (JoinRoomData.tcpPort is an int;
+// a string stops the client's JSON mapper), so env values are parsed and a
+// bad one stops startup.
+function portFromEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const port = Number(raw);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`${name} must be a port number (got ${JSON.stringify(raw)})`);
+    return port;
+}
+
 const config = {
     // Server settings
     server: {
-        port: process.env.PORT || 3000,
+        port: portFromEnv('PORT', 3000),
         host: process.env.HOST || '0.0.0.0'
     },
 
     // Game server connection settings (SFS2X)
     gameServer: {
         ip: process.env.GAME_SERVER_IP || '127.0.0.1',
-        tcpPort: process.env.GAME_SERVER_PORT || 9933,
+        tcpPort: portFromEnv('GAME_SERVER_PORT', 9933),
         httpsPort: 8443
     },
 

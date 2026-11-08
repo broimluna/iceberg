@@ -18,6 +18,7 @@ import { isInternalRequest } from "./utils/internalSecret.ts";
 
 // Initialize Express app
 const app = express();
+app.disable('x-powered-by');
 
 // =============================================================================
 // Middleware
