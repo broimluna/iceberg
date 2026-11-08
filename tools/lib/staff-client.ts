@@ -87,13 +87,14 @@ export class Client {
   }
 
   /** Logs in with the web API's signed joinRoomData. `loginName` overrides "un". */
-  async connect(opts: { loginName?: string; waitIdentity?: boolean } = {}) {
+  async connect(opts: { loginName?: string; waitIdentity?: boolean; unsigned?: boolean } = {}) {
     await this.account();
     this.closed = false; this.myId = -1; this.kickReason = undefined; this.buf = Buffer.alloc(0);
     const jr = await fetch(`${this.servers.api.base}/game/v1/worlds/Alpine/language/en/rooms/${this.room}/players`, {
       method: "POST", headers: { Authorization: "Basic " + btoa(`${this.swid}:x`), "Content-Type": "application/json" }, body: "{}",
     });
-    const joinText = await jr.text();
+    let joinText = await jr.text();
+    if (opts.unsigned) joinText = joinText.replace(/"signature"\s*:\s*"[^"]*"/, '"signature":"forged"');
     this.sid = joinText.match(/"sessionId"\s*:\s*(\d+)/)![1]!;
     this.sock = net.connect(this.servers.sfsPort, "127.0.0.1");
     await new Promise<void>((r) => this.sock.once("connect", () => r()));

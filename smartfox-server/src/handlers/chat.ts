@@ -3,6 +3,7 @@ import { getPossiblyEncryptedUtfString } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
 import { onChatMessage } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
+import { handleCommand } from "../commands/index.ts";
 
 // "chat.msg"
 // Client -> server: "msg" = JSON SignedResponse<ChatMessage>, encrypted once
@@ -26,6 +27,7 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
       console.log(`[${new Date().toISOString()}] ${ctx.peer} - chat.msg: failed to parse "msg" JSON: ${(err as Error).message}`);
     }
   }
+  if (handleCommand(messageText, ctx)) return;
   const receivedChatMessage = `{"senderSessionId":${ctx.session.playerSessionId ?? "0"},"message":${JSON.stringify(
     messageText
   )},"emotion":${emotion}}`;

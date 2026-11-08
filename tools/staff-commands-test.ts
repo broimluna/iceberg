@@ -12,6 +12,19 @@ const until = async (cond: () => boolean, ms = 2000) => { for (let t = 0; t < ms
 const servers: Servers = await startServers();
 const logs = () => servers.api.logs() + "\n" + servers.sfsLog();
 
+// Accounts shared by the sections. root, root2 and dave are config admins;
+// bob is promoted to moderator by the moderation section.
+const root = new Client(servers, "{st-root}", "Root");
+const root2 = new Client(servers, "{st-root2}", "Root2");
+const bob = new Client(servers, "{st-bob}", "Bob");
+const carol = new Client(servers, "{st-carol}", "Carol");
+const dave = new Client(servers, "{st-dave}", "Dave");
+for (const c of [root, root2, bob, carol, dave]) await c.account();
+await servers.setStaffAdmins([root.username, root2.username, dave.username]);
+const everyone = [root, root2, bob, carol, dave];
+const disconnectAll = async () => { for (const c of everyone) if (c.sock && !c.closed) c.disconnect(); await sleep(150); };
+const SAY = async (c: Client, text: string, wait = 300) => { for (const x of everyone) x.reset(); c.chat(text); await sleep(wait); };
+
 try {
   if (run("identity")) {
     // The login name ("un") isn't signed: rewards go to the account behind
@@ -26,6 +39,55 @@ try {
     check(granted(alice.username), "starter pack goes to the signed account");
     check(!granted(bob.username), "not to the account named in \"un\"");
     alice.disconnect();
+  }
+
+  if (run("framework")) {
+    await root.connect(); await bob.connect(); await carol.connect();
+    await SAY(root, ":help");
+    const help = root.bubbles.join("\n");
+    check([":online", ":find", ":help"].every((c) => help.includes(c)), `:help lists the commands (${JSON.stringify(help).slice(0, 200)})`);
+    check(bob.ext.length === 0 && carol.ext.length === 0, "nobody else receives the command or its reply");
+    await SAY(root, ":online");
+    check(root.bubbles.some((b) => b.includes("3 online") && b.includes(bob.username)), `:online (${root.bubbles})`);
+    await SAY(root, `:find ${bob.username.toUpperCase()}`);
+    check(root.bubbles.some((b) => b.includes(bob.username) && b.includes("Town")), `:find, any case (${root.bubbles})`);
+    await SAY(root, ":find ghost");
+    check(root.errors.includes("ghost isn't online"), `:find someone offline (${root.errors})`);
+    await SAY(root, ":nosuch");
+    check(root.errors.includes("Unknown command") && carol.roomChats.length === 0, `unknown staff command (${root.errors})`);
+    await SAY(root, ":)");
+    check(carol.roomChats.includes(":)") && root.bubbles.length + root.errors.length === 0, "a staff member's :) is chat");
+    await SAY(root, ":D hi");
+    check(carol.roomChats.includes(":D hi"), "a staff member's :D is chat");
+    await SAY(bob, ":online");
+    check(carol.roomChats.includes(":online") && bob.bubbles.length + bob.errors.length === 0, "a player's :online is plain chat");
+    await SAY(bob, ":ac 500");
+    check(carol.roomChats.includes(":ac 500") && bob.bubbles.length + bob.errors.length === 0, "a player's :ac is plain chat");
+    // (A command sent before the role is known is covered by staff-unit-test.ts.)
+    await dave.connect();
+    await SAY(dave, ":online");
+    check(dave.bubbles.some((b) => b.includes("online")), "the same command works once the role is known");
+    await disconnectAll();
+  }
+
+  if (run("unsigned")) {
+    // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
+    // the account, but never grants a staff role.
+    const dev = await startServers({ sfsEnv: { SFS_ALLOW_UNSIGNED_LOGIN: "1" } });
+    try {
+      const admin = new Client(dev, "{dev-admin}", "DevAdmin"), watcher = new Client(dev, "{dev-watcher}", "DevWatcher");
+      await admin.account(); await watcher.account();
+      await dev.setStaffAdmins([admin.username]);
+      await admin.connect({ unsigned: true }); await watcher.connect();
+      check(!admin.closed, "unsigned login accepted in development mode");
+      admin.reset(); watcher.reset();
+      admin.chat(":online");
+      await sleep(300);
+      check(watcher.roomChats.includes(":online") && admin.bubbles.length === 0, "an unsigned config admin's :online is plain chat");
+      check(dev.sfsLog().includes(`-> ${admin.username} (role ignored: unsigned)`), "the log says the role was ignored");
+    } finally {
+      await dev.stop();
+    }
   }
 } finally {
   await servers.stop();
