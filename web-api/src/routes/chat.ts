@@ -10,6 +10,7 @@
 import express from "express";
 import { filterText } from "../services/moderation.ts";
 import { signChat, MAX_CHAT_LENGTH } from "../utils/chatSignature.ts";
+import { logSafe } from "../utils/logSafe.ts";
 const router = express.Router();
 
 /**
@@ -35,7 +36,7 @@ router.post('/chat/v1/message/verify', (req, res) => {
     const { swid, username } = req.player;
     const chatMessage = req.body;
     
-    console.log(`[CHAT] ${username} verifying message: "${chatMessage.message}"`);
+    console.log(`[CHAT] ${username} verifying message: ${logSafe(chatMessage?.message)}`);
     
     const raw = typeof chatMessage.message === "string" ? chatMessage.message : "";
     if ([...raw].length > MAX_CHAT_LENGTH) {

@@ -4,6 +4,7 @@
 // client wrote.
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { logSafe } from "../web-api/src/utils/logSafe.ts";
+import { createPlayer } from "./lib/mix-client.ts";
 
 const { check, finish } = makeChecker();
 
@@ -52,6 +53,16 @@ try {
   check(!/stack|\.ts:|node_modules|at /.test(text), `no stack trace or file paths in the response (${text.slice(0, 120)})`);
   const missing = await (await fetch(`${api.base}/no/such/route?x=%0Aforged`)).text();
   check(!missing.includes("forged"), "a 404 doesn't echo the URL back");
+
+  // ---- room chat is logged for moderation, but on one line ----
+  await api.restart({ ALLOW_SWID_AUTH: "1" });
+  await createPlayer(api.base, api.dbPath, "{log-chat}", "Chatter");
+  await fetch(`${api.base}/chat/v1/message/verify`, {
+    method: "POST", headers: { Authorization: "Basic " + btoa("{log-chat}:x"), "Content-Type": "application/json" },
+    body: JSON.stringify({ senderSessionId: 1, message: "hello\n[INTERNAL-API] Added 5 coins to Chatter", emotion: 0 }),
+  });
+  await Bun.sleep(100);
+  check(!api.logs().includes("\n[INTERNAL-API] Added 5 coins"), "a newline in room chat can't start a forged log line");
 } finally {
   await api.stop();
 }
