@@ -37,7 +37,7 @@ class Client {
   username = "";
   closed = false;
   ext: { cmd: string; p: SFSObjectData }[] = [];
-  updates: { u: number; vars: Record<string, unknown> }[] = [];
+  updates: { u: number; vars: Record<string, unknown>; at: number }[] = [];
   constructor(public swid: string, public name: string) {}
 
   async connect() {
@@ -96,7 +96,7 @@ class Client {
       const p = (env.p?.type === SFSDataType.SFS_OBJECT ? env.p.value : {}) as SFSObjectData;
       if (c === 0 && a === 1 && p.id) this.myId = p.id.value as number;
       if (c === 1 && a === 13) this.ext.push({ cmd: p.c?.value as string, p: (p.p?.value ?? {}) as SFSObjectData });
-      if (c === 0 && a === 12) this.updates.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]) });
+      if (c === 0 && a === 12) this.updates.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]), at: Date.now() });
     }
   }
 }
@@ -151,7 +151,7 @@ try {
   // ---- join starts the match ----
   for (const c of all) c.clear();
   G.interactWith(O.sid);
-  await until(() => O.extOf("pgame.start.v2").length > 0);
+  await until(() => O.extOf("pgame.start.v2").length > 0, 4000);
   await sleep(100);
   const start = O.extOf("pgame.start.v2")[0];
   const id = start?.id?.value as number;
@@ -163,6 +163,13 @@ try {
     const cleared = ov.findIndex((v) => v.con === null && v.con_prop === null);
     const equipped = ov.findIndex((v) => v.con === "pgame:FindFourGameServerAdded");
     check(cleared >= 0 && equipped > cleared, `${c.name}: owner's invitation removed, then game prop (${JSON.stringify(ov)})`);
+    // The SFS client applies variable values on arrival but dispatches the
+    // change events once per frame: if the game prop lands in the same frame
+    // as the removal, the removal event sees the new "con" and the client
+    // throws, leaving the invitation open. They must arrive well apart.
+    const all2 = c.updates.filter((x) => x.u === O.myId);
+    const gap = cleared >= 0 && equipped > cleared ? all2[equipped]!.at - all2[cleared]!.at : -1;
+    check(gap >= 500, `${c.name}: game prop arrives ${gap} ms after the invitation is removed (>= 500)`);
     check(c.varsOf(G.myId).some((v) => v.con === "pgame:FindFourGameServerAdded"), `${c.name}: guest holds the game prop`);
   }
 
@@ -186,7 +193,7 @@ try {
   O.setCon("FindFourGroup"); await sleep(100); O.use("FindFourGroup"); await sleep(150);
   for (const c of all) c.clear();
   G.interactWith(O.sid);
-  await until(() => O.extOf("pgame.start.v2").length > 0);
+  await until(() => O.extOf("pgame.start.v2").length > 0, 4000);
   const id2 = O.extOf("pgame.start.v2")[0]?.id?.value as number;
   check(id2 === id + 1, `second match started (${id2})`);
   const before2 = coins(O.username);

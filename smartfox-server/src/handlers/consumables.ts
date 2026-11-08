@@ -406,6 +406,14 @@ function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: Consuma
 // holder user id.
 const invitationGuests = new Map<number, RegisteredSession[]>();
 
+// Delay between removing a filled invitation and starting its game. The
+// SFS client applies user variables on arrival but dispatches their change
+// events once per frame; if the game's "con" lands in the same frame as the
+// removal, the removal's handler reads the new "con" with no "con_prop" and
+// throws, and the invitation never closes on any client (the holder's
+// controls stay locked to it).
+const INVITATION_HANDOFF_MS = 1000;
+
 function useInvitation(ctx: HandlerContext, type: string, def: ConsumableDef): void {
   const template = templateForTrigger(type);
   if (template === undefined || !canStart(template)) {
@@ -452,7 +460,9 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
   // The invitation goes only once the start is certain.
   setHeldActionCount(holder, 0);
   removeHeldItem(holder);
-  startPartyGame(template, players);
+  setTimeout(() => {
+    if (!startPartyGame(template, players)) log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff)`);
+  }, INVITATION_HANDOFF_MS);
   return true;
 }
 
