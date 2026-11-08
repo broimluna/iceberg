@@ -34,7 +34,7 @@ export function buildProximityUserEntry(session: Session, position: number[] | u
 
 // Sends a new arrival everyone already in the room. Sends nothing when the
 // room is empty: an empty action-30 packet hangs the client.
-export function sendExistingOccupantsToJoiner(target: RegisteredSession, roomName: string): void {
+export function sendExistingOccupantsToJoiner(target: Pick<RegisteredSession, "session" | "send" | "peer">, roomName: string): void {
   const others = getByRoomExcluding(roomName, target.session.userId);
   if (others.length === 0) return;
   const p = new SFSArrayWriter();
