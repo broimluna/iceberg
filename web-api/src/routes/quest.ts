@@ -14,6 +14,7 @@ import * as db from "../database.ts";
 import config from "../config.ts";
 import { signedResponse, buildQuestStateCollection, QuestStatus } from "../utils/response.ts";
 import { getMascotFromQuestId, addXpToInternal } from "../utils/xp.ts";
+import { logSafe } from "../utils/logSafe.ts";
 
 /**
  * Helper to grant various rewards from quest definitions
@@ -313,7 +314,7 @@ router.post('/quest/v1/:questId', (req, res) => {
         newStatus = QuestStatus.ACTIVE;
     }
     
-    console.log(`[QUEST] ${username} updating ${questId} to status ${newStatus} (raw body: "${req.body}")`);
+    console.log(`[QUEST] ${username} updating ${questId} to status ${newStatus} (raw body: ${logSafe(req.body)})`);
     
     const quest = db.getOrCreateQuest(username, questId);
     console.log(`[QUEST] Current quest state: status=${quest.status}, timesCompleted=${quest.timesCompleted}`);

@@ -1,4 +1,5 @@
 // Mix transport middleware: application/mix body encryption and auth.
+import { logSafe } from "../../utils/logSafe.ts";
 import * as db from "../../database.ts";
 import { decryptAesCbc, encryptAesCbc } from "../../lib/crypto.ts";
 import { isBanned } from "../../services/moderation.ts";
@@ -37,7 +38,7 @@ function getSessionKey(req) {
  */
 export function mixEncryptionMiddleware(req, res, next) {
     const contentType = req.headers['content-type'];
-    console.log(`[MIX] Middleware: ${req.method} ${req.url} Content-Type: ${contentType}`);
+    console.log(`[MIX] Middleware: ${req.method} ${logSafe(req.url)} Content-Type: ${logSafe(contentType)}`);
     
     // Check if this is an encrypted request (application/mix)
     if (contentType && contentType.includes('application/mix')) {
@@ -55,7 +56,7 @@ export function mixEncryptionMiddleware(req, res, next) {
             const decrypted = decryptAes(rawBody, sessionKey);
             // Lossless: the SDK's 64-bit ids (ClientChatMessageId) stay exact.
             req.body = parseJson(decrypted.toString('utf8'));
-            console.log(`[MIX] Decrypted body:`, stringifyJson(req.body));
+            console.log(`[MIX] Decrypted body: ${logSafe(stringifyJson(req.body))}`);
             
             // Store session key for response encryption, and whose session it
             // is so authenticateMix can check it against the token.
@@ -78,7 +79,7 @@ export function mixEncryptionMiddleware(req, res, next) {
         }
     } else {
         // Not encrypted (session start or other unencrypted requests)
-        console.log(`[MIX] Unencrypted request body:`, JSON.stringify(req.body));
+        console.log(`[MIX] Unencrypted request body: ${logSafe(req.body)}`);
         next();
     }
 }

@@ -5,18 +5,21 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { logSafe } from "../utils/logSafe.ts";
 
 export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-    console.error(`[ERROR] ${req.method} ${req.url}:`, err.message);
+    console.error(`[ERROR] ${req.method} ${logSafe(req.url)}: ${logSafe(err.message)}`);
     console.error(err.stack);
 
-    // Don't leak error details in production
-    const isDev = process.env.NODE_ENV !== 'production';
+    // Details stay in the log. Clients only see them with
+    // ICEBERG_DEBUG_ERRORS=1 (local development).
+    const debug = process.env.ICEBERG_DEBUG_ERRORS === '1';
+    const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
 
-    res.status(err.status || 500).json({
+    res.status(status).json({
         error: {
-            message: isDev ? err.message : 'Internal server error',
-            ...(isDev && { stack: err.stack })
+            message: debug ? err.message : status < 500 ? 'Bad request' : 'Internal server error',
+            ...(debug && { stack: err.stack })
         }
     });
 }
@@ -25,10 +28,10 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
  * 404 Handler
  */
 export function notFoundHandler(req: Request, res: Response) {
-    console.log(`[404] Route not found: ${req.method} ${req.url}`);
+    console.log(`[404] Route not found: ${req.method} ${logSafe(req.url)}`);
     res.status(404).json({
         error: {
-            message: `Route not found: ${req.method} ${req.url}`
+            message: 'Route not found'
         }
     });
 }

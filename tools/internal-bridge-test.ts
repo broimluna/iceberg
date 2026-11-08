@@ -27,8 +27,9 @@ const canConnect = (port: number, host: string) => new Promise<boolean>((res) =>
 const internal = (base: string, headers: Record<string, string> = {}, path = "api/internal/session-ended") =>
   fetch(`${base}/${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ sessionId: 1 }) }).then((r) => r.status);
 
+let nextGamePort = 19500 + Math.floor(Math.random() * 40) * 2;
 async function startGame(env: Record<string, string>) {
-  const port = 19500 + Math.floor(Math.random() * 80);
+  const port = nextGamePort++;
   const notify = port + 100;
   const proc = Bun.spawn(["bun", "run", "src/handshake-server.ts"], {
     cwd: `${import.meta.dir}/../smartfox-server`,
@@ -37,7 +38,7 @@ async function startGame(env: Record<string, string>) {
   });
   for (let i = 0; i < 100 && !(await canConnect(port, "127.0.0.1")); i++) await sleep(50);
   for (let i = 0; i < 100 && !(await canConnect(notify, "127.0.0.1")); i++) await sleep(50);
-  return { port, notify, stop: () => proc.kill() };
+  return { port, notify, stop: async () => { proc.kill(); await proc.exited; } };
 }
 const notifyStatus = (port: number, headers: Record<string, string> = {}) =>
   fetch(`http://127.0.0.1:${port}/notify`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ type: "COINS_UPDATE", username: "nobody", coins: 1 }) }).then((r) => r.status);
@@ -77,14 +78,14 @@ try {
       check(!(await canConnect(game.notify, lanAddress)), "notify port listens on localhost only");
       check(await canConnect(game.port, lanAddress), "default: game port reachable beyond localhost");
     }
-  } finally { game.stop(); }
+  } finally { await game.stop(); }
 
   if (lanAddress) {
     const local = await startGame({ SFS_BIND_HOST: "127.0.0.1" });
     try {
       check(await canConnect(local.port, "127.0.0.1"), "SFS_BIND_HOST=127.0.0.1: game port open on localhost");
       check(!(await canConnect(local.port, lanAddress)), "SFS_BIND_HOST=127.0.0.1: game port closed beyond localhost");
-    } finally { local.stop(); }
+    } finally { await local.stop(); }
   }
 
   // ---- the web API's notifier sends the secret, to SFS_NOTIFY_PORT ----
