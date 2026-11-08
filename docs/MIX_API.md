@@ -215,6 +215,24 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
     recreation (~68 MB per platform). Fill it with
     `bun tools/mix-content.ts import` (§10).
 
+- **The client refreshes the manifest (2026-11-07, source builds).** The
+  app loads the manifest twice at startup, and only the second load
+  asks the server:
+  1. `AssetManager` start: `CpipeFileManifestLoader.Load` with
+     `aIsFirstRun == true` uses the cached manifest from the last boot
+     or else the bundled `1123402340.txt`. It can't ask the network,
+     because `cpipeManager.cpipe` (the `cpipe_url` holder) isn't set up
+     yet.
+  2. `StartUpSequence` → `CpipeUpdateOperation` → `LoadCpipe` with
+     `aIsFirstRun == false`: calls `GET /cpipe?restrict=true&cv=…&v=…`.
+     A 200 body replaces the manifest (and is cached), a 304 or any
+     failure keeps the first one. A new manifest triggers
+     `RefreshInventoy()`, which rebuilds the sticker and gag lists
+     against it (§10). If its config `v` is newer, the config refetch
+     (above) runs and `CpipeUpdateOperation` waits for it: that's why
+     `donotcopy/n7c4c656` must exist under `web-api/data/mix/cpipe/`.
+     Checked live: boot completes, no stall.
+
 The point of cpipe was that content (stickers, gags, games, the config
 itself) could be updated without shipping a new app build.
 
@@ -1351,82 +1369,143 @@ on Unity 6, which can't load them directly. Anything recovered has to
 be extracted (e.g. AssetRipper) and rebuilt, which is presumably how
 the recreation's `windows64` bundles were made.
 
-### Content delivery in source builds (found live, 2026-11-07)
+### Content delivery in source builds (fixed 2026-11-07)
 
-Chat text works end to end in a native Linux build of
+Chat text worked end to end in a native Linux build of
 OpenCPIsland/DisneyMix, but the sticker, gag, game and "recents" panels
-show nothing, or a warning icon per item. There are three causes, all on
-the content side rather than the chat API:
+showed nothing, or a warning icon per item. There were three causes, all
+on the content side rather than the chat API. They are fixed on the
+client branch `iceberg/content-delivery` and in iceberg
+(`docs/superpowers/specs/2026-11-07-mix-content-delivery-design.md`).
+Games (`hd/gogs`) are imported and served by the same pipeline, but
+nothing here makes in-chat games playable (live check: they load but are
+buggy; that's the next spec).
 
-1. **The catalog path uses a Windows separator.** `Mix/Data/ContentData.cs:71`
-   (recreation code, not Disney's) does
+**What was wrong, and what changed in the client**
+
+1. **The catalog path used a Windows separator.** `Mix/Data/ContentData.cs`
+   (recreation code, not Disney's) did
    `zipFileBasePath = Application.StreamingAssetsPath + "\\"`, so on Linux
-   or macOS it reads `…/StreamingAssets\contentdata.joe`, a file that
-   doesn't exist. The catalog (sticker packs, gags, games) never loads,
-   and `StickerPackSelector.PackIconLoader` throws an index-out-of-range
-   error. The fix is
-   `Path.Combine(Application.streamingAssetsPath, "contentdata.joe")`
-   (worth upstreaming). Verified by symlinking the backslash path: the
-   packs appeared.
-2. **Asset URLs end up at `https://localhost:443`.**
+   or macOS it read `…/StreamingAssets\contentdata.joe`, a file that
+   doesn't exist. The catalog (sticker packs, gags, games) never loaded,
+   and `StickerPackSelector.PackIconLoader` threw an index-out-of-range
+   error. Fixed with `Path.Combine(Application.streamingAssetsPath, …)`
+   (`f10caf9c`).
+2. **Asset URLs ended up at `https://localhost:443`.**
    - On desktop, `SettingsManager.GetDeviceString()` returns `"iphone"`
-     (anything but Android), so asset paths are `AssetBundles/iphone/hd/…`.
-   - `CpipeFileManifest.TranslateFileUrl` makes them
-     `cdnRoot + "/" + v + "/" + path`. The bundled first-run manifest
-     (`StreamingAssets/1123402340.txt`) has `cdnRoot: ""`, so the URL is a
-     bare `/…` path. Unity's web request resolves that against
-     `https://localhost`. `AssetManager.GetStreamingFilePath` only maps
-     URLs containing the platform's `BundleFolder` (`AssetBundles/windows64/`
-     on Windows, `AssetBundles/standalonelinux/` on Linux) to
-     `file://…/StreamingAssets`, and its fallback drops `file://`.
-   - **The source build never fetches a manifest from the network.** The
-     recreation stubbed the loader: `Mix/CpipeFileManifestLoader.cs`
-     `Load(...)` ignores its arguments and calls
-     `PrepareManifest(null, true)` (comment: "CPIPE backend retired: always
-     use bundled preload manifest"). With `aFirstRun == true`,
-     `CpipeFileManifest.Prepare` uses `PreloadData.CpipeData` and never
-     parses a response. Disney's network fetcher,
-     `CpipeManifestApi.GetCpipeManifest` (which built
-     `ExternalizedConstants.CpipeUrl + "?restrict=true&cv=…&v=…"`), still
-     exists but has **no callers**. So iceberg's `cpipe_url` setting and
-     its `/cpipe` manifest are never used by a source build, whatever the
-     server returns.
-   - `PreloadData.PreloadCpipeManifest` fills `CpipeData` from
-     `<persistentDataPath>/cache/<sha("cpipeManfiest")>.txt` if that file
-     exists, else from the bundled `StreamingAssets` manifest. (The cache
-     key really is spelled `cpipeManfiest`, Disney's typo.) Since nothing
-     writes that cache file any more, it is always the bundled one, unless
-     someone drops a file there by hand.
-   - With an empty `cdnRoot`, `TranslateFileUrl` produces `/<v>/<path>`
-     (it prepends `/` when the root neither starts nor ends with one).
-3. **Nothing serves the bundles under the manifest's paths.** The
-   recreation's rebuilt bundles ship only in the build's
-   `StreamingAssets/AssetBundles/windows64/hd/…`. Both manifests (bundled
-   and iceberg's `00134`) list only `android` and `iphone` paths, and no
-   code maps `iphone` to `windows64`. The recreation's own dev server
-   presumably served the rebuilt bundles under the `iphone` paths
-   (inferred).
+     (anything but Android), so asset paths were `AssetBundles/iphone/hd/…`,
+     and `AssetManager.BundleFolder` named `standalonelinux`, a folder
+     nothing writes. Now one constant in `AssetManager` names the platform
+     folder (`windows64`, `standalonelinux64`, …) and the new
+     `SettingsManager.GetBundlePlatform()` returns it. `GetCpipePrefix` and
+     `BackgroundLoader` use it. `GetDeviceString()` is unchanged (other
+     code may rely on it) (`f10caf9c`). `GetCpipePrefix` also normalises
+     `\` to `/`: on Windows `Path.Combine` produced
+     `AssetBundles/windows64/hd\…`, which no manifest lists.
+   - The source build never fetched a manifest from the network. The
+     recreation stubbed `Mix/CpipeFileManifestLoader.Load(...)` to
+     `PrepareManifest(null, true)` ("CPIPE backend retired: always use
+     bundled preload manifest"), and Disney's fetcher
+     `CpipeManifestApi.GetCpipeManifest` had no callers, so iceberg's
+     `cpipe_url` and `/cpipe` were never used. The bundled manifest has
+     `cdnRoot: ""`, so `TranslateFileUrl` produced a bare `/<v>/<path>`
+     that Unity resolves against `https://localhost`.
+     `PreloadData.PreloadCpipeManifest` fills `CpipeData` from
+     `<persistentDataPath>/cache/<sha("cpipeManfiest")>.txt` if it
+     exists, else from the bundled manifest (the key really is spelled
+     `cpipeManfiest`, Disney's typo).
+   - Now `Load()` calls `GetCpipeManifest` again, but **only when
+     `aIsFirstRun` is false** (`ed9b5c92`). Startup loads the manifest
+     twice, as Disney's app did. The first load (from `AssetManager`
+     start) must keep using the bundled or cached manifest, because
+     `cpipeManager.cpipe` is still null then and a network request would
+     crash in `AssetManager.GetCpipeUrl`. The second comes from
+     `StartUpSequence`'s `CpipeUpdateOperation`. Every refresh failure
+     (empty body, error status, bad JSON, an exception) reports
+     `CpipeUnchanged`, which keeps the first-load manifest. So a build with
+     no server boots exactly as before. A successful refresh caches the
+     manifest, so the next boot starts from it, and raises `CpipeData`,
+     which makes `AssetManager` call `EntitlementsManager.RefreshInventoy()`.
+3. **Nothing served the bundles under the manifest's paths.** The rebuilt
+   bundles shipped only in `StreamingAssets/AssetBundles/windows64/hd/…`,
+   and both manifests listed only `android` and `iphone` paths. iceberg now
+   lists and serves them (§2, "Desktop bundles").
 
-**What it would take** (a content-delivery task, not chat; being built
-in `docs/superpowers/specs/2026-11-07-mix-content-delivery-design.md`):
-- iceberg side, done: `bun tools/mix-content.ts import --from
-  ~/src/DisneyMix/Assets/StreamingAssets/AssetBundles` copies every
-  `hd/**/*.unity3d` for `windows64` and `standalonelinux64` into
-  `web-api/data/mix/cpipe/AssetBundles/<platform>/` (replacing what was
-  there, so bundles deleted upstream disappear), and prints present vs.
-  listed per area. "Listed" counts only `.unity3d` entries under
-  `AssetBundles/iphone/` in manifest `00134`: the manifest also lists
-  macOS `.DS_Store` files, which Disney's upload evidently swept up
-  (inferred). First run (windows64): stickers 142/554, gags 28/49, gogs
-  611/1065, avatar_thumbs 293/312, avatar_multiplane 172/206, other
-  18/58. Restart web-api afterwards.
+**Hiding missing content** (`9a9e7bde`). The recreation lacks most of the
+final catalog (table below), so listing every catalog item would show a
+warning icon for each missing bundle. `AssetManager.IsBundleAvailable`
+is true when the item's path is in the loaded manifest **or** exists under
+the build's StreamingAssets. `RefreshStickers` and `RefreshGags` skip items
+that fail it, and `RefreshStickerPacks` skips packs left with no sticker.
+They run again on every `RefreshInventoy()`, so the lists follow the
+manifest from the refresh, not just the first one (`ContentData` parses
+once, possibly before the refresh, so it's the wrong place). Games, avatar
+parts and other types are not filtered. Because received messages can now
+reference a sticker the receiver hides, `GetStickerData` can return null:
+null guards were added in `MessageUtils`, `MessageLocalNotification`,
+`StickerSearch` and `MediaTray`, and chat items fall back to Disney's own
+"update the app" placeholder.
 
-The original list of what it would take:
-- serve the rebuilt bundles from `web-api/data/mix/cpipe/<v>/AssetBundles/iphone/hd/…`
-- make sure the app actually adopts iceberg's manifest, with its
-  `cdnRoot`
-- fix the two Linux path bugs above in the client
-- check that Windows-built bundles load on a Linux player
+**Two fixes found by the live check** (the first run against iceberg's
+real `/cpipe`):
+- `c8b8cc1c`, `ContentData`: always parse the bundled
+  `StreamingAssets/contentdata.joe`. The old code also overwrote
+  `zipFileBasePath` before an "is the argument empty" check, so the check
+  was dead. After the manifest refresh the base manifest still lists
+  Disney's `contentdata.joe.gz`, which iceberg can't serve, so the 404
+  produced an empty argument, "Error loading JOE data",
+  `EntitlementsStartOperation` failed, and `OperationStack` quit the app.
+- `bea1554e`, `AssetObject.LoadBinaryCoroutine`: a 404 with an empty body
+  leaves `www.bytes` null, which threw a NullReferenceException that killed
+  the coroutine, so the load never finished. It now checks for null, and
+  `WebBinaryResponseHandler` already handles the failure.
+iceberg still lists `contentdata.joe.gz` and `localization/*` that it
+can't serve, because the base manifest is kept as is. Both are harmless
+now.
+
+**Setup per deployment** (again when content changes):
+`bun tools/mix-content.ts build --project ~/src/DisneyMix` (Linux bundles;
+166 s, 1,264 bundles per platform), then
+`bun tools/mix-content.ts import --from
+~/src/DisneyMix/Assets/StreamingAssets/AssetBundles`, then restart
+web-api. `windows64` isn't built here: it ships prebuilt in the client
+repo (the import copies it), and Windows build support isn't installed.
+Also render `web-api/data/mix/cpipe/donotcopy/n7c4c656` (§2), or the config
+refetch 404s.
+
+**Live check** (native Linux build, bundles moved out of the build's
+StreamingAssets so only the network could supply them):
+- `GET /cpipe?restrict=true&cv=2.3.1[&v=00134]` is logged on boot.
+- Boot reaches login with no stall on the config refetch.
+- Opening the panels fetched 62 `standalonelinux64/hd/stickers/…` and 17
+  `hd/gags/…` bundles. A sticker and a gag sent from the app rendered in
+  the app's own history. (Both sides were one account in a self-chat; the
+  `ContentId` relay is covered by `tools/mix-chat-test.ts`.)
+- With the local bundles restored and web-api stopped, the app boots to
+  its registration screen (the stock "try again later" dialog, since
+  there's no server). Panels can't be inspected there without a login.
+- **Not tested: Windows.** Coverage is review, and the imported
+  `windows64` files being byte-identical to the client repo's.
+
+**What the import summary reports** (per platform, the two are identical).
+"Listed" counts only `.unity3d` entries under `AssetBundles/iphone/` in
+manifest `00134`: the manifest also lists macOS `.DS_Store` files, which
+Disney's upload evidently swept up (inferred).
+
+| Area | Present | Listed |
+|---|---|---|
+| `hd/stickers` | 142 | 554 |
+| `hd/gags` | 28 | 49 |
+| `hd/gogs` | 611 | 1,065 |
+| `hd/avatar_thumbs` | 293 | 312 |
+| `hd/avatar_multiplane` | 172 | 206 |
+| other | 18 | 58 |
+
+Present stickers are 142 files, but the catalog maps only 64 of them to
+`_hd` bundles the client asks for (the rest are `_thumb` files); gags are
+13 of 13 catalog gags. So the panels show 64 stickers and 13 gags. The
+"Present" gag count (28) is a file count, probably including variants per
+language (inferred).
 
 ### Better leads than Wayback
 
