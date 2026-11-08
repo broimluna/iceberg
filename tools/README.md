@@ -36,6 +36,17 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 `lib/harness.ts` exports `startWebApi()` (copy, start, `restart`,
 `stop`, `logs`) and `makeChecker()` (`check` and `finish`).
 
+## Checking existing names
+
+`check-names.ts` lists usernames and display names that break the name
+rule (`web-api/src/utils/names.ts`), and names that clash ignoring case.
+The rule only applies to names set from now on, so run this on a database
+from before it. Read-only; exit code 1 when anything is found.
+
+```sh
+bun tools/check-names.ts --db web-api/src/cpi_data.db
+```
+
 ## Mix boot config
 
 `mix-config.ts` writes the encrypted config the Disney Mix app reads at

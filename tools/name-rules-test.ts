@@ -63,6 +63,19 @@ try {
     const r = (await mix.call("PUT", "/displayname", { DisplayName: n, Language: "en" })).body;
     check(r?.Status === "DISPLAYNAME_ASSIGNMENT_FAILED", `Mix rename refuses ${JSON.stringify(n)} (${r?.Status})`);
   }
+
+  // tools/check-names.ts reports names in an existing database that break the rule.
+  const { Database } = await import("bun:sqlite");
+  await createPlayer(api.base, api.dbPath, "{nr-bad}", "Cool😎Guy");
+  await createPlayer(api.base, api.dbPath, "{nr-dup1}", "Twin");
+  await createPlayer(api.base, api.dbPath, "{nr-dup2}", "TWIN");
+  const db = new Database(api.dbPath); db.run("PRAGMA wal_checkpoint(TRUNCATE)"); db.close();
+  const out = await Bun.$`bun ${import.meta.dir}/check-names.ts --db ${api.dbPath}`.nothrow().quiet();
+  const text = out.stdout.toString();
+  check(text.includes("Cool😎Guy") && text.includes("chars"), `the report lists a display name with emoji (${JSON.stringify(text.slice(0, 200))})`);
+  check(/Twin/.test(text) && /TWIN/.test(text) && /clash/i.test(text), "and names that clash ignoring case");
+  check(!text.includes("Renamed Ok"), "valid names aren't listed");
+  check(out.exitCode === 1, `exit code 1 when something is found (${out.exitCode})`);
 } finally {
   await api.stop();
 }
