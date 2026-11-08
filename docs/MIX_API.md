@@ -1374,7 +1374,21 @@ the content side rather than the chat API:
    presumably served the rebuilt bundles under the `iphone` paths
    (inferred).
 
-**What it would take** (a content-delivery task, not chat):
+**What it would take** (a content-delivery task, not chat; being built
+in `docs/superpowers/specs/2026-11-07-mix-content-delivery-design.md`):
+- iceberg side, done: `bun tools/mix-content.ts import --from
+  ~/src/DisneyMix/Assets/StreamingAssets/AssetBundles` copies every
+  `hd/**/*.unity3d` for `windows64` and `standalonelinux64` into
+  `web-api/data/mix/cpipe/AssetBundles/<platform>/` (replacing what was
+  there, so bundles deleted upstream disappear), and prints present vs.
+  listed per area. "Listed" counts only `.unity3d` entries under
+  `AssetBundles/iphone/` in manifest `00134`: the manifest also lists
+  macOS `.DS_Store` files, which Disney's upload evidently swept up
+  (inferred). First run (windows64): stickers 142/554, gags 28/49, gogs
+  611/1065, avatar_thumbs 293/312, avatar_multiplane 172/206, other
+  18/58. Restart web-api afterwards.
+
+The original list of what it would take:
 - serve the rebuilt bundles from `web-api/data/mix/cpipe/<v>/AssetBundles/iphone/hd/…`
 - make sure the app actually adopts iceberg's manifest, with its
   `cdnRoot`

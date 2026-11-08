@@ -39,3 +39,16 @@ bun tools/mix-config.ts decrypt n7c4c656     # inspect any config, including Dis
 `lib/mix-client.ts` is a test client that behaves like the Mix SDK
 (login, key exchange, encrypted bodies, strict notification order). Use
 it for any new Mix test.
+
+## Mix content (stickers, gags, games)
+
+`mix-content.ts` fills the git-ignored bundle tree that `/cpipe` lists
+for desktop source builds of Mix (docs/MIX_API.md sections 2 and 10):
+
+```sh
+bun tools/mix-content.ts import --from ~/src/DisneyMix/Assets/StreamingAssets/AssetBundles
+```
+
+It copies `windows64` and `standalonelinux64` bundles into
+`web-api/data/mix/cpipe/AssetBundles/` and prints what's present against
+Disney's final manifest. Restart web-api afterwards.

@@ -2,7 +2,8 @@
 // data/mix/cpipe/AssetBundles/{windows64,standalonelinux64}/ at startup and
 // lists every bundle in the /cpipe manifest, so source builds of the app
 // can download stickers and gags from cdnRoot.
-import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, existsSync } from "node:fs";
+import { $ } from "bun";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { startWebApi, makeChecker } from "./lib/harness.ts";
@@ -69,6 +70,24 @@ try {
     check((bare.logs().match(/\[CPIPE\].*AssetBundles/g) ?? []).length === 1, "no tree: one [CPIPE] log line");
     logs += bare.logs();
   } finally { await bare.stop(); }
+
+  // --- tools/mix-content.ts import ---
+  const from = mkdtempSync(join(tmpdir(), "mix-from-"));
+  const to = mkdtempSync(join(tmpdir(), "mix-to-"));
+  put(from, "windows64/hd/stickers/s1/s1_hd.unity3d", "s1");
+  put(from, "windows64/hd/stickers/s1/s1_hd.unity3d.meta", "meta");
+  put(from, "windows64/hd/gags/g1/g1_hd.unity3d", "g1");
+  put(to, "AssetBundles/windows64/hd/stickers/old/old_hd.unity3d", "old");
+  const imp = await $`bun tools/mix-content.ts import --from ${from} --to ${to}`.nothrow().quiet();
+  const out = imp.stdout.toString() + imp.stderr.toString();
+  check(imp.exitCode === 0, `import exit ${imp.exitCode}`);
+  check(existsSync(`${to}/AssetBundles/windows64/hd/stickers/s1/s1_hd.unity3d`) && existsSync(`${to}/AssetBundles/windows64/hd/gags/g1/g1_hd.unity3d`), "import copies bundles");
+  check(!existsSync(`${to}/AssetBundles/windows64/hd/stickers/s1/s1_hd.unity3d.meta`), "import skips .meta");
+  check(!existsSync(`${to}/AssetBundles/windows64/hd/stickers/old/old_hd.unity3d`), "import removes a stale bundle");
+  check(/hd\/stickers\s+1 present \/ \d+ listed/.test(imp.stdout.toString()), `import summary:\n${imp.stdout.toString()}`);
+  check(out.includes("donotcopy/n7c4c656"), "import warns about the missing boot config");
+  const noFrom = await $`bun tools/mix-content.ts import`.nothrow().quiet();
+  check(noFrom.exitCode === 1, `import without --from exit ${noFrom.exitCode}`);
 } catch (e) {
   check(false, `threw: ${(e as Error).stack}`);
 }
