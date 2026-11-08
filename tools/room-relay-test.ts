@@ -1,10 +1,12 @@
+// What one player's packets make the rest of the room receive is bounded:
 // SetUserVariables relays only the variables the client sets
-// (SocketUserVars), with the type the client reads them as and a bounded
-// size. Others (sess, con_prop, on_quest are the server's) are dropped,
-// so a modified client can't rewrite what other players see about it.
+// (SocketUserVars), with the type it sends each as and a bounded size
+// (sess, con_prop and on_quest are the server's); l.a relays Vector3s and
+// a short ActionedObject; proto, which no client uses, isn't relayed.
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
 import { SFSObjectWriter, SFSArrayWriter } from "../smartfox-server/src/sfs-wire.ts";
+import { getFloatArray, getUtfString } from "../smartfox-server/src/wire-helpers.ts";
 
 const { check, finish } = makeChecker();
 const KEY = "test-join-key-" + Math.random().toString(36).slice(2);
@@ -49,6 +51,36 @@ try {
   await sleep(300);
   const ok = Object.assign({}, ...b.varsOf(a.myId));
   check(typeof ok.outfit === "string" && ok.outfit.startsWith("{") && "con" in ok, `outfit and con still work (${JSON.stringify(ok).slice(0, 120)})`);
+
+  b.clear();
+  setVars(a, str("proto", "{}"));
+  a.ext13("proto", new SFSObjectWriter().putUtfString("data", "{}"));
+  await sleep(300);
+  check(b.varsOf(a.myId).length === 0 && b.extOf("proto").length === 0, "proto (no client uses it) isn't relayed");
+
+  // ---- l.a ----
+  const move = (p: number[], extra?: (w: SFSObjectWriter) => void) => {
+    const w = new SFSObjectWriter().putFloatArray("p", p).putByte("a", 0);
+    extra?.(w);
+    a.ext13("l.a", w);
+  };
+  b.clear();
+  move([1, 2, 3], (w) => w.putFloatArray("d", [0, 0, 1]).putUtfString("o", '{"type":2,"id":"x","tag":"Player"}'));
+  await sleep(300);
+  const la = b.extOf("l.a");
+  check(la.length === 1 && getFloatArray(la[0]!, "p")?.length === 3 && getUtfString(la[0]!, "o")?.includes("Player"), "a normal move is relayed");
+  b.clear();
+  move(new Array(5000).fill(1));
+  move([NaN, 0, 0]);
+  move([0, 0, Infinity]);
+  move([1, 2, 3], (w) => w.putFloatArray("v", [1, 2]));
+  await sleep(300);
+  check(b.extOf("l.a").length === 0, `moves that aren't Vector3s of finite numbers are dropped (${b.extOf("l.a").length} relayed)`);
+  b.clear();
+  move([1, 2, 3], (w) => w.putUtfString("o", "x".repeat(5000)));
+  await sleep(300);
+  const long = b.extOf("l.a");
+  check(long.length === 1 && getUtfString(long[0]!, "o") === undefined, "an oversized object is left out of the move");
 } finally {
   sfs.stop();
   await api.stop();

@@ -211,7 +211,7 @@ as normal chat; the prefix characters are invisible.
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `proto` | `PROTOTYPE` | BOTH | OUT (`PrototypeSendAction`): `data` = JSON string, caller-defined shape. IN: `data` -> parsed as a generic `LitJson` object (`JsonMapper.ToObject`, not a fixed C# type) plus the sender's session ID. A prototyping channel: no shipped game code sends it or listens for it. There's also a *separate* `PROTOTYPE` User Variable (Part 2) for per-user prototype state, which the client sets itself. |
+| `proto` | `PROTOTYPE` | BOTH | OUT (`PrototypeSendAction`): `data` = JSON string, caller-defined shape. IN: `data` -> parsed as a generic `LitJson` object (`JsonMapper.ToObject`, not a fixed C# type) plus the sender's session ID. A prototyping channel: no shipped game code (OpenCPI included) sends it or listens for it, so iceberg doesn't relay it. There's also a *separate* `PROTOTYPE` User Variable (Part 2) for per-user prototype state, which the client sets itself. |
 
 ### Quests
 

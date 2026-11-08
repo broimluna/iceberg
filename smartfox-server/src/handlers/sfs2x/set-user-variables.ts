@@ -45,10 +45,10 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
 // The variables the client sets (SocketUserVars) and the type it sends
 // each as; colour, tube and outfit are SignedResponse JSON text. Any of
 // them may be NULL, which removes it. sess, con_prop and on_quest are set
-// by the server only. Everything else is dropped, so a modified client
+// by the server only; proto (PrototypeSetState) is never called. Everything else is dropped, so a modified client
 // can't rewrite variables other players' clients rely on.
 const CLIENT_VARIABLES: Record<string, VariableKind> = {
-  outfit: "string", proto: "string", colour: "string", tube: "string",
+  outfit: "string", colour: "string", tube: "string",
   con: "object", bubble: "object",
   loc: "int", awayfromkeyboard: "int", tempheadstatus: "int",
 };

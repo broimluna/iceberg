@@ -12,7 +12,6 @@ import { handleMembershipRefresh } from "./membership.ts";
 import { handlePlayerLocation } from "./player-location.ts";
 import { handlePickup } from "./pickup.ts";
 import { handleIglooUpdated } from "./igloo.ts";
-import { handlePrototypeAction } from "./prototype.ts";
 import { handleWebServiceEvent } from "./web-service-event.ts";
 import { handleConsumableSet, handleConsumableUse, handleConsumableReuse } from "./consumables.ts";
 import { handlePartyGameMessage } from "../party-games/manager.ts";
@@ -46,7 +45,6 @@ export const extensionHandlers: Record<string, ExtensionHandler> = {
   "pgame.message": handlePartyGameMessage,
   "reward.broadcast": handleRewardBroadcast,
   "room.igloo_updated": handleIglooUpdated,
-  proto: handlePrototypeAction,
 };
 
 // Most commands match by exact name. "wsevent.{type}" carries the event
