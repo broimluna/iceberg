@@ -26,7 +26,7 @@ const disconnectAll = async () => { for (const c of everyone) if (c.sock && !c.c
 const setRoleVia = (c: Client, role: string) => fetch(`${servers.api.base}/api/internal/set-role`, {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: c.username, role }),
 });
-const SAY = async (c: Client, text: string, wait = 300) => { for (const x of everyone) x.reset(); c.chat(text); await sleep(wait); };
+const SAY = async (c: Client, text: string, wait = 300) => { for (const x of everyone) x.reset(); await c.chat(text); await sleep(wait); };
 
 try {
   if (run("identity")) {
@@ -168,8 +168,12 @@ try {
     await SAY(bob, ":ac 5");
     check(bob.errors.includes("Unknown command"), `a moderator can't give coins (${bob.errors})`);
     // The web API is down: nothing is pushed for a grant that wasn't saved.
+    // (The command was signed just before, as chat needs the web API too.)
+    const preSigned = (await root.signChat(":ac 5"))!;
     await servers.api.stop();
-    await SAY(root, ":ac 5", 600);
+    for (const x of everyone) x.reset();
+    root.sendChatJson(preSigned);
+    await sleep(600);
     check(root.errors.includes("Couldn't save the reward") && pushed(root).length === 0, `failed grant (${root.errors})`);
     await servers.setStaffAdmins([root.username, root2.username, dave.username]);
     await disconnectAll();
@@ -181,8 +185,9 @@ try {
     await SAY(root, ":announce Party at the dock!");
     check([root, bob, carol].every((c) => alerts(c).includes("Party at the dock!")), "every player gets the server.alert popup");
     check([root, bob, carol].every((c) => c.bubbles.includes("Party at the dock!")), "SFS2X players also get the bubble");
-    await SAY(root, ":announce " + "x".repeat(600));
-    check(alerts(carol)[0]?.length === 500, `the popup text is cut to 500 characters (${alerts(carol)[0]?.length})`);
+    // Chat is capped at 200 characters, so that's the longest announcement.
+    await SAY(root, ":announce " + "x".repeat(190));
+    check(alerts(carol)[0]?.length === 190, `a long announcement arrives whole (${alerts(carol)[0]?.length})`);
     await SAY(root, ":restart 600");
     check(root.bubbles.some((b) => b.includes("not supervised")), `without the supervisor the admin is warned (${root.bubbles})`);
     await SAY(root, ":restart cancel");
@@ -204,7 +209,7 @@ try {
       await sup.setStaffAdmins([admin.username]);
       await fetch(`${sup.api.base}/api/internal/set-role`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: mod.username, role: "moderator" }) });
       await admin.connect(); await mod.connect(); await player.connect();
-      const say = async (c: Client, text: string, wait = 300) => { for (const x of [admin, mod, player]) x.reset(); c.chat(text); await sleep(wait); };
+      const say = async (c: Client, text: string, wait = 300) => { for (const x of [admin, mod, player]) x.reset(); await c.chat(text); await sleep(wait); };
       const notices = (c: Client) => c.ext.filter((e) => e.cmd === "server.restarting" || e.cmd === "server.alert").map((e) => `${e.cmd}:${e.p.message!.value}`);
       // Over a day is refused: a timer that long overflows and would fire at once.
       for (const bad of ["0", "-1", "1.5", "soon", "86401", "3000000"]) {
@@ -271,6 +276,33 @@ try {
     await disconnectAll();
   }
 
+  if (run("chat-signing")) {
+    // Room chat must carry the web API's signature over the filtered text,
+    // so a modified client can't skip the filter or speak as someone else.
+    await bob.connect(); await carol.connect();
+    for (const x of everyone) x.reset();
+    bob.sendChatJson(JSON.stringify({ goodUntil: Date.now() + 60_000, signature: "", swid: bob.swid, data: { message: "unsigned words", emotion: 0 } }));
+    await sleep(300);
+    check(!carol.roomChats.includes("unsigned words"), "unsigned chat isn't relayed");
+    await SAY(bob, "signed words");
+    check(carol.roomChats.includes("signed words"), "chat signed by the web API is relayed");
+    const vr = await fetch(`${servers.api.base}/chat/v1/message/verify`, {
+      method: "POST", headers: { Authorization: "Basic " + btoa(`${bob.swid}:x`), "Content-Type": "application/json" },
+      body: JSON.stringify({ senderSessionId: Number(bob.sid), message: "original", emotion: 0 }),
+    });
+    const signed = await vr.json() as any;
+    for (const x of everyone) x.reset();
+    bob.sendChatJson(JSON.stringify({ ...signed, data: { ...signed.data, message: "altered" } }));
+    await sleep(300);
+    check(!carol.roomChats.includes("altered"), "a signed message with altered text isn't relayed");
+    carol.sendChatJson(JSON.stringify(signed));
+    await sleep(300);
+    check(!bob.roomChats.includes("original"), "another player's signed message can't be replayed as yours");
+    await SAY(bob, "x".repeat(201));
+    check(bob.lastVerify === 400 && carol.roomChats.length === 0, `chat over 200 characters is refused (${bob.lastVerify})`);
+    await disconnectAll();
+  }
+
   if (run("unsigned")) {
     // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
     // the account, but never grants a staff role.
@@ -282,7 +314,7 @@ try {
       await admin.connect({ unsigned: true }); await watcher.connect();
       check(!admin.closed, "unsigned login accepted in development mode");
       admin.reset(); watcher.reset();
-      admin.chat(":online");
+      await admin.chat(":online");
       await sleep(300);
       check(watcher.roomChats.includes(":online") && admin.bubbles.length === 0, "an unsigned config admin's :online is plain chat");
       check(dev.sfsLog().includes(`-> ${admin.username} (role ignored: unsigned)`), "the log says the role was ignored");

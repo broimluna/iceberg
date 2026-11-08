@@ -111,8 +111,24 @@ export class Client {
 
   send(c: number, a: number, p: SFSObjectWriter) { this.sock.write(encodePacket(c, a, p).encode("sfs2x")); }
   ext13(cmd: string, p: SFSObjectWriter) { this.send(1, 13, new SFSObjectWriter().putUtfString("c", cmd).putSFSObject("p", p)); }
-  chat(message: string) {
-    this.ext13("chat.msg", new SFSObjectWriter().putUtfString("msg", JSON.stringify({ goodUntil: 0, signature: "", swid: this.swid, data: { message, emotion: 0 } })));
+  /** Chats the way the client does: the web API checks and signs the message, then it goes to the game server. */
+  async chat(message: string) {
+    const signed = await this.signChat(message);
+    if (signed) this.sendChatJson(signed);
+  }
+  /** The web API's signed chat.msg JSON for message, or null if it refused. */
+  async signChat(message: string): Promise<string | null> {
+    const r = await fetch(`${this.servers.api.base}/chat/v1/message/verify`, {
+      method: "POST", headers: { Authorization: "Basic " + btoa(`${this.swid}:x`), "Content-Type": "application/json" },
+      body: JSON.stringify({ senderSessionId: Number(this.sid), message, emotion: 0, moderated: false, questId: "", objective: "" }),
+    });
+    this.lastVerify = r.status;
+    return r.ok ? await r.text() : null;
+  }
+  lastVerify = 0;
+  /** Sends a chat.msg as-is (for unsigned, altered or replayed messages). */
+  sendChatJson(json: string) {
+    this.ext13("chat.msg", new SFSObjectWriter().putUtfString("msg", json));
   }
   questSet() {
     this.ext13("quest.set", new SFSObjectWriter().putUtfString("data", JSON.stringify({ data: [] })));

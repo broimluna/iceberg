@@ -4,6 +4,8 @@ import { getByRoomExcluding } from "../session-registry.ts";
 import { onChatMessage } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 import { handleCommand } from "../commands/index.ts";
+import { checkChatSignature, MAX_CHAT_LENGTH } from "../chat-signature.ts";
+import { ALLOW_UNSIGNED_LOGIN } from "../config.ts";
 import { replyError } from "../commands/reply.ts";
 import { mutedUntil } from "../mutes.ts";
 
@@ -18,16 +20,26 @@ import { mutedUntil } from "../mutes.ts";
 // JSON.stringify.
 export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const outMsgJson = getPossiblyEncryptedUtfString(innerParams, "msg", ctx.session);
-  let messageText = "";
-  let emotion = 0;
-  if (outMsgJson) {
-    try {
-      const parsed = JSON.parse(outMsgJson);
-      if (typeof parsed?.data?.message === "string") messageText = parsed.data.message;
-      if (typeof parsed?.data?.emotion === "number") emotion = parsed.data.emotion;
-    } catch (err) {
-      console.log(`[${new Date().toISOString()}] ${ctx.peer} - chat.msg: failed to parse "msg" JSON: ${(err as Error).message}`);
-    }
+  let parsed: any = null;
+  try {
+    parsed = outMsgJson ? JSON.parse(outMsgJson) : null;
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - chat.msg: failed to parse "msg" JSON: ${(err as Error).message}`);
+    return;
+  }
+  // Only chat the web API filtered and signed for this player is relayed.
+  // Development logins (SFS_ALLOW_UNSIGNED_LOGIN) may chat unsigned.
+  const signed = checkChatSignature(parsed, ctx.session.swid);
+  let messageText: string;
+  let emotion: number;
+  if (typeof signed !== "string") {
+    ({ message: messageText, emotion } = signed);
+  } else if (ALLOW_UNSIGNED_LOGIN && typeof parsed?.data?.message === "string" && [...parsed.data.message].length <= MAX_CHAT_LENGTH) {
+    messageText = parsed.data.message;
+    emotion = Number.isInteger(parsed.data.emotion) ? parsed.data.emotion : 0;
+  } else {
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - chat.msg refused (${signed})`);
+    return;
   }
   // Leading zero-width characters are how the OpenCPI client marks system
   // messages (commands/reply.ts); players can't use them.
