@@ -116,7 +116,10 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
  */
 router.put('/displayname', authenticateMix, (req, res) => {
     const { UserId, DisplayName } = req.body;
-    const name = typeof DisplayName === 'string' ? DisplayName.trim() : '';
+    // Every rule runs on the name as it will be stored (NFKC-folded and
+    // trimmed): folding can lengthen a name or turn fullwidth letters into
+    // a filtered word.
+    const name = typeof DisplayName === 'string' ? db.normalizeName(DisplayName) : '';
 
     if (name.length < 3 || name.length > 20 || db.isDisplayNameTaken(name, UserId)) {
         return res.json({ Status: 'DISPLAYNAME_ASSIGNMENT_FAILED' });
