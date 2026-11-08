@@ -2,6 +2,7 @@ import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.t
 import { getUtfString } from "../wire-helpers.ts";
 import { grantReward, grantQuestObjective, type RewardGrant } from "../webapi-client.ts";
 import type { HandlerContext } from "./context.ts";
+import { withAccount } from "../account.ts";
 
 // Pushes a quest objective's reward to the client as "reward.add". The
 // WebAPI returns every reward field (zeroed when unused), so empty fields
@@ -107,9 +108,11 @@ export function handleQuestCompleteObjective(innerParams: SFSObjectData, ctx: Ha
   // quest.s_obj grants nothing by itself. Look up the objective's reward
   // (quests.json) and push it as reward.add. Fire-and-forget.
   if (objectiveName) {
-    void grantQuestObjective(ctx.session.userName, objectiveName).then((reward) => {
-      if (reward) sendObjectiveRewardPush(ctx, reward);
-    });
+    withAccount(ctx.session, `objective ${objectiveName}`, (account) =>
+      grantQuestObjective(account, objectiveName).then((reward) => {
+        if (reward) sendObjectiveRewardPush(ctx, reward);
+      })
+    );
   }
 }
 
@@ -147,5 +150,5 @@ export function sendStarterRewards(ctx: HandlerContext): void {
   console.log(`[${new Date().toISOString()}] ${ctx.peer} <- reward.add push (sessionId=${session.playerSessionId}, durables=[15,86])`);
 
   // Persist the grant server-side too (see webapi-client.ts). Fire-and-forget.
-  void grantReward(session.userName, { durables: [15, 86] });
+  withAccount(session, "starter pack", (account) => grantReward(account, { durables: [15, 86] }));
 }

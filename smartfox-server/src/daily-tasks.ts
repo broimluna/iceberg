@@ -91,7 +91,10 @@ function taskCountPacket(taskId: string, counter: number): OutgoingPacket {
 async function increment(target: Target, taskId: string, times: number): Promise<void> {
   const def = TASKS[taskId];
   if (!def || times <= 0) return;
-  const result = await incrementTask(target.session.userName, taskId, times);
+  await target.session.identityReady;
+  const account = target.session.accountName;
+  if (!account) return;
+  const result = await incrementTask(account, taskId, times);
   if (!result || !result.changed) return;
   const packet = taskCountPacket(taskId, result.counter);
   if (def.group === GROUP_COMMUNITY) {
@@ -99,7 +102,7 @@ async function increment(target: Target, taskId: string, times: number): Promise
   } else {
     target.send(packet);
   }
-  console.log(`[${new Date().toISOString()}] ${target.session.userName} <- task.c (${taskId} = ${result.counter}${def.group === GROUP_COMMUNITY ? ", community" : ""})`);
+  console.log(`[${new Date().toISOString()}] ${account} <- task.c (${taskId} = ${result.counter}${def.group === GROUP_COMMUNITY ? ", community" : ""})`);
   // TaskCompletionWatcher counts the player's own completed tasks.
   if (result.completed && def.group !== GROUP_COMMUNITY) {
     forEachWatcher("taskCompletion", (id) => (id === taskId ? 0 : 1), target);
@@ -186,7 +189,7 @@ function countedSet(session: Session, taskId: string): Set<string> {
     countedToday.clear();
     countedDay = day;
   }
-  const key = `${session.userName}\n${taskId}`;
+  const key = `${session.swid ?? session.userId}\n${taskId}`;
   let set = countedToday.get(key);
   if (!set) countedToday.set(key, (set = new Set()));
   return set;

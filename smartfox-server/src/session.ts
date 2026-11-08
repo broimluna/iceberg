@@ -1,4 +1,5 @@
 import type { Protocol } from "./sfs-wire.ts";
+import type { Role } from "./commands/roles.ts";
 
 // Per-connection state, one per connected client.
 let nextUserId = 1;
@@ -18,6 +19,15 @@ export class Session {
   selectedTubeId: number | undefined;
   // The top-level swid of SignedResponse<JoinRoomData>.
   swid: string | undefined;
+  // Whether joinRoomData's signature checked out (false only with
+  // SFS_ALLOW_UNSIGNED_LOGIN). The login's "un" is never signed.
+  signedLogin = false;
+  // The web API account behind the swid, and its staff role. Set once
+  // identityReady resolves (account.ts); rewards and tasks are credited to
+  // accountName, never to userName.
+  accountName: string | undefined;
+  role: Role = "player";
+  identityReady: Promise<void> = Promise.resolve();
 
   // Last position reported via l.a.
   lastPosition: number[] | undefined;

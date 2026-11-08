@@ -13,6 +13,7 @@ import { getAll, getByRoom, type RegisteredSession } from "../session-registry.t
 import type { Session } from "../session.ts";
 import type { HandlerContext } from "../handlers/context.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
+import { withAccount } from "../account.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
 import { host, type PartyGameSession } from "./session.ts";
 import { FindFour } from "./find-four.ts";
@@ -135,7 +136,7 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
   for (const [p, place] of placements) {
     const reward = rewardFor(game.def, place);
     if (!reward || !p.session.playerSessionId || unpaid?.has(p)) continue;
-    void granter(p.session.userName, reward);
+    withAccount(p.session, `party game ${game.id} reward`, (account) => granter(account, reward));
     const payload = `{"goodUntil":0,"signature":"","swid":"","data":{"source":${REWARD_SOURCE_MINI_GAME},"sourceId":"${game.id}","rewards":{"${p.session.playerSessionId}":${JSON.stringify(reward)}}}}`;
     if (here.includes(p)) p.send(extensionPacket("reward.add_delayed", new SFSObjectWriter().putUtfString("reward", payload)));
   }

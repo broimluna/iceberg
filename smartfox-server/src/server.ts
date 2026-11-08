@@ -23,6 +23,7 @@ import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
 import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP } from "./config.ts";
 import { register, unregister } from "./session-registry.ts";
+import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
@@ -178,7 +179,8 @@ const connectionHandler = (socket: net.Socket) => {
       if (!handleLogin(params, ctx, socket)) return;
       loggedIn = true;
       // Registered after login, once name, swid and room are known.
-      register({ session, peer, send });
+      register({ session, peer, send, close: () => socket.destroy() });
+      resolveIdentity(session, peer);
     } else if (controllerId === 0 && actionId === 29) {
       handlePingPong(ctx);
     } else if (controllerId === 0 && actionId === 12) {

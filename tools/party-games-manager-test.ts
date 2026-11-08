@@ -118,6 +118,7 @@ try {
   for (const viewer of all) for (const p of [owner, guest]) {
     check(viewer.vars.some((v) => v.u === p.session.userId && v.vars.con === null), `${viewer.session.userName} sees ${p.session.userName}'s con cleared`);
   }
+  await sleep(0); // grants wait for the account lookup (already resolved here)
   check(JSON.stringify(grants) === JSON.stringify([
     { username: "owner", reward: { coins: 20, mascotXP: { AuntArctic: 15 } } },
     { username: "guest", reward: { coins: 10, mascotXP: { AuntArctic: 10 } } },
