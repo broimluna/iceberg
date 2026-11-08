@@ -29,6 +29,9 @@ export function handleChatMsg(innerParams: SFSObjectData, ctx: HandlerContext): 
       console.log(`[${new Date().toISOString()}] ${ctx.peer} - chat.msg: failed to parse "msg" JSON: ${(err as Error).message}`);
     }
   }
+  // Leading zero-width characters are how the OpenCPI client marks system
+  // messages (commands/reply.ts); players can't use them.
+  messageText = messageText.replace(/^[\u200B-\u200D\u2060\uFEFF]+/, "");
   if (handleCommand(messageText, ctx)) return;
   const muted = mutedUntil(ctx.session);
   if (muted !== undefined) {
