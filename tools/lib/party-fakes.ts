@@ -35,6 +35,7 @@ export function makePlayer(name: string, room: string): FakePlayer {
   const session = new Session();
   session.roomName = room;
   session.userName = name;
+  session.accountName = name;
   const sid = String(nextSid++);
   session.playerSessionId = sid;
   const fake: FakePlayer = {
@@ -55,7 +56,7 @@ export function makePlayer(name: string, room: string): FakePlayer {
     if (c === 1 && a === 13) fake.ext.push({ cmd: p.c?.value as string, p: (p.p?.value ?? {}) as SFSObjectData });
     else if (c === 0 && a === 12) fake.vars.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]) });
   };
-  fake.entry = { session, peer: name, send };
+  fake.entry = { session, peer: name, send, close() {} };
   register(fake.entry);
   return fake;
 }

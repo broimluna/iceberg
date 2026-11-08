@@ -22,6 +22,13 @@ on first run.
 | `ICEBERG_DB_PATH` | `src/cpi_data.db` | SQLite database file. (`DB_PATH` is read into `config.ts` but has never been used, so it has no effect.) |
 | `JOIN_SIGNING_KEY` | *(auto)* | Key that signs `joinRoomData` for the SmartFox login. Must match `smartfox-server`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
 | `INTERNAL_API_SECRET` | *(empty)* | Optional shared secret for the internal bridge with `smartfox-server`. |
+| `STAFF_ADMINS` | *(empty)* | Comma-separated usernames (exact case) that are always admins for the game server's staff commands. Name accounts that already exist. |
+| `AUTH_LOGIN_PER_MIN` | `10` | Guest logins allowed per address per minute. `0` turns the limit off. |
+| `AUTH_REGISTER_PER_HOUR` | `5` | Registrations allowed per address per hour. `0` turns it off. |
+| `AUTH_APIKEY_PER_MIN` | `30` | API keys issued per address per minute. `0` turns it off. |
+| `AUTH_ACCOUNT_FAILS_PER_15MIN` | `10` | Failed logins to one account (from any address) before its logins are refused until the 15 minutes are up, except from addresses that have logged into it before. `0` turns it off. |
+| `TRUST_PROXY` | *(off)* | The number of reverse proxies in front of the web API (e.g. `1` for nginx or Cloudflare alone). The client's address for the limits above is then read that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored. Leave it unset without a proxy. IPv6 addresses are limited per /64. |
+| `LEGACY_PASSWORD_CLAIM` | *(off)* | `1` lets the first login to an account that has no password set one. Only for old databases from before passwords existed: it lets anyone who knows the name take such an account. |
 
 ## Talking to the game server
 

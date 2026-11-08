@@ -47,7 +47,14 @@ export async function startWebApi(opts: {
   const launch = async (env: Record<string, string>) => {
     proc = Bun.spawn(["bun", "run", "src/server.ts"], {
       cwd: dir,
-      env: { ...process.env, PORT: String(port), ...env },
+      // Auth rate limits are off unless a test turns them on (suites register
+      // and log in many accounts from one address), and test accounts made
+      // with createPlayer have no password, so their first login sets one.
+      env: {
+        ...process.env, PORT: String(port),
+        AUTH_LOGIN_PER_MIN: "0", AUTH_REGISTER_PER_HOUR: "0", AUTH_APIKEY_PER_MIN: "0", LEGACY_PASSWORD_CLAIM: "1",
+        ...env,
+      },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -90,4 +97,12 @@ export function makeChecker() {
       process.exit(failures ? 1 : 0);
     },
   };
+}
+
+/** A guest-controller API key issued by the server (only issued keys are accepted). */
+export async function issueApiKey(base: string): Promise<string> {
+  const r = await fetch(`${base}/jgc/v5/client/T/api-key`, { method: "POST" });
+  const key = r.headers.get("api-key");
+  if (!key) throw new Error(`no api-key issued (${r.status})`);
+  return key;
 }

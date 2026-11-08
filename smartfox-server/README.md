@@ -12,7 +12,8 @@ protocol is detected from its first packet, so both kinds of client can
 share a room.
 
 ```sh
-bun start
+bun start               # or, to come back up after an admin's :restart:
+bun run start:supervised
 ```
 
 ## Layout
@@ -28,6 +29,8 @@ bun start
   ping, user variables).
 - `src/handlers/`: CPI extension commands, one file per feature. The
   command-to-handler map is in `handlers/registry.ts`.
+- `src/commands/`: staff chat commands (see below).
+- `src/supervisor.ts`: restarts the server when it exits for `:restart`.
 - `src/session-registry.ts`: who's connected and in which room. Room
   broadcasts use this.
 - `src/world-objects.ts`: scheduled world objects (MMO Room Items).
@@ -48,7 +51,12 @@ bun start
 | `JOIN_SIGNING_KEY` | *(auto)* | Key that checks the web API's signature on `joinRoomData` at login. Must match `web-api`. If unset, both servers share a random key in `<repo>/.iceberg-join-key`, created on first start. |
 | `SFS_ALLOW_UNSIGNED_LOGIN` | *(off)* | Development only: `1` accepts logins whose `joinRoomData` isn't signed by this server's web API. |
 | `SFS_MAX_PACKETS_PER_SEC` | `100` | A connection sending more packets than this in one second is closed. The retail client peaks around 6. `0` turns it off. |
-| `SFS_MAX_CONNECTIONS_PER_IP` | `16` | Further connections from the same address are closed. Set `0` if clients come through a proxy, since they'd all share its address. |
+| `SFS_MAX_CONNECTIONS_PER_IP` | `16` | Further connections from the same address are closed. Set `0` if clients come through a proxy, since they'd all share its address (and `SFS_MAX_CONNECTS_PER_IP_PER_MIN` too). Per-address limits count IPv6 per /64. |
+| `SFS_LOGIN_TIMEOUT_MS` | `10000` | Connections that haven't logged in by then are closed. `0` turns it off. |
+| `SFS_IDLE_TIMEOUT_MS` | `120000` | Logged-in connections that send nothing for this long are closed. Clients ping every 4 seconds, so this only drops clients that have gone away, never idle players. `0` turns it off. |
+| `SFS_MAX_CONNECTIONS` | `2000` | Logged-in players; further logins are closed. `0` turns it off. |
+| `SFS_MAX_PENDING_LOGINS` | `200` | Connections still logging in, kept apart from the cap above; when full, the oldest one from the address holding the most is closed, so a flood of connections that never log in can't keep players out. `0` turns it off. |
+| `SFS_MAX_CONNECTS_PER_IP_PER_MIN` | `60` | New connections one address may open per minute. `0` turns it off. Like `SFS_MAX_CONNECTIONS_PER_IP`, set it to `0` behind a proxy. |
 
 Behind a proxy that only forwards some ports (Cloudflare's, for example,
 forwards 8080 and 8443 but not 8088), keep using 8080 and 8443. For
@@ -76,3 +84,39 @@ To print a decoded SFSObject the way the Java API's `toJson()` does, use
 
 The full command list, with wire shapes, is in
 [`../docs/SMARTFOX_PACKETS_DOCUMENTATION.md`](../docs/SMARTFOX_PACKETS_DOCUMENTATION.md).
+
+## Staff commands
+
+Moderators and admins type commands into in-game chat. Only the person
+who ran a command sees it and its reply (a system bubble over their own
+penguin). For everyone else, including players typing the same thing,
+chat starting with `:` is ordinary chat, and so are emoticons like `:)`
+or `:D`.
+
+Roles come from the web API: accounts named in its `STAFF_ADMINS`
+variable (comma-separated usernames, exact case) are always admins, and
+admins promote others in game. Only logins whose `joinRoomData` the web
+API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
+
+| Command | Role | What it does |
+|---|---|---|
+| `:help` | moderator | Lists the commands you can run. |
+| `:online` | moderator | Who is online. |
+| `:find <user>` | moderator | Which room a player is in. |
+| `:kick <user>` | moderator | Disconnects a player ranked below you. |
+| `:mute <user> [minutes]` / `:unmute <user>` | moderator | Stops a player's chat reaching anyone (default 10 minutes, at most 1440). Lasts until it expires or the server restarts. |
+| `:ac <coins> [user]` | admin | Gives coins (1–1,000,000). |
+| `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
+| `:announce <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
+| `:restart [seconds]` / `:restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
+| `:promote <user> moderator\|admin` / `:demote <user>` | admin | Changes a role; works for offline players. |
+
+`[user]` defaults to yourself. Names can be typed in any case when only
+one account matches.
+
+### Running with auto-restart
+
+`:restart` ends the process with exit code 75. `bun run start:supervised`
+starts the server again whenever that happens; without it the server just
+stops. Under systemd, plain `bun start` with
+`Restart=on-failure` and `RestartForceExitStatus=75` does the same.

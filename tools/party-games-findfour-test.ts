@@ -155,6 +155,7 @@ try {
     await play(owner, guest, [3, 3]);
     owner.clear(); guest.clear(); grants.length = 0;
     onPartyGamePlayerQuit(guest.session);
+    await sleep(0); // grants wait for the account lookup (already resolved here)
     const expect = resultsOf([[owner, 0], [guest, 1]]);
     check(results(owner)[0] === expect && results(guest)[0] === expect, `quit ends the match for both at once: ${results(owner)[0]} / ${results(guest)[0]}`);
     check(grants.length === 1 && grants[0]!.username === owner.session.userName, `only the player who stayed is paid (${JSON.stringify(grants)})`);
@@ -172,6 +173,7 @@ try {
     await play(owner, guest, [0, 6, 1, 6, 2, 6, 3]);
     grants.length = 0;
     onPartyGamePlayerQuit(owner.session);
+    await sleep(0);
     check(results(guest)[0] === resultsOf([[owner, 0], [guest, 1]]) && grants.length === 2, `quit during the outro keeps the decided result, all paid (${results(guest)[0]})`);
   }
 

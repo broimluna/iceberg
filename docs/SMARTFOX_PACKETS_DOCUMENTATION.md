@@ -93,6 +93,13 @@ proximityListUpdate, mmoItemVariablesUpdate
 `extensionResponse` (Part 3) - the command name arrives in
 `evt.Params["cmd"]` (`ClubPenguinClient.decompiled.cs:2047`).
 
+**Disconnect reason** (system controller 0, action 1005,
+`ClientDisconnection`): `dr` = byte index into the reason list (0 idle,
+1 kick, 2 ban). The client disconnects with that reason. SFS3 handles the
+same action and key (`ResClientDisconnect`; its fourth reason, 3, is
+"unknown", the only one it reconnects after). The server sends 1 for
+`:kick` and 0 for `:restart`.
+
 Lower-level transport events also present, connection plumbing only:
 `Sfs2X.Bitswarm.BBox.BBEvent` (bb-connect, bb-disconnect, bb-data,
 bb-ioError, bb-securityError - the BlueBox/HTTP tunneling fallback) and
@@ -178,6 +185,13 @@ signature can be any string for a private server).
 | `chat.activity` | `CHAT_ACTIVITY` | BOTH | No payload either direction - a bare typing-indicator-start ping. IN triggers `CHAT_ACTIVITY_RECEIVED` with just the sender's session ID (resolved from `senderId`/`userId`, not a packet field). |
 | `chat.activity_cancel` | `CHAT_ACTIVITY_CANCEL` | BOTH | Same shape as above, typing-indicator-stop. |
 
+System messages: the OpenCPI client draws a `ReceivedChatMessage` whose
+`message` starts with U+200B as a system message, and U+200B U+200C as a
+system error (blocked-chat style). The server uses these, addressed only
+to the player and with their own `senderSessionId`/`senderId`, to answer
+staff commands (`smartfox-server/README.md`). Other clients show the text
+as normal chat; the prefix characters are invisible.
+
 ### Time & encryption (the connection-setup sequence)
 
 | Wire | Enum | Dir | Payload |
@@ -262,6 +276,17 @@ signature can be any string for a private server).
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
 | `wsevent.{0}` | `WEBSERVICE_EVENT` | OUT | **Resolved**: `{0}` is substituted with `wsEvent.Data.type` at call time (`SendWebServiceEvent(SignedResponse<WebServiceEvent> wsEvent)`, `string.Format`) - so the real wire command is `wsevent.<the WebServiceEvent's own type field>`, a small family of dynamically-named commands, not one fixed string. Payload: `d` = JSON `SignedResponse<WebServiceEvent>` (the full wrapper, sent again even though `type` was already used to build the command name). The client forwards every entry of a WebAPI response's `wsEvents` this way and expects no reply. `WebServiceEvent` = `{type: int, details: JSON}`; the only type the client's offline server produces is 1, a fishing catch, with `details` = the winning reward name. |
+
+### Server notices (OpenCPI client)
+
+Not in the retail client: clients without them ignore unknown commands
+(`SmartFoxCommand.FromString` returns null and `onExtensionResponse`
+returns early).
+
+| Wire | Dir | Payload |
+|---|---|---|
+| `server.alert` | IN | `message` (utf_string, at most 500 characters): shown as a popup. Sent by `:announce` and the restart countdown. |
+| `server.restarting` | IN | `message` = a localization key, `GlobalUI.ErrorMessages.ServerRestarting`: the "server restarting" popup. Sent when a `:restart` countdown starts. |
 
 ### Party games
 

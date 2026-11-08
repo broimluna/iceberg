@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/handshake-server.ts",
+    "start:supervised": "bun run src/supervisor.ts",
     "diagnostic": "bun run src/diagnostic-listener.ts"
   },
   "engines": {

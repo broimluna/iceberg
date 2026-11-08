@@ -7,6 +7,7 @@ import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
 import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
+import { withAccount } from "../account.ts";
 import type { HandlerContext } from "./context.ts";
 import { templateForTrigger } from "../party-games/definitions.ts";
 import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
@@ -174,7 +175,7 @@ function sendExpiryRewards(item: LiveConsumable): void {
         rewards: { [session.playerSessionId]: { coins } },
       },
     };
-    void grantReward(session.userName, { coins });
+    withAccount(session, "world object coins", (account) => grantReward(account, { coins }));
     send(extensionPacket("reward.add", new SFSObjectWriter().putUtfString("reward", JSON.stringify(payload))));
     log(`${peer} <- reward.add (${item.type} #${item.itemId}, coins=${coins})`);
   }

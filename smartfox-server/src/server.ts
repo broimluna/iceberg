@@ -21,8 +21,11 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP } from "./config.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS } from "./config.ts";
+import { addressKey } from "./net-address.ts";
+import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
+import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
@@ -33,6 +36,14 @@ import { releaseRoomIfEmpty } from "./world-objects.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
 const connectionsByIp = new Map<string, number>();
+// Logged-in players, for MAX_CONNECTIONS, and connections still logging in,
+// oldest first, for MAX_PENDING_LOGINS.
+let loggedInCount = 0;
+const pendingLogins = new PendingPool<net.Socket>(MAX_PENDING_LOGINS);
+// New connections per address in the current minute, for
+// MAX_CONNECTS_PER_IP_PER_MIN. Cleared every minute, so it stays small.
+let connectsThisMinute = new Map<string, number>();
+setInterval(() => { connectsThisMinute = new Map(); }, 60_000).unref();
 
 // Per connection: detect the transport (raw BitSwarm or WebSocket) and the
 // protocol (SFS2X or SFS3), frame packets, and dispatch them to system
@@ -46,18 +57,33 @@ const connectionsByIp = new Map<string, number>();
 // without bound until the process ran out of memory.
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
-  const ip = socket.remoteAddress ?? "?";
+  const ip = addressKey(socket.remoteAddress);
   const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
   connectionsByIp.set(ip, openFromIp);
   socket.once("close", () => {
+    pendingLogins.remove(socket);
     const n = (connectionsByIp.get(ip) ?? 1) - 1;
     if (n <= 0) connectionsByIp.delete(ip);
     else connectionsByIp.set(ip, n);
   });
+  const connectsFromIp = (connectsThisMinute.get(ip) ?? 0) + 1;
+  connectsThisMinute.set(ip, connectsFromIp);
+  if (MAX_CONNECTS_PER_IP_PER_MIN > 0 && connectsFromIp > MAX_CONNECTS_PER_IP_PER_MIN) {
+    if (connectsFromIp === MAX_CONNECTS_PER_IP_PER_MIN + 1) {
+      console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTS_PER_IP_PER_MIN} new connections a minute from ${ip}, closing (further ones this minute aren't logged)`);
+    }
+    socket.destroy();
+    return;
+  }
   if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
     console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${ip}, closing`);
     socket.destroy();
     return;
+  }
+  const evicted = pendingLogins.add(socket, ip);
+  if (evicted) {
+    console.log(`[${new Date().toISOString()}] ${evicted.remoteAddress}:${evicted.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest from the busiest address`);
+    evicted.destroy();
   }
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
@@ -76,6 +102,20 @@ const connectionHandler = (socket: net.Socket) => {
   let windowStart = Date.now();
   let packetsInWindow = 0;
   let closing = false;
+  // Login deadline, then the idle check (see LOGIN_TIMEOUT_MS in config.ts).
+  let lastInbound = Date.now();
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const watch = (ms: number, why: string, stillDue: () => number) => {
+    if (!(ms > 0)) return;
+    watchdog = setTimeout(function fire() {
+      const left = stillDue();
+      if (left > 0) { watchdog = setTimeout(fire, left); return; }
+      console.log(`[${new Date().toISOString()}] ${peer} - ${why}, closing`);
+      socket.destroy();
+    }, ms);
+  };
+  watch(LOGIN_TIMEOUT_MS, `no login within ${LOGIN_TIMEOUT_MS} ms`, () => 0);
+  socket.once("close", () => clearTimeout(watchdog));
 
   function dropConnection(reason: string) {
     if (closing) return;
@@ -175,10 +215,21 @@ const connectionHandler = (socket: net.Socket) => {
         console.log(`[${new Date().toISOString()}] ${peer} - already logged in, ignoring another login`);
         return;
       }
+      if (MAX_CONNECTIONS > 0 && loggedInCount >= MAX_CONNECTIONS) {
+        console.log(`[${new Date().toISOString()}] ${peer} - ${MAX_CONNECTIONS} players already online, closing`);
+        socket.destroy();
+        return;
+      }
       if (!handleLogin(params, ctx, socket)) return;
       loggedIn = true;
+      pendingLogins.remove(socket);
+      loggedInCount++;
+      socket.once("close", () => loggedInCount--);
+      clearTimeout(watchdog);
+      watch(IDLE_TIMEOUT_MS, `nothing received for ${IDLE_TIMEOUT_MS} ms`, () => lastInbound + IDLE_TIMEOUT_MS - Date.now());
       // Registered after login, once name, swid and room are known.
-      register({ session, peer, send });
+      register({ session, peer, send, close: () => socket.destroy() });
+      resolveIdentity(session, peer);
     } else if (controllerId === 0 && actionId === 29) {
       handlePingPong(ctx);
     } else if (controllerId === 0 && actionId === 12) {
@@ -222,6 +273,7 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("data", (chunk: Buffer) => {
     if (closing) return;
+    lastInbound = Date.now();
     if (transportMode === "unknown") {
       handshakeBuffer = Buffer.concat([handshakeBuffer, chunk]);
       if (!looksLikeHttpRequest(handshakeBuffer)) {

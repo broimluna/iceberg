@@ -5,6 +5,7 @@
  * It replaces the previous JSON file-based storage with a proper relational database.
  */
 
+import { normalizeName } from "./utils/names.ts";
 import { Database } from "bun:sqlite";
 import path from "path";
 import { parseJson, stringifyJson } from "./lib/bigJson.ts";
@@ -392,6 +393,9 @@ function initializeDatabase() {
     const sessionCols = db.prepare("SELECT name FROM pragma_table_info('player_sessions')").all().map(c => c.name);
     if (!sessionCols.includes('world')) db.exec("ALTER TABLE player_sessions ADD COLUMN world TEXT");
     if (!sessionCols.includes('instance_id')) db.exec("ALTER TABLE player_sessions ADD COLUMN instance_id TEXT DEFAULT ''");
+    // Staff role for the game server's chat commands (utils/staffRoles.ts).
+    const playerCols = db.prepare("SELECT name FROM pragma_table_info('players')").all().map(c => c.name);
+    if (!playerCols.includes('role')) db.exec("ALTER TABLE players ADD COLUMN role TEXT DEFAULT 'player'");
 
     // Referrals table - tracks who referred whom and pending rewards
     db.exec(`
@@ -736,6 +740,31 @@ function getPlayerProfile(username) {
 
 // ========== PLAYER IDENTITY OPERATIONS ==========
 
+/** Account name and stored staff role (null if unset) for a swid, or null. */
+function getPlayerIdentityAndRole(swid) {
+    return db.prepare(`
+        SELECT i.username AS username, p.role AS role
+        FROM player_identity i LEFT JOIN players p ON p.username = i.username
+        WHERE i.swid = ?
+    `).get(swid) ?? null;
+}
+
+/**
+ * The exact username if it exists, else the only username matching it
+ * ignoring case; null when there is none or more than one.
+ */
+function findUsernameNoCase(username) {
+    const exact = db.prepare('SELECT username FROM players WHERE username = ?').get(username);
+    if (exact) return exact.username;
+    const loose = db.prepare('SELECT username FROM players WHERE username = ? COLLATE NOCASE LIMIT 2').all(username);
+    return loose.length === 1 ? loose[0].username : null;
+}
+
+/** Writes players.role for an exact username; false when there's no such player. */
+function setPlayerRole(username, role) {
+    return db.prepare('UPDATE players SET role = ? WHERE username = ?').run(role, username).changes > 0;
+}
+
 /**
  * Get player info by SWID
  * @param {string} swid - The player's SWID
@@ -839,21 +868,27 @@ function getPlayersByDisplayNames(displayNames) {
  * @returns {string} The generated username
  */
 function createPlayerFromSwid(swid) {
-    // Generate a username from the SWID
-    // Use a short hash to make it readable
-    const hash = swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-    const username = `Penguin${hash}`;
-    
-    // Create the player record
+    const existing = db.prepare('SELECT username FROM player_identity WHERE swid = ?').get(swid);
+    if (existing) return existing.username;
+    // Penguin + the swid's first 8 letters and digits. Two swids can share
+    // those, so a taken name gets a number: an existing player row must
+    // never be handed to a new swid.
+    const base = `Penguin${swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`;
+    let username = base;
+    for (let n = 2; db.prepare('SELECT 1 FROM players WHERE username = ?').get(username); n++) username = `${base}${n}`;
+
     getOrCreatePlayer(username);
-    
-    // Create identity mapping
     db.prepare(`
-        INSERT OR REPLACE INTO player_identity (swid, username, display_name)
+        INSERT INTO player_identity (swid, username, display_name)
         VALUES (?, ?, ?)
     `).run(swid, username, username);
-    
+
     return username;
+}
+
+/** Whether any player has this username, ignoring case. */
+function usernameTakenNoCase(username) {
+    return !!db.prepare('SELECT 1 FROM players WHERE username = ? COLLATE NOCASE').get(username);
 }
 
 /**
@@ -872,17 +907,25 @@ function isDisplayNameTaken(displayName, exceptSwid) {
         .get(exceptSwid, displayName, displayName);
 }
 
+
+/** Returns false (and changes nothing) when the name is empty or another player's. */
 function setPlayerDisplayName(swid, displayName) {
+    displayName = displayName == null ? displayName : normalizeName(String(displayName));
     // Don't allow empty display names
     if (!displayName || displayName.trim() === '') {
         console.warn(`[DATABASE] Attempted to set empty display name for SWID ${swid}, ignoring`);
-        return;
+        return false;
+    }
+    if (isDisplayNameTaken(displayName.trim(), swid)) {
+        console.warn(`[DATABASE] Display name "${displayName.trim()}" is taken, not set for SWID ${swid}`);
+        return false;
     }
     
     const player = getPlayerBySwid(swid);
     if (player) {
         db.prepare('UPDATE player_identity SET display_name = ? WHERE swid = ?').run(displayName.trim(), swid);
     }
+    return true;
 }
 
 /**
@@ -2597,6 +2640,10 @@ initializeDatabase();
 // Export all functions
 export {
     inTransaction,
+    getPlayerIdentityAndRole,
+    setPlayerRole,
+    findUsernameNoCase,
+    usernameTakenNoCase,
     db,
     initializeDatabase,
     closeDatabase,
