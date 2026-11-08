@@ -5,6 +5,8 @@ import { DISCONNECT_IDLE, disconnectPacket } from "./moderation.ts";
 import { reply, replyError, usage, type CommandDef } from "./common.ts";
 
 const DEFAULT_RESTART_SECONDS = 30;
+// A day. Timers longer than 2^31-1 ms overflow and fire at once.
+const MAX_RESTART_SECONDS = 86_400;
 
 /** Seconds-remaining marks to announce at: the start, each whole minute, then 30, 10 and 3. */
 export function restartMarks(total: number): number[] {
@@ -58,7 +60,7 @@ export const commands: CommandDef[] = [
   {
     name: "restart",
     minRole: "admin",
-    usage: `:restart [seconds, default ${DEFAULT_RESTART_SECONDS}] | :restart cancel`,
+    usage: `:restart [seconds 1-${MAX_RESTART_SECONDS}, default ${DEFAULT_RESTART_SECONDS}] | :restart cancel`,
     run(args, ctx) {
       if (args.length > 1) return usage(ctx, this);
       if (args[0]?.toLowerCase() === "cancel") {
@@ -68,7 +70,7 @@ export const commands: CommandDef[] = [
       }
       if (args[0] !== undefined && !/^\d+$/.test(args[0])) return usage(ctx, this);
       const seconds = args[0] === undefined ? DEFAULT_RESTART_SECONDS : Number(args[0]);
-      if (seconds < 1) return usage(ctx, this);
+      if (seconds < 1 || seconds > MAX_RESTART_SECONDS) return usage(ctx, this);
       const supervised = process.env.ICEBERG_SUPERVISED === "1";
       reply(ctx, `Restarting in ${seconds} s${supervised ? "" : " (not supervised: the server will stop, not restart)"}`);
       scheduleRestart(seconds);

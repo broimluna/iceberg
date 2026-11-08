@@ -103,7 +103,7 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 | `:ac <coins> [user]` | admin | Gives coins (1–1,000,000). |
 | `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
 | `:announce <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
-| `:restart [seconds]` / `:restart cancel` | admin | Counts down (default 30 s, any length), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
+| `:restart [seconds]` / `:restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
 | `:promote <user> moderator\|admin` / `:demote <user>` | admin | Changes a role; works for offline players. |
 
 `[user]` defaults to yourself. Names can be typed in any case when only

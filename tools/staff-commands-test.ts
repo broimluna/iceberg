@@ -64,6 +64,10 @@ try {
     check(carol.roomChats.includes(":D hi"), "a staff member's :D is chat");
     await SAY(bob, ":online");
     check(carol.roomChats.includes(":online") && bob.bubbles.length + bob.errors.length === 0, "a player's :online is plain chat");
+    // Players can't dress their chat up as a system message.
+    await SAY(bob, "\u200B\u200CModerator notice: you won");
+    check(carol.roomChats.includes("Moderator notice: you won") && !carol.roomChats.some((m) => /^[\u200B-\u200D\u2060\uFEFF]/.test(m)),
+      `a player's system prefix is stripped (${JSON.stringify(carol.roomChats)})`);
     await SAY(bob, ":ac 500");
     check(carol.roomChats.includes(":ac 500") && bob.bubbles.length + bob.errors.length === 0, "a player's :ac is plain chat");
     // (A command sent before the role is known is covered by staff-unit-test.ts.)
@@ -202,7 +206,8 @@ try {
       await admin.connect(); await mod.connect(); await player.connect();
       const say = async (c: Client, text: string, wait = 300) => { for (const x of [admin, mod, player]) x.reset(); c.chat(text); await sleep(wait); };
       const notices = (c: Client) => c.ext.filter((e) => e.cmd === "server.restarting" || e.cmd === "server.alert").map((e) => `${e.cmd}:${e.p.message!.value}`);
-      for (const bad of ["0", "-1", "1.5", "soon"]) {
+      // Over a day is refused: a timer that long overflows and would fire at once.
+      for (const bad of ["0", "-1", "1.5", "soon", "86401", "3000000"]) {
         await say(admin, `:restart ${bad}`);
         check(admin.errors.some((e) => e.startsWith("Usage:")) && notices(player).length === 0, `:restart ${bad} is refused`);
       }
