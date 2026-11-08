@@ -3,7 +3,10 @@
 // decompression isn't implemented.
 export const PORT = Number(process.env.SFS_TCP_PORT ?? 9933);
 export const COMPRESSION_THRESHOLD = 999_999_999;
-export const MAX_MESSAGE_SIZE = 10_000_000;
+// Largest packet a client may send (and the "ms" the handshake
+// advertises). Real logins are far smaller; raise SFS_MAX_MESSAGE_SIZE
+// only if a large player's login is refused for size.
+export const MAX_MESSAGE_SIZE = Number(process.env.SFS_MAX_MESSAGE_SIZE ?? 1_000_000);
 export const JOIN_DELAY_MS = Number(process.env.SFS_JOIN_DELAY_MS ?? 0);
 
 // Internal bridge to web-api: localhost only, with the shared secret from

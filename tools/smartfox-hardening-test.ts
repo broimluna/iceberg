@@ -1,5 +1,5 @@
 // smartfox-server input hardening (reported with WPE Pro by Shinon):
-// - a packet may not claim more than MAX_MESSAGE_SIZE, and unparsed input
+// - a packet may not claim more than MAX_MESSAGE_SIZE (1 MB), and unparsed input
 //   can't grow past it (the receive buffer used to grow without limit)
 // - SFS login needs joinRoomData signed by the web API (it used to trust
 //   the client's swid; the signature was a constant)
@@ -98,11 +98,16 @@ try {
   expired.handshake(); expired.login(JSON.stringify({ ...joinObj, goodUntil: Date.now() - 48 * 3_600_000 }));
   check(await expired.until(() => expired.closed) && expired.logins() === 0, "login with an edited goodUntil is refused and closed");
 
-  // A header claiming more than MAX_MESSAGE_SIZE (10 MB) closes the connection at once.
+  // A header claiming more than MAX_MESSAGE_SIZE closes the connection at once.
   const big = await Conn.open();
   const hdr = Buffer.alloc(5); hdr[0] = 0x80 | 0x08; hdr.writeUInt32BE(50_000_000, 1);
   big.sock.write(hdr);
   check(await big.until(() => big.closed), "a packet header claiming 50 MB closes the connection");
+  // The default limit is 1 MB (real logins are far smaller).
+  const mid = await Conn.open();
+  const hdr2 = Buffer.alloc(5); hdr2[0] = 0x80 | 0x08; hdr2.writeUInt32BE(2_000_000, 1);
+  mid.sock.write(hdr2);
+  check(await mid.until(() => mid.closed), "a packet header claiming 2 MB closes the connection");
 
   // Packet rate: 50/s allowed here; 120 pings at once trips it.
   const fast = await Conn.open();
