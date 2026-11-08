@@ -18,6 +18,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `mix-auth-test.ts` | Mix requests act only as the token's user: bogus tokens, forged `UserId` and foreign sessions get the SDK's 401 statuses. |
 | `mix-security-test.ts` | Only the invitee can accept a friendship, with the invitation's trust; a rename can't redirect an invitation; display-name rules; a ban blocks CPI calls made with an existing token. |
 | `mix-boot-test.ts` | The cpipe manifest (`GET /cpipe`) and files (`GET /cpipe/files/...`), including path traversal rejection. |
+| `mix-content-test.ts` | Desktop bundle entries in the cpipe manifest (CRC32, mtime version, no `.meta`), serving them, and the base manifest when no bundles are installed. |
 | `mix-config-test.ts` | The boot config tool round-trips, and `openssl` decrypts what it writes. |
 | `webapi-auth-test.ts` | CPI access-token auth with default settings: valid tokens work, while expired, unknown or raw-SWID tokens get 401 and never create accounts. |
 

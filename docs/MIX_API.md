@@ -194,6 +194,26 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
   without rebuilding it (to be confirmed live in phase 1).
 - Without an `Authorization` header the request gets 400. With one,
   only its presence is checked, since it's a public token.
+- **Desktop bundles (2026-11-07).** `GET /cpipe` also lists every file
+  under `web-api/data/mix/cpipe/AssetBundles/{windows64,standalonelinux64}/`
+  (`services/mixContent.ts`). The key is the path under `cpipe/` with
+  forward slashes (`AssetBundles/windows64/hd/stickers/…/x_hd.unity3d`),
+  `crc` is the file's CRC32 as 8 uppercase hex digits (Disney's format),
+  and `v` is the file's mtime in whole Unix seconds. `.meta` files are
+  skipped, and the base `android`/`iphone` entries are left alone.
+  - Why mtime: the client puts `v` into the download URL
+    (`cdnRoot/<v>/<path>`) and uses it as the Unity cache version for
+    the bundle. A re-imported bundle that changed gets a new mtime, so
+    installed apps download it again instead of using a stale cache.
+  - Why only files on disk: the client hides stickers and gags whose
+    bundle isn't in the manifest (§10), so the manifest must never
+    promise content the server doesn't have.
+  - The tree is scanned once at startup, like the config version, so new
+    bundles show up after an import and a restart. With no tree, web-api
+    logs one `[CPIPE]` line and serves the base manifest unchanged.
+  - The tree is git-ignored: the bundles are Disney assets rebuilt by the
+    recreation (~68 MB per platform). Fill it with
+    `bun tools/mix-content.ts import` (§10).
 
 The point of cpipe was that content (stickers, gags, games, the config
 itself) could be updated without shipping a new app build.

@@ -29,7 +29,9 @@ export async function startWebApi(opts: {
   const top = mkdtempSync(join(tmpdir(), "iceberg-webapi-"));
   const dir = `${top}/web-api`;
   cpSync(`${SRC}/src`, `${dir}/src`, { recursive: true, filter: (p) => !/cpi_data\.db/.test(p) });
-  cpSync(`${SRC}/data`, `${dir}/data`, { recursive: true });
+  // The Mix bundle tree (~68 MB per platform) is left out; tests that need
+  // bundles write their own.
+  cpSync(`${SRC}/data`, `${dir}/data`, { recursive: true, filter: (p) => !p.includes("/data/mix/cpipe/AssetBundles") });
   cpSync(`${SRC}/package.json`, `${dir}/package.json`);
   symlinkSync(`${SRC}/node_modules`, `${dir}/node_modules`);
   // routes/task.ts reads ../../../smartfox-server/data, so keep the sibling layout.

@@ -21,6 +21,9 @@ node_modules/
 
 # Per-deployment Mix boot config (bun tools/mix-config.ts render <url> --out ...)
 web-api/data/mix/cpipe/donotcopy/
+# Rebuilt Mix asset bundles (Disney assets), filled per deployment by
+# bun tools/mix-content.ts import
+web-api/data/mix/cpipe/AssetBundles/
 
 # Key that signs joinRoomData for the SmartFox login (auto-created)
 .iceberg-join-key
