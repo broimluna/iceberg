@@ -33,6 +33,7 @@ import { onPlayerLeft } from "./daily-tasks.ts";
 import { onPartyGamePlayerLeft } from "./party-games/manager.ts";
 import { forgetInvitation } from "./handlers/consumables.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
+import { logSafe } from "./log-safe.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
 const connectionsByIp = new Map<string, number>();
@@ -204,8 +205,8 @@ const connectionHandler = (socket: net.Socket) => {
       }
 
       console.log(
-        `[${new Date().toISOString()}] ${peer} -> c=${controllerId} a=${actionId} p=${JSON.stringify(
-          Object.fromEntries(Object.entries(params).map(([k, v]) => [k, describeValue(v)]))
+        `[${new Date().toISOString()}] ${peer} -> c=${controllerId} a=${actionId} p=${logSafe(
+          Object.fromEntries(Object.entries(params).map(([k, v]) => [k, describeValue(v)])), 600
         )}`
       );
 
@@ -253,7 +254,7 @@ const connectionHandler = (socket: net.Socket) => {
       if (handler) {
         handler(getSFSObject(params, "p"), ctx);
       } else {
-        console.log(`[${new Date().toISOString()}] ${peer} - no handler for extension cmd "${cmd}", not responding`);
+        console.log(`[${new Date().toISOString()}] ${peer} - no handler for extension cmd ${logSafe(cmd)}, not responding`);
       }
     } else {
       console.log(`[${new Date().toISOString()}] ${peer} - no handler for c=${controllerId} a=${actionId}, not responding`);

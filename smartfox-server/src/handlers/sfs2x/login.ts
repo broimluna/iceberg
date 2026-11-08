@@ -10,6 +10,7 @@ import { buildUserVariablesArray } from "../../user-variables.ts";
 import { restoreTransientData } from "../../transient-data.ts";
 import { buildProximityUserEntry, sendExistingOccupantsToJoiner, broadcastNewJoinerToRoom } from "../proximity.ts";
 import type { HandlerContext } from "../context.ts";
+import { logSafe } from "../../log-safe.ts";
 
 // RequestType.Login = 1. Params: {zn, un, pw, p: {joinRoomData: <JSON text>}}.
 // joinRoomData decides the room and the player's appearance. It's the web
@@ -110,7 +111,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     .putSFSArray("rl", new SFSArrayWriter())
     .putSFSObject("p", new SFSObjectWriter());
   ctx.send(encodePacket(0, 1, loginResponseParams));
-  console.log(`[${new Date().toISOString()}] ${ctx.peer} <- login response (id=${session.userId}, zn=${zoneName}, un=${session.userName})`);
+  console.log(`[${new Date().toISOString()}] ${ctx.peer} <- login response (id=${session.userId}, zn=${logSafe(zoneName)}, un=${logSafe(session.userName)})`);
 
   // JoinRoom push (RequestType.JoinRoom = 4), sent without the client
   // asking. "ul" lists the other users already in the room, not the

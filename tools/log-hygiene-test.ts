@@ -5,6 +5,8 @@
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { logSafe } from "../web-api/src/utils/logSafe.ts";
 import { createPlayer } from "./lib/mix-client.ts";
+import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
+import { SFSObjectWriter } from "../smartfox-server/src/sfs-wire.ts";
 
 const { check, finish } = makeChecker();
 
@@ -63,6 +65,32 @@ try {
   });
   await Bun.sleep(100);
   check(!api.logs().includes("\n[INTERNAL-API] Added 5 coins"), "a newline in room chat can't start a forged log line");
+
+  // ---- the game server's log: client strings on one line, cut short ----
+  const key = "log-key-" + Math.random().toString(36).slice(2);
+  await api.restart({ ALLOW_SWID_AUTH: "1", JOIN_SIGNING_KEY: key });
+  const sfs = await startGameServer(api, key);
+  try {
+    const c = new GameClient(api, sfs.port, "{log-sfs}", "SfsLogger");
+    await c.connect();
+    const forged = "x\n[FORGED] y" + "z".repeat(20_000);
+    const s = (k: string) => new SFSObjectWriter().putUtfString(k, forged);
+    c.ext13("reward.broadcast", s("reward"));
+    c.ext13("membership.refresh", s("rights"));
+    c.ext13("durable.equip", s("type"));
+    c.ext13("task.p", s("id").putUtfString("t", forged));
+    c.ext13("zone.player_location", s("swid"));
+    c.ext13("wsevent.1", new SFSObjectWriter().putUtfString("d", JSON.stringify({ data: { type: 1, details: forged } })));
+    c.ext13("quest.c_obj", s("obj"));
+    c.ext13("made.up" + forged.slice(0, 300), new SFSObjectWriter());
+    await sleep(500);
+    const log = sfs.logs();
+    check(!log.includes("\n[FORGED]"), "no client string starts a forged game-server log line");
+    const longest = Math.max(...log.split("\n").map((l) => l.length));
+    check(longest < 2000, `game-server log lines stay short (longest ${longest})`);
+  } finally {
+    sfs.stop();
+  }
 } finally {
   await api.stop();
 }

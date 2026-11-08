@@ -2,6 +2,7 @@ import type { SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString } from "../wire-helpers.ts";
 import { onFishCaught } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
+import { logSafe } from "../log-safe.ts";
 
 // WebServiceEvent.type values.
 const WS_EVENT_FISHING_CATCH = 1;
@@ -24,6 +25,6 @@ export function handleWebServiceEvent(innerParams: SFSObjectData, ctx: HandlerCo
     return;
   }
   const label = type === WS_EVENT_FISHING_CATCH ? "fishing catch" : "unknown type";
-  console.log(`[${new Date().toISOString()}] ${ctx.peer} - wsevent ${String(type)} (${label}), details=${JSON.stringify(details)}`);
+  console.log(`[${new Date().toISOString()}] ${ctx.peer} - wsevent ${logSafe(type)} (${label}), details=${logSafe(details)}`);
   if (type === WS_EVENT_FISHING_CATCH) onFishCaught(ctx, typeof details === "string" ? details : "");
 }

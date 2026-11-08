@@ -2,6 +2,7 @@ import type { SFSObjectData } from "../sfs-wire.ts";
 import { getInt, getUtfString } from "../wire-helpers.ts";
 import { equipObject } from "./consumables.ts";
 import type { HandlerContext } from "./context.ts";
+import { logSafe } from "../log-safe.ts";
 
 // Prop id -> server name and kind, from the game's PropDefinition data
 // (ServerData 899003f22ddc395758bdcfb96f13fa5cd6721775.json).
@@ -89,7 +90,7 @@ export function handleDispensableEquip(innerParams: SFSObjectData, ctx: HandlerC
   if (prop) {
     sendEquippedObjectVariable(prop.kind, prop.nameOnServer, ctx);
   } else {
-    console.log(`[${new Date().toISOString()}] ${ctx.peer} - dispensable.equip: unknown prop id ${propId}, not sending con variable`);
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - dispensable.equip: unknown prop id ${logSafe(propId)}, not sending con variable`);
   }
 }
 
@@ -107,6 +108,6 @@ export function handleDurableEquip(innerParams: SFSObjectData, ctx: HandlerConte
   if (prop) {
     sendEquippedObjectVariable(prop.kind, prop.nameOnServer, ctx);
   } else {
-    console.log(`[${new Date().toISOString()}] ${ctx.peer} - durable.equip: unknown prop id ${propId} (raw type=${typeJson}), not sending con variable`);
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - durable.equip: unknown prop id ${logSafe(propId)} (raw type=${logSafe(typeJson)}), not sending con variable`);
   }
 }

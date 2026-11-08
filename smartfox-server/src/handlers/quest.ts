@@ -4,13 +4,14 @@ import { grantReward, grantQuestObjective, type RewardGrant } from "../webapi-cl
 import type { HandlerContext } from "./context.ts";
 import { withAccount } from "../account.ts";
 import { sendRewardPush } from "../reward-push.ts";
+import { logSafe } from "../log-safe.ts";
 
 // "reward.broadcast" - client -> server only. `reward` = JSON
 // SignedResponse<RewardedUserCollectionJsonHelper>. The client has no
 // handler for a reply. Logged only until its purpose is confirmed.
 export function handleRewardBroadcast(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const rewardJson = getUtfString(innerParams, "reward");
-  console.log(`[${new Date().toISOString()}] ${ctx.peer} - reward.broadcast received (reward=${rewardJson ?? "(none)"}), not echoing back (unconfirmed)`);
+  console.log(`[${new Date().toISOString()}] ${ctx.peer} - reward.broadcast received (reward=${logSafe(rewardJson ?? "(none)")}), not echoing back (unconfirmed)`);
 }
 
 // "quest.set" - ack with an empty "p" object. The client ignores the
@@ -63,7 +64,7 @@ export function handleQuestCompleteObjective(innerParams: SFSObjectData, ctx: Ha
     .putSFSObject("p", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload)));
   ctx.send(encodePacket(1, 13, responseParams2));
   console.log(
-    `[${new Date().toISOString()}] ${ctx.peer} <- quest.s_obj push (objective=${objectiveName}, all=${JSON.stringify(ctx.session.completedObjectives)})`
+    `[${new Date().toISOString()}] ${ctx.peer} <- quest.s_obj push (objective=${logSafe(objectiveName)}, ${ctx.session.completedObjectives.length} completed)`
   );
 
   // quest.s_obj grants nothing by itself. Look up the objective's reward
