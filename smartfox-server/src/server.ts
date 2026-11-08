@@ -21,16 +21,29 @@ import { handleLogin } from "./handlers/sfs2x/login.ts";
 import { handlePingPong } from "./handlers/sfs2x/ping.ts";
 import { handleSetUserVariables } from "./handlers/sfs2x/set-user-variables.ts";
 import { findExtensionHandler } from "./handlers/registry.ts";
-import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP } from "./config.ts";
+import { PORT, MAX_MESSAGE_SIZE, MAX_PACKETS_PER_SEC, MAX_CONNECTIONS_PER_IP, LOGIN_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_CONNECTIONS, MAX_CONNECTS_PER_IP_PER_MIN, MAX_PENDING_LOGINS, BIND_HOST, TRUST_PROXY } from "./config.ts";
+import { addressKey, forwardedClient } from "./net-address.ts";
+import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
+import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
+import { onPartyGamePlayerLeft } from "./party-games/manager.ts";
+import { forgetInvitation } from "./handlers/consumables.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
 const connectionsByIp = new Map<string, number>();
+// Logged-in players, for MAX_CONNECTIONS, and connections still logging in,
+// oldest first, for MAX_PENDING_LOGINS.
+let loggedInCount = 0;
+const pendingLogins = new PendingPool<net.Socket>(MAX_PENDING_LOGINS);
+// New connections per address in the current minute, for
+// MAX_CONNECTS_PER_IP_PER_MIN. Cleared every minute, so it stays small.
+let connectsThisMinute = new Map<string, number>();
+setInterval(() => { connectsThisMinute = new Map(); }, 60_000).unref();
 
 // Per connection: detect the transport (raw BitSwarm or WebSocket) and the
 // protocol (SFS2X or SFS3), frame packets, and dispatch them to system
@@ -42,21 +55,49 @@ const connectionsByIp = new Map<string, number>();
 // hold at most MAX_CONNECTIONS_PER_IP connections. Breaking a limit closes
 // the connection. Before this, a client could make the receive buffer grow
 // without bound until the process ran out of memory.
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
 const connectionHandler = (socket: net.Socket) => {
   const peer = `${socket.remoteAddress}:${socket.remotePort}`;
-  const ip = socket.remoteAddress ?? "?";
-  const openFromIp = (connectionsByIp.get(ip) ?? 0) + 1;
-  connectionsByIp.set(ip, openFromIp);
+  // Counts the connection against an address and applies the per-address
+  // limits; false if it was closed. Behind a trusted proxy the address is
+  // only known once the WebSocket upgrade arrives, so admission waits for
+  // it (the login timeout still runs meanwhile).
+  let ip: string | undefined;
+  const admit = (key: string): boolean => {
+    ip = key;
+    const openFromIp = (connectionsByIp.get(key) ?? 0) + 1;
+    connectionsByIp.set(key, openFromIp);
+    const connectsFromIp = (connectsThisMinute.get(key) ?? 0) + 1;
+    connectsThisMinute.set(key, connectsFromIp);
+    if (MAX_CONNECTS_PER_IP_PER_MIN > 0 && connectsFromIp > MAX_CONNECTS_PER_IP_PER_MIN) {
+      if (connectsFromIp === MAX_CONNECTS_PER_IP_PER_MIN + 1) {
+        console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTS_PER_IP_PER_MIN} new connections a minute from ${key}, closing (further ones this minute aren't logged)`);
+      }
+      socket.destroy();
+      return false;
+    }
+    if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
+      console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${key}, closing`);
+      socket.destroy();
+      return false;
+    }
+    const evicted = pendingLogins.add(socket, key);
+    if (evicted) {
+      console.log(`[${new Date().toISOString()}] ${evicted.remoteAddress}:${evicted.remotePort} - over ${MAX_PENDING_LOGINS} connections waiting to log in, closing the oldest from the busiest address`);
+      evicted.destroy();
+    }
+    return !socket.destroyed;
+  };
   socket.once("close", () => {
+    pendingLogins.remove(socket);
+    if (ip === undefined) return;
     const n = (connectionsByIp.get(ip) ?? 1) - 1;
     if (n <= 0) connectionsByIp.delete(ip);
     else connectionsByIp.set(ip, n);
   });
-  if (MAX_CONNECTIONS_PER_IP > 0 && openFromIp > MAX_CONNECTIONS_PER_IP) {
-    console.log(`[${new Date().toISOString()}] ${peer} - over ${MAX_CONNECTIONS_PER_IP} connections from ${ip}, closing`);
-    socket.destroy();
-    return;
-  }
+  const viaProxy = TRUST_PROXY > 0 && LOOPBACK.has(socket.remoteAddress ?? "");
+  if (!viaProxy && !admit(addressKey(socket.remoteAddress))) return;
   console.log(`[${new Date().toISOString()}] connection from ${peer}`);
   const session = new Session();
   let buffered = Buffer.alloc(0);
@@ -74,6 +115,20 @@ const connectionHandler = (socket: net.Socket) => {
   let windowStart = Date.now();
   let packetsInWindow = 0;
   let closing = false;
+  // Login deadline, then the idle check (see LOGIN_TIMEOUT_MS in config.ts).
+  let lastInbound = Date.now();
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const watch = (ms: number, why: string, stillDue: () => number) => {
+    if (!(ms > 0)) return;
+    watchdog = setTimeout(function fire() {
+      const left = stillDue();
+      if (left > 0) { watchdog = setTimeout(fire, left); return; }
+      console.log(`[${new Date().toISOString()}] ${peer} - ${why}, closing`);
+      socket.destroy();
+    }, ms);
+  };
+  watch(LOGIN_TIMEOUT_MS, `no login within ${LOGIN_TIMEOUT_MS} ms`, () => 0);
+  socket.once("close", () => clearTimeout(watchdog));
 
   function dropConnection(reason: string) {
     if (closing) return;
@@ -173,10 +228,21 @@ const connectionHandler = (socket: net.Socket) => {
         console.log(`[${new Date().toISOString()}] ${peer} - already logged in, ignoring another login`);
         return;
       }
+      if (MAX_CONNECTIONS > 0 && loggedInCount >= MAX_CONNECTIONS) {
+        console.log(`[${new Date().toISOString()}] ${peer} - ${MAX_CONNECTIONS} players already online, closing`);
+        socket.destroy();
+        return;
+      }
       if (!handleLogin(params, ctx, socket)) return;
       loggedIn = true;
+      pendingLogins.remove(socket);
+      loggedInCount++;
+      socket.once("close", () => loggedInCount--);
+      clearTimeout(watchdog);
+      watch(IDLE_TIMEOUT_MS, `nothing received for ${IDLE_TIMEOUT_MS} ms`, () => lastInbound + IDLE_TIMEOUT_MS - Date.now());
       // Registered after login, once name, swid and room are known.
-      register({ session, peer, send });
+      register({ session, peer, send, close: () => socket.destroy() });
+      resolveIdentity(session, peer);
     } else if (controllerId === 0 && actionId === 29) {
       handlePingPong(ctx);
     } else if (controllerId === 0 && actionId === 12) {
@@ -220,10 +286,12 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("data", (chunk: Buffer) => {
     if (closing) return;
+    lastInbound = Date.now();
     if (transportMode === "unknown") {
       handshakeBuffer = Buffer.concat([handshakeBuffer, chunk]);
       if (!looksLikeHttpRequest(handshakeBuffer)) {
         transportMode = "raw";
+        if (viaProxy && !admit(addressKey(socket.remoteAddress))) return;
         buffered = Buffer.concat([buffered, handshakeBuffer]);
         handshakeBuffer = Buffer.alloc(0);
         parseBufferedPackets();
@@ -244,6 +312,7 @@ const connectionHandler = (socket: net.Socket) => {
         }
         return; // wait for the rest of the HTTP request headers to arrive
       }
+      if (viaProxy && !admit(addressKey(forwardedClient(handshakeResult.headerText, TRUST_PROXY) ?? socket.remoteAddress))) return;
       socket.write(handshakeResult.response);
       transportMode = "websocket";
       console.log(`[${new Date().toISOString()}] ${peer} - upgraded to WebSocket transport (OpenCPI-style client)`);
@@ -266,6 +335,8 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("close", (hadError) => {
     unregister(session);
+    onPartyGamePlayerLeft(session);
+    forgetInvitation(session);
     onPlayerLeft(session);
     if (session.playerSessionId) void reportSessionEnded(session.playerSessionId);
     // Remove the avatar for everyone else in the room.
@@ -293,8 +364,8 @@ export function startServer(): void {
       console.error(`listener error on port ${port}: ${err.message}`);
       if (port === PORT) process.exit(1);
     });
-    server.listen(port, () => {
-      console.log(`SFS server (SFS2X + SFS3) listening on tcp:${port}`);
+    server.listen(port, BIND_HOST, () => {
+      console.log(`SFS server (SFS2X + SFS3) listening on ${BIND_HOST ?? "*"}:${port}`);
     });
   }
   startNotifyListener();

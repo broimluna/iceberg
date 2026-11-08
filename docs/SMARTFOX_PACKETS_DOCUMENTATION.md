@@ -93,6 +93,13 @@ proximityListUpdate, mmoItemVariablesUpdate
 `extensionResponse` (Part 3) - the command name arrives in
 `evt.Params["cmd"]` (`ClubPenguinClient.decompiled.cs:2047`).
 
+**Disconnect reason** (system controller 0, action 1005,
+`ClientDisconnection`): `dr` = byte index into the reason list (0 idle,
+1 kick, 2 ban). The client disconnects with that reason. SFS3 handles the
+same action and key (`ResClientDisconnect`; its fourth reason, 3, is
+"unknown", the only one it reconnects after). The server sends 1 for
+`:kick` and 0 for `:restart`.
+
 Lower-level transport events also present, connection plumbing only:
 `Sfs2X.Bitswarm.BBox.BBEvent` (bb-connect, bb-disconnect, bb-data,
 bb-ioError, bb-securityError - the BlueBox/HTTP tunneling fallback) and
@@ -178,6 +185,13 @@ signature can be any string for a private server).
 | `chat.activity` | `CHAT_ACTIVITY` | BOTH | No payload either direction - a bare typing-indicator-start ping. IN triggers `CHAT_ACTIVITY_RECEIVED` with just the sender's session ID (resolved from `senderId`/`userId`, not a packet field). |
 | `chat.activity_cancel` | `CHAT_ACTIVITY_CANCEL` | BOTH | Same shape as above, typing-indicator-stop. |
 
+System messages: the OpenCPI client draws a `ReceivedChatMessage` whose
+`message` starts with U+200B as a system message, and U+200B U+200C as a
+system error (blocked-chat style). The server uses these, addressed only
+to the player and with their own `senderSessionId`/`senderId`, to answer
+staff commands (`smartfox-server/README.md`). Other clients show the text
+as normal chat; the prefix characters are invisible.
+
 ### Time & encryption (the connection-setup sequence)
 
 | Wire | Enum | Dir | Payload |
@@ -224,7 +238,7 @@ signature can be any string for a private server).
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
 | `reward.add` | `RECEIVED_REWARDS` | IN | `reward` -> JSON `SignedResponse<RewardedUserCollectionJsonHelper>`. |
-| `reward.add_delayed` | `RECEIVED_REWARDS_DELAYED` | IN | Same shape as above, delayed-delivery variant (e.g. rewards queued until the player's back online). |
+| `reward.add_delayed` | `RECEIVED_REWARDS_DELAYED` | IN | Same shape as above. The client holds it until something claims it by `(source, sourceId)` (`ClaimDelayedReward`), then echoes it to `PUT /reward/v1`. Party games send it with `source` 5 (`MINI_GAME`) and `sourceId` = the session id, and their end popup claims it. |
 | `reward.room` | `RECEIVED_ROOOM_REWARDS` | IN | `reward` -> JSON `SignedResponse<InRoomRewards>`. (Enum name has the typo `ROOOM` - three O's - verbatim in the client, keep it if this needs to round-trip against real client behavior.) |
 | `reward.levelup` | `PROGRESSION_LEVELUP` | IN | `level` = int + sender session ID. |
 | `reward.broadcast` | `SEND_EARNED_REWARDS` | OUT | `reward` = JSON `SignedResponse<RewardedUserCollectionJsonHelper>` - client broadcasting its own earned rewards (to the room? to other systems?) rather than receiving them. |
@@ -263,14 +277,79 @@ signature can be any string for a private server).
 |---|---|---|---|
 | `wsevent.{0}` | `WEBSERVICE_EVENT` | OUT | **Resolved**: `{0}` is substituted with `wsEvent.Data.type` at call time (`SendWebServiceEvent(SignedResponse<WebServiceEvent> wsEvent)`, `string.Format`) - so the real wire command is `wsevent.<the WebServiceEvent's own type field>`, a small family of dynamically-named commands, not one fixed string. Payload: `d` = JSON `SignedResponse<WebServiceEvent>` (the full wrapper, sent again even though `type` was already used to build the command name). The client forwards every entry of a WebAPI response's `wsEvents` this way and expects no reply. `WebServiceEvent` = `{type: int, details: JSON}`; the only type the client's offline server produces is 1, a fishing catch, with `details` = the winning reward name. |
 
+### Server notices (OpenCPI client)
+
+Not in the retail client: clients without them ignore unknown commands
+(`SmartFoxCommand.FromString` returns null and `onExtensionResponse`
+returns early).
+
+| Wire | Dir | Payload |
+|---|---|---|
+| `server.alert` | IN | `message` (utf_string, at most 500 characters): shown as a popup. Sent by `:announce` and the restart countdown. |
+| `server.restarting` | IN | `message` = a localization key, `GlobalUI.ErrorMessages.ServerRestarting`: the "server restarting" popup. Sent when a `:restart` countdown starts. |
+
 ### Party games
 
 | Wire | Enum | Dir | Payload |
 |---|---|---|---|
-| `pgame.start` | `PARTY_GAME_START` | IN | `owner` (long), `id` -> sessionId (int), `template` -> templateId (int), `players` (long array). |
-| `pgame.start.v2` | `PARTY_GAME_START_V2` | IN | `id` -> sessionId (int), `template` -> templateId (int), `players` (string, **not** an array here - raw player-data blob, shape not yet decoded). v2 trades the `owner`/typed-array fields of v1 for one opaque string - worth diffing against v1 further before implementing either. |
-| `pgame.end` | `PARTY_GAME_END` | IN | `id` -> sessionId (int), `results` -> JSON `List<PartyGameEndPlayerResult>` (each with `PlayerSessionId`/`Placement`), reshaped client-side into a `sessionId -> placement` map. |
-| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | OUT (`SendPartyGameSessionMessage`): `id` = sessionId (int), `type` = int, `message` = JSON caller-defined object. IN: same three keys (`id`, `type`, `message`) - this one *is* symmetric. |
+| `pgame.start` | `PARTY_GAME_START` | IN | `owner` (long), `id` -> sessionId (int), `template` -> templateId (int), `players` (long array). The client builds the same player list as v2 from it. iceberg sends v2 only. |
+| `pgame.start.v2` | `PARTY_GAME_START_V2` | IN | `id` -> sessionId (int), `template` -> templateId (int, `PartyGameDefinition.GameTypes`), `players` -> JSON `PartyGamePlayerCollection` `{"Players":[{"TeamId":0,"UserSessionId":<long>,"RoleId":0}, ...]}`. `Players[0]` is the owner. |
+| `pgame.end` | `PARTY_GAME_END` | IN | `id` -> sessionId (int), `results` -> JSON `List<PartyGameEndPlayerResult>` `[{"PlayerSessionId":<long>,"Placement":<int>}]`, reshaped client-side into a `sessionId -> placement` map. An empty list closes the game with no end popup; otherwise `PartyGameEndGamePopup` shows every listed player. |
+| `pgame.message` | `PARTY_GAME_MESSAGE` | BOTH | `id` = sessionId, `type` = `PartyGameSessionMessageTypes`, `message` = JSON of that type's `PartyGameSessionMessages` class. Same keys both ways, but OUT sends `id` and `type` as **LONG** (`SmartFoxGameServerClientShared.serialize` has no int overload, so ints widen to long); IN reads them as INT (`GetInt`). |
+
+The client's `PartyGameManager` starts a session for **any** `pgame.start.v2`
+it receives (the game hides remote players and takes over the camera), so
+`pgame.start.v2`, `pgame.message` and `pgame.end` go to the game's players
+only. Placement rewards go to each player as `reward.add_delayed` with
+`source` 5 (`MINI_GAME`) and `sourceId` = the session id; the end popup
+claims them (`ClaimDelayedReward`), which echoes the reward to
+`PUT /reward/v1`. Session ids in the JSON are numbers and can exceed 2^53.
+
+`PartyGameSessionMessageTypes`:
+
+| # | Name | # | Name |
+|---|---|---|---|
+| 0 | SetRole | 7 | PlayerLeftGame |
+| 1 | SetGameState | 8 | PlayDanceMoves |
+| 2 | AddItem | 9 | DanceMoveSequenceComplete |
+| 3 | RemoveItem | 10 | SetTubeRaceModifierLayout |
+| 4 | SetGameStartPositions | 11 | CollectTubeRaceScoreModifier |
+| 5 | ShowTurnOutput | 12 | PlayerFinishedTubeRace |
+| 6 | PlayerTurnStart | 13 | TubeRacePlayerResult |
+
+#### Invitations (`partyGameLobby` consumables)
+
+`ScavengerHuntGroup`, `FishBucketGroup` and `FindFourGroup` are held out like
+a shareable tray: `con` {type `consum`, name} plus `con_prop`
+`{"actionCount": open slots}` (`TotalItemQuantity`), read by the client's
+`InvitationalItemExperience`. Another player accepts by interacting with
+the holder (`l.a` Interact on the player). When the last slot fills, the
+invitation is removed (`con` + `con_prop` NULL) and the game starts about a
+second later. The gap matters: the SFS client applies user variables on
+arrival but dispatches their change events once per frame, so a game `con`
+landing in the same frame as the removal makes the removal's handler throw
+(it reads the new `con` with no `con_prop`) and the invitation never closes. During
+the game each player holds the game's `PlayerProp` as `con` {type `pgame`,
+name} with no `con_prop` (the client raises `PARTYGAME_EQUIPPED`), shown to
+the whole room and cleared at the end.
+
+#### Find Four (template 2)
+
+| Type | Dir | `message` |
+|---|---|---|
+| 1 SetGameState | IN | `{"GameStateId": 0 Intro / 1 Game / 2 Finished}`. `PlayerTurnStart` is ignored outside Game. |
+| 6 PlayerTurnStart | IN | `{"PlayerId": <long>}`. The client enables its controls if it's the local player and auto-sends its current column at `TurnTimeInSeconds - 1`. |
+| 5 ShowTurnOutput | OUT | `{"PlayerId": <own id>, "ScoreDelta": <column>}`, then controls off until the echo. |
+| 5 ShowTurnOutput | IN | `{"PlayerId": <mover>, "ScoreDelta": <column>}`. The client drops the token there (and draws its own win highlight). |
+
+`Players[0]` is red and moves first. iceberg decides turns, columns (a full
+or invalid column becomes the nearest open one), wins, draws (both players
+get placement 1) and forfeits (the player who stays gets placement 0 and is
+the only one in `results`). A player quits by putting the game prop away
+(their own `con` change); the client then waits for `pgame.end`, so the match
+ends at once for both: the one who stays at 0, the quitter listed at 1 with
+no reward (the owner's end screen looks up its own placement). Rules and timings come from `GameData` in
+`smartfox-server/data/party-games.json`.
 
 ---
 

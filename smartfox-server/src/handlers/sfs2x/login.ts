@@ -45,6 +45,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     return false;
   }
 
+  session.signedLogin = refused === null;
   session.zoneName = zoneName;
   session.userName = fitsBytes(userName, MAX_NAME_BYTES) ? userName : "guest";
   let roomName = "ClubPenguin_default_room";

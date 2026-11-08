@@ -14,6 +14,7 @@ import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
 import config from "../config.ts";
+import { signConsumable, checkConsumable, claimConsumable, claimsFrom } from "../utils/consumableSignature.ts";
 
 /**
  * Wrap response in SignedResponse format
@@ -46,33 +47,35 @@ router.get('/consumable/v1', (req, res) => {
 /**
  * POST /consumable/v1/partial
  * Store partial consumable usage
- * 
- * Request: SignedResponse<UsedConsumable> { type, partialCount }
+ *
+ * Request: SignedResponse<UsedConsumable> { type, partialCount }, the
+ * SmartFox server's con.partial payload passed through by the client. Only
+ * stored when SmartFox signed it for this player and it hasn't been stored
+ * before; otherwise a client could store any count and spend it for free.
  * Response: SignedResponse<ConsumableInventory>
  */
 router.post('/consumable/v1/partial', (req, res) => {
     const { swid, username } = req.player;
-    
-    // Extract UsedConsumable from SignedResponse
-    const usedConsumable = req.body.data || req.body.Data || req.body;
-    const type = usedConsumable.type;
-    const partialCount = usedConsumable.partialCount || 0;
-    
+
+    const claims = claimsFrom(req.body);
+    const refused = checkConsumable('partial', claims)
+        ?? (claims.swid !== swid ? 'wrong swid' : null)
+        ?? (claimConsumable(claims.signature as string, claims.goodUntil as number) ? null : 'replayed');
+    if (refused) {
+        console.log(`[CONSUMABLE] ${username} partial refused (${refused})`);
+        return res.status(400).json({ code: 'BAD_SIGNATURE' });
+    }
+    const type = claims.type as string;
+    const partialCount = claims.partialCount as number;
+
     console.log(`[CONSUMABLE] ${username} storing partial: ${type} (${partialCount})`);
-    
-    // Get current inventory
+
     const inventory = db.getConsumableInventory(username);
-    const currentItem = inventory.inventoryMap && inventory.inventoryMap[type];
-    const currentCount = currentItem?.itemCount || 0;
-    
-    // Update partial count
+    const currentCount = inventory.inventoryMap[type]?.itemCount || 0;
     db.updateConsumable(username, type, currentCount, partialCount);
-    
-    // Get updated inventory
-    const updatedInventory = db.getConsumableInventory(username);
-    
+
     // Response: SignedResponse<ConsumableInventory>
-    res.json(signedResponse(updatedInventory, swid));
+    res.json(signedResponse(db.getConsumableInventory(username), swid));
 });
 
 /**
@@ -94,14 +97,23 @@ router.post('/consumable/v1/FishBucketGroup', (req, res) => {
  */
 function purchaseConsumable(req, res) {
     const type = req.params.type;
-    const count = parseInt(req.params.count) || 1;
+    const count = Number(req.params.count);
     const { swid, username } = req.player;
-    
+
+    if (!Number.isSafeInteger(count) || count < 1) {
+        console.log(`[CONSUMABLE] ${username} purchase refused (count ${JSON.stringify(req.params.count)})`);
+        return res.status(400).json({ code: 'BAD_COUNT' });
+    }
     console.log(`[CONSUMABLE] ${username} purchasing ${count}x ${type}`);
-    
+
     // Get price from config
     const price = config.consumablePrices[type] || 10;
     const totalCost = price * count;
+    // 707 is the code the client shows as "not enough coins".
+    if (db.getPlayerCoins(username) < totalCost) {
+        console.log(`[CONSUMABLE] ${username} can't afford ${count}x ${type} (${totalCost})`);
+        return res.status(400).json({ code: 707 });
+    }
     
     // Deduct coins and add consumable
     db.addPlayerCoins(username, -totalCost);
@@ -126,43 +138,30 @@ router.post('/consumable/v1/:type/:count', purchaseConsumable);
 /**
  * DELETE /consumable/v1/:type
  * POST   /consumable/v1/:type
- * Use a consumable
+ * Use a consumable: a stored partial first, else one item.
  *
- * Response: SignedResponse<UsedConsumable> { type, partialCount }
+ * Response: SignedResponse<UsedConsumable> { type, partialCount }, signed
+ * for the SmartFox server, which only plays con.use with this signature.
+ * 400 CONSUMABLE_NOT_OWNED when the player has none.
  */
 function useConsumable(req, res) {
     const type = req.params.type;
     const { swid, username } = req.player;
 
-    console.log(`[CONSUMABLE] ${username} using: ${type}`);
-
-    const inventory = db.getConsumableInventory(username);
-    let partialCount = 0;
-
-    // Check if there's a partial count to use first
-    if (inventory.inventoryMap && inventory.inventoryMap[type]) {
-        partialCount = inventory.inventoryMap[type].partialCount || 0;
-
-        if (partialCount > 0) {
-            // Clear partial count
-            db.updateConsumable(username, type, inventory.inventoryMap[type].itemCount, 0);
-        } else {
-            // Decrease item count
-            const newCount = (inventory.inventoryMap[type].itemCount || 1) - 1;
-            if (newCount <= 0) {
-                // Remove item from inventory
-                db.updateConsumable(username, type, 0, 0);
-            } else {
-                db.updateConsumable(username, type, newCount, 0);
-            }
-        }
+    const stock = db.getConsumableInventory(username).inventoryMap[type];
+    const itemCount = stock?.itemCount || 0;
+    const partialCount = stock?.partialCount || 0;
+    if (itemCount <= 0 && partialCount <= 0) {
+        console.log(`[CONSUMABLE] ${username} tried to use ${type} without having one`);
+        return res.status(400).json({ code: 'CONSUMABLE_NOT_OWNED' });
     }
 
-    // Response: SignedResponse<UsedConsumable>
-    res.json(signedResponse({
-        partialCount: partialCount,
-        type: type
-    }, swid));
+    console.log(`[CONSUMABLE] ${username} using: ${type}`);
+    if (partialCount > 0) db.updateConsumable(username, type, itemCount, 0);
+    else db.updateConsumable(username, type, itemCount - 1, 0);
+
+    const { goodUntil, signature } = signConsumable('use', swid, type, partialCount);
+    res.json({ goodUntil, swid, data: { partialCount, type }, signature });
 }
 
 router.delete('/consumable/v1/:type', useConsumable);

@@ -1,12 +1,16 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString, fitsBytes, MAX_NAME_BYTES } from "../wire-helpers.ts";
+import { signConsumable, checkConsumable, claimConsumable, claimsFrom } from "../consumable-signature.ts";
 import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
 import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
+import { withAccount } from "../account.ts";
 import type { HandlerContext } from "./context.ts";
+import { templateForTrigger } from "../party-games/definitions.ts";
+import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
 const ITEM_CATEGORY_CONSUMABLE = 1;
@@ -171,7 +175,7 @@ function sendExpiryRewards(item: LiveConsumable): void {
         rewards: { [session.playerSessionId]: { coins } },
       },
     };
-    void grantReward(session.userName, { coins });
+    withAccount(session, "world object coins", (account) => grantReward(account, { coins }));
     send(extensionPacket("reward.add", new SFSObjectWriter().putUtfString("reward", JSON.stringify(payload))));
     log(`${peer} <- reward.add (${item.type} #${item.itemId}, coins=${coins})`);
   }
@@ -259,8 +263,10 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
     case "playerHeld":
       usePlayerHeldConsumable(ctx, type, def, partialCount);
       break;
+    case "partyGameLobby":
+      useInvitation(ctx, type, def);
+      break;
     default:
-      // TODO: partyGameLobby, with party games.
       log(`${ctx.peer} - ${cmd}: ${type} is a ${def.experience} consumable, not implemented yet`);
   }
   onConsumableUsed(ctx, type);
@@ -268,23 +274,26 @@ function useConsumable(ctx: HandlerContext, cmd: string, type: string, partialCo
 
 // "con.use" - type = JSON SignedResponse<UsedConsumable> {type,
 // partialCount}, prop = JSON properties. Sent after the client has spent
-// the item through the WebAPI.
+// the item through the WebAPI, with the WebAPI's response passed through.
+// Only played when the WebAPI signed it for this player and it hasn't been
+// played before; otherwise a client could use items it never paid for.
 export function handleConsumableUse(innerParams: SFSObjectData, ctx: HandlerContext): void {
   const typeJson = getUtfString(innerParams, "type");
-  let type: string | undefined;
-  let partialCount = 0;
+  let signed: unknown;
   try {
-    const data = typeJson ? JSON.parse(typeJson)?.data : undefined;
-    if (typeof data?.type === "string") type = data.type;
-    if (typeof data?.partialCount === "number") partialCount = data.partialCount;
+    signed = typeJson ? JSON.parse(typeJson) : undefined;
   } catch (err) {
     log(`${ctx.peer} - con.use: failed to parse "type" JSON: ${(err as Error).message}`);
   }
-  if (!type) {
-    log(`${ctx.peer} - con.use: no consumable type in ${typeJson ?? "(none)"}, ignoring`);
+  const claims = claimsFrom(signed);
+  const refused = checkConsumable("use", claims)
+    ?? (claims.swid !== ctx.session.swid ? "wrong swid" : null)
+    ?? (claimConsumable(claims.signature as string, claims.goodUntil as number) ? null : "replayed");
+  if (refused) {
+    log(`${ctx.peer} - con.use refused (${refused}): ${JSON.stringify(claims.type ?? null)}`);
     return;
   }
-  useConsumable(ctx, "con.use", type, partialCount, getUtfString(innerParams, "prop"));
+  useConsumable(ctx, "con.use", claims.type as string, claims.partialCount as number, getUtfString(innerParams, "prop"));
 }
 
 // "con.reuse" - type = plain string, prop = JSON properties. The client
@@ -390,6 +399,82 @@ function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: Consuma
   log(`${ctx.peer} - ${type} held out with ${count} to share`);
 }
 
+// ==================== Party game invitations ====================
+//
+// A partyGameLobby consumable (e.g. FindFourGroup) is held out like a tray:
+// "con" + "con_prop" {"actionCount": open slots}, which the client's
+// InvitationalItemExperience reads. Other players fill a slot by
+// interacting with the holder; when the last slot fills, the invitation
+// goes and the party game starts with the holder first.
+
+// Players who have joined an invitation that still has open slots, by
+// holder user id.
+const invitationGuests = new Map<number, RegisteredSession[]>();
+
+// Delay between removing a filled invitation and starting its game. The
+// SFS client applies user variables on arrival but dispatches their change
+// events once per frame; if the game's "con" lands in the same frame as the
+// removal, the removal's handler reads the new "con" with no "con_prop" and
+// throws, and the invitation never closes on any client (the holder's
+// controls stay locked to it).
+const INVITATION_HANDOFF_MS = 1000;
+
+function useInvitation(ctx: HandlerContext, type: string, def: ConsumableDef): void {
+  const template = templateForTrigger(type);
+  if (template === undefined || !canStart(template)) {
+    log(`${ctx.peer} - ${type}: no party game to start, not held out`);
+    return;
+  }
+  if (sessionOf(ctx.session)) return;
+  invitationGuests.delete(ctx.session.userId);
+  setHeldItem(ctx.session, type, def.totalItemQuantity ?? 1);
+  log(`${ctx.peer} - ${type} invitation held out (template ${template})`);
+}
+
+// Returns whether the interaction was with a held invitation.
+function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): boolean {
+  const holder = holderEntry.session;
+  const name = holder.equippedConsumable;
+  if (!name || CONSUMABLES[name]?.experience !== "partyGameLobby") return false;
+  const template = templateForTrigger(name);
+  const { session } = ctx;
+  if (template === undefined || !canStart(template) || !holder.heldActionCount) return true;
+  if (session.equippedConsumable || session.heldObject || sessionOf(session) || sessionOf(holder)) return true;
+  // Guests who have since left the room or joined a game no longer count.
+  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
+  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
+  if (guests.some((g) => g.session === session)) return true;
+  const me = getByRoom(session.roomName).find((e) => e.session === session);
+  if (!me) return true;
+  guests.push(me);
+  const left = (CONSUMABLES[name]!.totalItemQuantity ?? 1) - guests.length;
+  log(`${ctx.peer} - joined ${holder.userName}'s ${name} (${left} slots left)`);
+  if (left > 0) {
+    invitationGuests.set(holder.userId, guests);
+    setHeldActionCount(holder, left);
+    return true;
+  }
+  const players = [holderEntry, ...guests];
+  if (!canStartWith(template, players)) {
+    log(`${ctx.peer} - ${holder.userName}'s ${name} can't start yet, invitation kept`);
+    guests.pop();
+    invitationGuests.set(holder.userId, guests);
+    return true;
+  }
+  invitationGuests.delete(holder.userId);
+  // The invitation goes only once the start is certain.
+  setHeldActionCount(holder, 0);
+  removeHeldItem(holder);
+  setTimeout(() => {
+    if (!startPartyGame(template, players)) log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff)`);
+  }, INVITATION_HANDOFF_MS);
+  return true;
+}
+
+export function forgetInvitation(session: Session): void {
+  invitationGuests.delete(session.userId);
+}
+
 function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): void {
   const { session } = ctx;
   // Interacting with yourself while holding a taken item (or a
@@ -406,7 +491,9 @@ function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): 
     log(`${ctx.peer} - ate ${name}`);
     return;
   }
-  const holder = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId)?.session;
+  const holderEntry = getByRoomExcluding(session.roomName, session.userId).find((e) => e.session.playerSessionId === targetSessionId);
+  if (holderEntry && joinInvitation(ctx, holderEntry)) return;
+  const holder = holderEntry?.session;
   const trayName = holder?.equippedConsumable;
   const tray = trayName ? CONSUMABLES[trayName] : undefined;
   if (!holder || !tray || tray.experience !== "playerHeld" || !tray.shareable || !holder.heldActionCount) return;
@@ -448,14 +535,19 @@ function sendUserVars(target: { send: (packet: OutgoingPacket) => void }, sessio
 // Drops a held tray or taken item from the session. A tray with items left
 // sends "con.partial" {data: JSON SignedResponse<UsedConsumable> {type,
 // partialCount}}, which the client stores through POST
-// /consumable/v1/partial. Returns whether anything was held.
+// /consumable/v1/partial. The WebAPI only stores it with this server's
+// signature. Returns whether anything was held.
 function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boolean {
   const { session } = ctx;
   const count = session.heldActionCount;
   if (count === undefined) return false;
+  invitationGuests.delete(session.userId);
   session.heldActionCount = undefined;
-  if (previous && !CONSUMABLES[previous]?.serverAdded && count > 0) {
-    const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data: { type: previous, partialCount: count } };
+  // Only trays keep what's left. A held invitation's count is its open
+  // slots; storing that would make the next one free.
+  if (previous && CONSUMABLES[previous]?.experience === "playerHeld" && !CONSUMABLES[previous]?.serverAdded && count > 0 && session.swid) {
+    const { goodUntil, signature } = signConsumable("partial", session.swid, previous, count);
+    const payload = { goodUntil, signature, swid: session.swid, data: { type: previous, partialCount: count } };
     ctx.send(extensionPacket("con.partial", new SFSObjectWriter().putUtfString("data", JSON.stringify(payload))));
     log(`${ctx.peer} <- con.partial (${previous}, ${count} left)`);
   }
@@ -488,6 +580,12 @@ function replaceHeldItem(ctx: HandlerContext, next: EquippedObject | undefined):
 // update has already been echoed to the room.
 export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject | undefined): void {
   const { session } = ctx;
+  // Putting a party game's prop away is how the client quits the game.
+  const game = sessionOf(session);
+  if (game && session.heldObject === game.def.playerProp && next?.name !== game.def.playerProp) {
+    session.heldObject = undefined;
+    onPartyGamePlayerQuit(session);
+  }
   const previous = session.equippedConsumable;
   // Replayed to late joiners, so an oversized name isn't kept.
   const name = fitsBytes(next?.name, MAX_NAME_BYTES) ? next?.name : undefined;

@@ -1,7 +1,10 @@
 import http from "node:http";
 import { SFSObjectWriter, encodePacket } from "./sfs-wire.ts";
 import { getByUsername } from "./session-registry.ts";
-import { NOTIFY_PORT, INTERNAL_API_SECRET } from "./config.ts";
+import { NOTIFY_PORT } from "./config.ts";
+import { internalRequestStatus } from "./internal-secret.ts";
+
+const MAX_BODY_BYTES = 64 * 1024;
 
 // Receives pushes from the WebAPI (web-api/src/smartfoxNotifier.ts →
 // POST /notify) and forwards them to the connected player. Only
@@ -34,19 +37,24 @@ export function startNotifyListener(): void {
       res.writeHead(404).end();
       return;
     }
-    // Localhost only, plus the optional shared secret.
-    const remote = req.socket.remoteAddress ?? "";
-    if (remote !== "127.0.0.1" && remote !== "::1" && remote !== "::ffff:127.0.0.1") {
-      res.writeHead(403).end();
-      return;
-    }
-    if (INTERNAL_API_SECRET && req.headers["x-internal-secret"] !== INTERNAL_API_SECRET) {
-      res.writeHead(401).end();
+    const status = internalRequestStatus(req);
+    if (status !== 200) {
+      res.writeHead(status).end();
       return;
     }
     let body = "";
-    req.on("data", (chunk) => (body += chunk));
+    let tooBig = false;
+    req.on("data", (chunk) => {
+      if (tooBig) return;
+      body += chunk;
+      if (body.length > MAX_BODY_BYTES) {
+        tooBig = true;
+        res.writeHead(413).end();
+        req.destroy();
+      }
+    });
     req.on("end", () => {
+      if (tooBig) return;
       try {
         handleNotification(JSON.parse(body));
         res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ success: true }));
@@ -59,7 +67,8 @@ export function startNotifyListener(): void {
   server.on("error", (err) => {
     console.error(`notify-listener error on port ${NOTIFY_PORT}: ${err.message}`);
   });
-  server.listen(NOTIFY_PORT, () => {
-    console.log(`WebAPI notify listener on tcp:${NOTIFY_PORT} (POST /notify)`);
+  // Only web-api on this machine calls it.
+  server.listen(NOTIFY_PORT, "127.0.0.1", () => {
+    console.log(`WebAPI notify listener on 127.0.0.1:${NOTIFY_PORT} (POST /notify)`);
   });
 }

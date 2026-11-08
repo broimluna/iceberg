@@ -38,6 +38,11 @@ export function sendTransientData(ctx: HandlerContext): void {
   const { session } = ctx;
   const data = collect(session);
   if (session.swid) saved.set(session.swid, { data, savedAt: Date.now() });
+  // The held item now belongs to the next room's session. Dropping it here
+  // means putting it away before disconnecting doesn't also send a
+  // con.partial for it (which would duplicate a tray).
+  session.heldActionCount = undefined;
+  session.equippedConsumable = undefined;
   const payload = { goodUntil: 0, signature: "", swid: session.swid ?? "", data };
   const p = new SFSObjectWriter().putUtfString("d", JSON.stringify(payload));
   ctx.send(encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", "zone.transfer").putSFSObject("p", p)));

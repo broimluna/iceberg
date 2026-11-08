@@ -9,6 +9,8 @@
 
 import express from "express";
 import { filterText } from "../services/moderation.ts";
+import { signChat, MAX_CHAT_LENGTH } from "../utils/chatSignature.ts";
+import { logSafe } from "../utils/logSafe.ts";
 const router = express.Router();
 
 /**
@@ -34,23 +36,29 @@ router.post('/chat/v1/message/verify', (req, res) => {
     const { swid, username } = req.player;
     const chatMessage = req.body;
     
-    console.log(`[CHAT] ${username} verifying message: "${chatMessage.message}"`);
+    console.log(`[CHAT] ${username} verifying message: ${logSafe(chatMessage?.message)}`);
     
+    const raw = typeof chatMessage.message === "string" ? chatMessage.message : "";
+    if ([...raw].length > MAX_CHAT_LENGTH) {
+        return res.status(400).json({ error: `Chat messages are at most ${MAX_CHAT_LENGTH} characters` });
+    }
     // The shared filter (services/moderation.ts) masks matched words; a
     // blocked message comes back fully masked.
-    const { text, moderated, blocked } = filterText(typeof chatMessage.message === "string" ? chatMessage.message : "");
+    const { text, moderated, blocked } = filterText(raw);
 
     const verifiedMessage = {
         senderSessionId: chatMessage.senderSessionId,
         message: text,
-        emotion: chatMessage.emotion || 0,
+        emotion: Number.isInteger(chatMessage.emotion) ? chatMessage.emotion : 0,
         moderated: moderated || blocked,
         questId: chatMessage.questId || '',
         objective: chatMessage.objective || ''
     };
     
-    // Response: SignedResponse<ChatMessage>
-    res.json(signedResponse(verifiedMessage, swid));
+    // Response: SignedResponse<ChatMessage>, signed so the SmartFox server
+    // relays only filtered text from this player (utils/chatSignature.ts).
+    const { goodUntil, signature } = signChat(swid, verifiedMessage);
+    res.json({ goodUntil, swid, data: verifiedMessage, signature });
 });
 
 export default router;

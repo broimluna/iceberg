@@ -73,6 +73,10 @@ try {
     ["blank", "   ", "DISPLAYNAME_ASSIGNMENT_FAILED"],
     ["not a string", 42, "DISPLAYNAME_ASSIGNMENT_FAILED"],
     ["blocked by the filter", "heck yes", "DISPLAYNAME_MODERATION_FAILED"],
+    // Rules apply to the stored (NFKC-folded) name: U+FDFA expands to 18
+    // characters, fullwidth letters fold to plain ones.
+    ["over 20 characters once folded", "a\uFDFA\uFDFA", "DISPLAYNAME_ASSIGNMENT_FAILED"],
+    ["a fullwidth filtered word", "\uFF48\uFF45\uFF43\uFF4B yes", "DISPLAYNAME_MODERATION_FAILED"],
   ] as const) {
     const r = await setName(M, n);
     check(r?.Status === status, `${label} (${JSON.stringify(n)}) -> ${r?.Status}`);
@@ -82,6 +86,8 @@ try {
   check(ok?.Status === "OK" && ok?.DisplayName === "Mal" && nameOf("{SEC-M}") === "Mal", `valid name is trimmed and stored -> ${JSON.stringify(ok)} / ${nameOf("{SEC-M}")}`);
   ok = await setName(M, "MAL");
   check(ok?.Status === "OK", `re-setting your own name in another case -> ${ok?.Status}`);
+  ok = await setName(M, "\uFF2Dal2");
+  check(ok?.DisplayName === "Mal2" && nameOf("{SEC-M}") === "Mal2", `the reply echoes the stored, folded name -> ${JSON.stringify(ok)} / ${nameOf("{SEC-M}")}`);
 
   // --- 3. A ban blocks CPI web-api calls made with an existing token.
   const cpi = (token: string) => fetch(`${api.base}/player/v1`, { headers: { Authorization: "Basic " + btoa(`${token}:x`) } });

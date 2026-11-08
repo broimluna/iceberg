@@ -11,6 +11,9 @@
  * - BEARER: Requires "Authorization: BEARER {access-token}" header
  */
 
+import { hashPassword, verifyPassword, MIN_PASSWORD, MAX_PASSWORD } from '../utils/passwords.ts';
+import { rateLimit, accountFailureLimit, clientAddress } from '../utils/rateLimit.ts';
+import { checkName } from '../utils/names.ts';
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
@@ -71,29 +74,26 @@ function generateEtags(swid, username) {
 }
 
 /**
- * Hash a password using PBKDF2
- */
-function hashPassword(password) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return `${salt}:${hash}`;
-}
-
-/**
- * Verify a password against a stored hash
- */
-function verifyPassword(password, storedHash) {
-    if (!storedHash) return false;
-    const [salt, originalHash] = storedHash.split(':');
-    if (!salt || !originalHash) return false;
-    
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return hash === originalHash;
-}
-
-/**
  * Build a GuestControllerWebCallResponse error
  */
+/** Why a name was refused, for developerMessage. */
+function nameProblem(reason) {
+    return {
+        length: 'Names must be 3 to 20 characters',
+        chars: 'Names may use letters, digits, spaces, "_", "-" and "." only',
+        mixed: 'Names may use letters from only one alphabet',
+        spacing: 'Names may not contain double spaces',
+    }[reason];
+}
+
+// Unauthenticated endpoints that cost the server (password hashing) or
+// create things are rate limited per address.
+const tooMany = (res) => res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
+const loginLimit = rateLimit({ name: 'login', envVar: 'AUTH_LOGIN_PER_MIN', defaultLimit: 10, windowMs: 60_000, onLimited: tooMany });
+const registerLimit = rateLimit({ name: 'register', envVar: 'AUTH_REGISTER_PER_HOUR', defaultLimit: 5, windowMs: 3_600_000, onLimited: tooMany });
+const accountFails = accountFailureLimit();
+const apiKeyLimit = rateLimit({ name: 'api-key', envVar: 'AUTH_APIKEY_PER_MIN', defaultLimit: 30, windowMs: 60_000, onLimited: tooMany });
+
 function buildError(keyCategory, errorCode, inputName = null, message = null) {
     return {
         error: {
@@ -176,20 +176,13 @@ function authenticateApiKey(req, res, next) {
     
     const apiKey = authHeader.slice(7);
     
-    // For private server: accept any non-empty API key.
-    // The client obtains one from /api-key and sends it here; we trust it.
-    // If strict validation is desired, uncomment the store check below.
-    if (!apiKey || apiKey.length === 0) {
+    // Only keys this server issued (POST /api-key; kept in the database, so
+    // they survive restarts) are accepted.
+    const stored = apiKey ? db.getGuestApiKey(apiKey) : null;
+    if (!stored) {
         return res.status(401).json(buildError('AUTHORIZATION', 'API_KEY_INVALID'));
     }
-    
-    // Auto-register unknown keys so restarts don't break existing clients
-    if (!db.getGuestApiKey(apiKey)) {
-        db.storeGuestApiKey(apiKey, 24 * 60 * 60); // 24 hours
-    }
-    
-    const stored = db.getGuestApiKey(apiKey);
-    
+
     if (new Date(stored.expiresAt) < new Date()) {
         // Refresh expired key instead of rejecting
         db.storeGuestApiKey(apiKey, 24 * 60 * 60);
@@ -238,7 +231,7 @@ function authenticateBearer(req, res, next) {
  * No authentication required.
  * Returns API key in response header.
  */
-router.post('/jgc/v5/client/:clientId/api-key', (req, res) => {
+router.post('/jgc/v5/client/:clientId/api-key', apiKeyLimit, (req, res) => {
     // START FIX: Use hardcoded reference key to ensure client acceptance
     // The client may have strict validation on key format/length
     // This key is from the reference Java implementation (APIKey.java)
@@ -273,7 +266,7 @@ router.post('/jgc/v5/client/:clientId/api-key', (req, res) => {
  * Requires APIKEY authentication.
  * Query params: expand=profile,displayName,marketing
  */
-router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, res) => {
+router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiKey, async (req, res) => {
     try {
         // Never log the body: it carries the plaintext password.
         console.log(`[LOGIN] Login attempt for loginValue: ${JSON.stringify(req.body?.loginValue ?? null)}`);
@@ -307,19 +300,41 @@ router.post('/jgc/v5/client/:clientId/guest/login', authenticateApiKey, (req, re
         const swid = playerInfo.swid;
         console.log(`[LOGIN] Found SWID: ${swid}`);
     
+        const attempt = accountFails.begin(swid, clientAddress(req));
+        if (!attempt) {
+            console.log(`[LOGIN] ${loginValue} has too many failed logins; locked for now`);
+            return res.status(429).json(buildError('RATE_LIMIT', 'TOO_MANY_REQUESTS'));
+        }
+        // Whatever path the request takes (an error included), the attempt is
+        // released when the response ends; an earlier done() decides the result.
+        res.on('close', () => attempt.done(false));
+
         // Verify password
         console.log(`[LOGIN] Getting stored password hash for SWID: ${swid}`);
         const storedHash = db.getPlayerPassword(swid);
         console.log(`[LOGIN] Stored hash exists: ${!!storedHash}`);
     
-        // Migration strategy: If no password is set (legacy account), set it to the provided password.
-        // This effectively "claims" the account with the first password used after this update.
+        // An account with no password can't be logged into: claiming it with
+        // the first password anyone types would let anyone take it.
+        // LEGACY_PASSWORD_CLAIM=1 restores that for databases from before
+        // passwords existed.
         if (!storedHash) {
-            console.log(`[LOGIN] No password set for ${loginValue}, setting it now.`);
-            db.setPlayerPassword(swid, hashPassword(password));
+            if (process.env.LEGACY_PASSWORD_CLAIM !== '1') {
+                attempt.done(false);
+                console.log(`[LOGIN] ${loginValue} has no password; refusing (LEGACY_PASSWORD_CLAIM is off)`);
+                return res
+                    .status(400)
+                    .json(buildError('LOGIN', 'INVALID_CREDENTIALS', 'password', 'Invalid username or password'));
+            }
+            attempt.done(true);
+            console.log(`[LOGIN] No password set for ${loginValue}, setting it now (LEGACY_PASSWORD_CLAIM).`);
+            db.setPlayerPassword(swid, await hashPassword(password));
         } else {
             console.log(`[LOGIN] Verifying password...`);
-            if (!verifyPassword(password, storedHash)) {
+            const verified = await verifyPassword(password, storedHash);
+            if (verified.upgrade) db.setPlayerPassword(swid, await hashPassword(password));
+            attempt.done(verified.ok);
+            if (!verified.ok) {
                 console.log(`[LOGIN] Password verification FAILED for ${loginValue}`);
                 return res
                     .status(400)
@@ -455,39 +470,70 @@ router.post('/jgc/v5/client/:clientId/guest/refresh-auth/:refreshToken', (req, r
  * Requires APIKEY authentication.
  * Query params: autogenerateUsername=true, langPref=en
  */
-router.post('/jgc/v5/client/:clientId/guest/register', authenticateApiKey, (req, res) => {
+router.post('/jgc/v5/client/:clientId/guest/register', registerLimit, authenticateApiKey, async (req, res) => {
     const { password, profile, marketing, displayName, legalAssertions } = req.body;
     const autogenerateUsername = req.query.autogenerateUsername === 'true';
     
     if (!password) {
         return res.status(400).json(buildError('REGISTER', 'PASSWORD_REQUIRED', 'password'));
     }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD) {
+        return res.status(400).json(buildError('REGISTER', 'PASSWORD_TOO_SHORT', 'password'));
+    }
+    if (password.length > MAX_PASSWORD) {
+        return res.status(400).json(buildError('REGISTER', 'PASSWORD_TOO_LONG', 'password'));
+    }
     
+    // Both names follow the shared name rule (utils/names.ts), and names
+    // other players already use (as a username or display name) are refused:
+    // name lookups (friend search, moderation) would be ambiguous. Every
+    // check runs on exactly the value that's stored.
+    let proposed = '';
+    if (displayName?.proposedDisplayName != null && displayName.proposedDisplayName !== '') {
+        const c = checkName(displayName.proposedDisplayName);
+        if (!c.ok) return res.status(400).json(buildError('REGISTER', c.reason === 'length' ? 'DISPLAY_NAME_INVALID_LENGTH' : 'INVALID_VALUE', 'displayName.proposedDisplayName', nameProblem(c.reason)));
+        proposed = c.name;
+    }
+    let chosenUsername = '';
+    if (!autogenerateUsername && profile?.username != null && profile.username !== '') {
+        const c = checkName(profile.username);
+        if (!c.ok) return res.status(400).json(buildError('REGISTER', c.reason === 'length' ? 'USERNAME_INVALID_LENGTH' : 'INVALID_VALUE', 'profile.username', nameProblem(c.reason)));
+        chosenUsername = c.name;
+    }
+    if (proposed && db.isDisplayNameTaken(proposed, '')) {
+        return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
+    }
+    if (!autogenerateUsername && chosenUsername && db.isDisplayNameTaken(chosenUsername, '')) {
+        return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'profile.username', 'The username already exists in the system.'));
+    }
+
     // Generate SWID for new user
     const swid = generateSwid();
     
     // Determine username
     let username;
-    if (autogenerateUsername || !profile?.username) {
+    if (autogenerateUsername || !chosenUsername) {
         username = db.createPlayerFromSwid(swid);
     } else {
-        username = profile.username;
+        username = chosenUsername;
+        // A taken username (in any case) is refused: registering it must
+        // never repoint an existing account, and its role, at a new swid.
+        if (db.usernameTakenNoCase(username)) {
+            return res.status(400).json(buildError('REGISTER', 'INUSE_VALUE', 'profile.username', 'The username already exists in the system.'));
+        }
         db.getOrCreatePlayer(username);
-        // Create identity mapping
-        const hash = swid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-        const stmt = db.db.prepare(`
-            INSERT OR REPLACE INTO player_identity (swid, username, display_name)
+        db.db.prepare(`
+            INSERT INTO player_identity (swid, username, display_name)
             VALUES (?, ?, ?)
-        `);
-        stmt.run(swid, username, displayName?.proposedDisplayName || username);
+        `).run(swid, username, proposed || username);
     }
     
     // Set password
-    db.setPlayerPassword(swid, hashPassword(password));
+    db.setPlayerPassword(swid, await hashPassword(password));
     
     // Set display name if provided
-    if (displayName?.proposedDisplayName) {
-        db.setPlayerDisplayName(swid, displayName.proposedDisplayName);
+    if (proposed) {
+        db.setPlayerDisplayName(swid, proposed);
     }
     
     // Generate ETags and tokens
@@ -594,6 +640,10 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
     
     // Validate display name if provided
     if (displayName) {
+        const c = checkName(displayName);
+        if (!c.ok && c.reason !== 'length') {
+            errors.push({ code: 'INVALID_VALUE', inputName: 'displayName', developerMessage: nameProblem(c.reason) });
+        }
         if (displayName.length < 3 || displayName.length > 20) {
             errors.push({
                 code: 'DISPLAY_NAME_INVALID_LENGTH',
@@ -624,6 +674,10 @@ router.post('/jgc/v5/client/:clientId/validate', authenticateApiKey, (req, res) 
     
     // Validate username if provided (skip if it's the dummy placeholder)
     if (username && !isDummyUsername) {
+        const c = checkName(username);
+        if (!c.ok && c.reason !== 'length') {
+            errors.push({ code: 'INVALID_VALUE', inputName: 'username', developerMessage: nameProblem(c.reason) });
+        }
         if (username.length < 3 || username.length > 20) {
             errors.push({
                 code: 'USERNAME_INVALID_LENGTH',
@@ -767,7 +821,11 @@ router.post('/jgc/v5/client/:clientId/guest/:swid', authenticateBearer, (req, re
     
     // Update display name if provided
     if (displayName?.proposedDisplayName) {
-        db.setPlayerDisplayName(swid, displayName.proposedDisplayName);
+        const c = checkName(displayName.proposedDisplayName);
+        if (!c.ok) return res.status(400).json(buildError('PROFILE', c.reason === 'length' ? 'DISPLAY_NAME_INVALID_LENGTH' : 'INVALID_VALUE', 'displayName.proposedDisplayName', nameProblem(c.reason)));
+    }
+    if (displayName?.proposedDisplayName && !db.setPlayerDisplayName(swid, displayName.proposedDisplayName)) {
+        return res.status(400).json(buildError('PROFILE', 'INUSE_VALUE', 'displayName.proposedDisplayName', 'The display name already exists in the system.'));
     }
     
     const updatedPlayer = db.getPlayerBySwid(swid);

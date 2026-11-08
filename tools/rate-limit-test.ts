@@ -1,0 +1,80 @@
+// web-api/src/utils/rateLimit.ts in-process: which address a request
+// counts against, and that the table of addresses stays bounded.
+import { makeChecker } from "./lib/harness.ts";
+import { rateLimit, clientAddress, accountFailureLimit } from "../web-api/src/utils/rateLimit.ts";
+
+const { check, finish } = makeChecker();
+const req = (remote: string, xff?: string) => ({ socket: { remoteAddress: remote }, headers: xff ? { "x-forwarded-for": xff } : {} }) as any;
+const res = () => { const r: any = { status: 0, headers: {} }; r.setHeader = (k: string, v: string) => (r.headers[k] = v); return r; };
+const limiter = (limit: number) => rateLimit({ name: "test", envVar: "TEST_LIMIT_UNSET", defaultLimit: limit, windowMs: 60_000, onLimited: (r: any) => (r.status = 429) });
+const hit = (mw: any, rq: any) => { const r = res(); let passed = false; mw(rq, r, () => (passed = true)); return passed; };
+
+// Without a trusted proxy, X-Forwarded-For is ignored.
+delete process.env.TRUST_PROXY;
+check(clientAddress(req("10.0.0.1", "6.6.6.6")) === "10.0.0.1", "X-Forwarded-For is ignored unless TRUST_PROXY is set");
+
+// Behind one proxy, the address it appended (right-most) counts; whatever
+// the client wrote before it doesn't.
+process.env.TRUST_PROXY = "1";
+check(clientAddress(req("10.0.0.1", "1.1.1.1, 9.9.9.9")) === "9.9.9.9", `right-most entry behind 1 proxy (${clientAddress(req("10.0.0.1", "1.1.1.1, 9.9.9.9"))})`);
+{
+  const mw = limiter(2);
+  const results = ["1.1.1.1", "2.2.2.2", "3.3.3.3"].map((spoof) => hit(mw, req("10.0.0.1", `${spoof}, 9.9.9.9`)));
+  check(results[0] && results[1] && !results[2], `spoofed left-hand entries share the real address's limit (${results})`);
+}
+process.env.TRUST_PROXY = "2";
+check(clientAddress(req("10.0.0.1", "6.6.6.6, 9.9.9.9, 8.8.8.8")) === "9.9.9.9", "second from the right behind 2 proxies");
+check(clientAddress(req("10.0.0.1", "8.8.8.8")) === "10.0.0.1", "too few entries falls back to the socket address");
+delete process.env.TRUST_PROXY;
+
+// IPv6 addresses in one /64 are one host.
+{
+  const mw = limiter(2);
+  const results = ["2001:db8:1:2::1", "2001:db8:1:2::2", "2001:db8:1:2:abcd::9"].map((a) => hit(mw, req(a)));
+  check(results[0] && results[1] && !results[2], `addresses in one IPv6 /64 share a limit (${results})`);
+  check(hit(mw, req("2001:db8:1:3::1")), "another /64 has its own");
+  check(clientAddress(req("::ffff:192.0.2.7")) === "192.0.2.7", "IPv4-mapped IPv6 counts as the IPv4 address");
+}
+
+// The table of addresses is bounded.
+{
+  const mw = limiter(5);
+  for (let i = 0; i < 60_000; i++) hit(mw, req(`10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`));
+  check(mw.size() <= 50_000, `at most 50,000 addresses are tracked (${mw.size()})`);
+}
+// A locked account stays locked however many other accounts fail.
+{
+  process.env.AUTH_ACCOUNT_FAILS_PER_15MIN = "3";
+  const limiter = accountFailureLimit();
+  for (let i = 0; i < 3; i++) limiter.begin("victim", "9.9.9.9")!.done(false);
+  check(limiter.begin("victim", "8.8.8.8") === null, "victim locked");
+  for (let i = 0; i < 60_000; i++) limiter.begin(`other${i}`, "9.9.9.9")?.done(false);
+  check(limiter.begin("victim", "8.8.8.8") === null, "still locked after 60,000 other accounts failed once");
+  // A known address (one that logged in before) isn't a free pass: it loses
+  // that standing after failing as often as the limit, like a shared school IP.
+  const shared = accountFailureLimit();
+  shared.begin("owner", "10.1.1.1")!.done(true);
+  for (let i = 0; i < 3; i++) shared.begin("owner", "6.6.6.6")!.done(false);
+  check(shared.begin("owner", "6.6.6.6") === null, "owner's account locked for other addresses");
+  let allowed = 0;
+  for (let i = 0; i < 10; i++) { const a = shared.begin("owner", "10.1.1.1"); if (a) { allowed++; a.done(false); } }
+  check(allowed === 3, `the known address gets only the limit's worth of failures (${allowed})`);
+
+  // Guesses sent all at once from a known address can't get past its limit either.
+  const burst = accountFailureLimit();
+  burst.begin("acct", "10.2.2.2")!.done(true);
+  for (let i = 0; i < 3; i++) burst.begin("acct", "6.6.6.6")!.done(false);
+  const inFlight = Array.from({ length: 10 }, () => burst.begin("acct", "10.2.2.2"));
+  check(inFlight.filter(Boolean).length === 3, `parallel guesses from a known address: at most the limit (${inFlight.filter(Boolean).length})`);
+  for (const a of inFlight) a?.done(false);
+  check(burst.begin("acct", "10.2.2.2") === null, "and afterwards it has lost its standing");
+
+  // Locked accounts can't crowd out everyone else.
+  const crowd = accountFailureLimit();
+  for (let n = 0; n < 1500; n++) for (let i = 0; i < 3; i++) crowd.begin(`locked${n}`, "9.9.9.9")?.done(false);
+  for (let i = 0; i < 60_000; i++) crowd.begin(`filler${i}`, "9.9.9.9")?.done(false);
+  check(crowd.begin("brand-new", "1.2.3.4") !== null, "a new account can still log in when many others are locked");
+  check(crowd.begin("locked7", "1.2.3.4") === null, "and the locked ones stay locked");
+  delete process.env.AUTH_ACCOUNT_FAILS_PER_15MIN;
+}
+finish();

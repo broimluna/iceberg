@@ -1,4 +1,6 @@
-import { WEBAPI_INTERNAL_URL, INTERNAL_API_SECRET } from "./config.ts";
+import { WEBAPI_INTERNAL_URL } from "./config.ts";
+import { internalHeaders } from "./internal-secret.ts";
+import { isRole, type Role } from "./commands/roles.ts";
 
 // Server-to-server reward grants. The game server decides what was earned
 // and tells the WebAPI directly, rather than trusting the client to relay
@@ -28,14 +30,50 @@ export interface RewardGrant {
   collectibleCurrencies?: Record<string, number>;
 }
 
+export async function fetchIdentity(swid: string): Promise<{ username: string; role: Role } | null> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/identity`, {
+      method: "POST",
+      headers: internalHeaders(),
+      body: JSON.stringify({ swid }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { username?: unknown; role?: unknown };
+    if (typeof body.username !== "string") return null;
+    return { username: body.username, role: isRole(body.role) ? body.role : "player" };
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: identity lookup failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+export type SetRoleResult = { ok: true; username: string } | { ok: false; reason: "unknown-user" | "config-admin" | "error" };
+
+export async function setRole(username: string, role: Role): Promise<SetRoleResult> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/set-role`, {
+      method: "POST",
+      headers: internalHeaders(),
+      body: JSON.stringify({ username, role }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 404) return { ok: false, reason: "unknown-user" };
+    if (res.status === 409) return { ok: false, reason: "config-admin" };
+    if (!res.ok) return { ok: false, reason: "error" };
+    const body = (await res.json()) as { username?: unknown };
+    return { ok: true, username: typeof body.username === "string" ? body.username : username };
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: set-role failed: ${(err as Error).message}`);
+    return { ok: false, reason: "error" };
+  }
+}
+
 export async function grantReward(username: string, reward: RewardGrant): Promise<boolean> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/grant-reward`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, reward }),
       signal: AbortSignal.timeout(5000),
     });
@@ -59,10 +97,7 @@ export async function grantQuestObjective(username: string, objective: string): 
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/quest-objective`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, objective }),
       signal: AbortSignal.timeout(5000),
     });
@@ -85,10 +120,7 @@ export async function reportSessionEnded(sessionId: string): Promise<void> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/session-ended`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ sessionId: Number(sessionId) }),
       signal: AbortSignal.timeout(5000),
     });
@@ -111,10 +143,7 @@ export async function incrementTask(username: string, taskId: string, times: num
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/task-increment`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(INTERNAL_API_SECRET ? { "X-Internal-Secret": INTERNAL_API_SECRET } : {}),
-      },
+      headers: internalHeaders(),
       body: JSON.stringify({ username, taskId, times }),
       signal: AbortSignal.timeout(5000),
     });
