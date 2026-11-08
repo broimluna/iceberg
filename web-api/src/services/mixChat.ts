@@ -152,14 +152,16 @@ export function stateFor(swid: string) {
 // ---------------------------------------------------------------------------
 // Messages
 
-export type MessageType = "TEXT" | "STICKER" | "GAG";
+export type MessageType = "TEXT" | "STICKER" | "GAG" | "GAME_STATE";
 const NOTIFICATION_TYPE: Record<string, string> = {
     TEXT: "AddChatThreadTextMessage",
     STICKER: "AddChatThreadStickerMessage",
     GAG: "AddChatThreadGagMessage",
+    GAME_STATE: "AddChatThreadGameStateMessage",
     MEMBER_LIST_CHANGED: "AddChatThreadMemberListChangedMessage",
 };
 const MAX_TEXT_UNITS = 1000;
+const MAX_GAME_PAYLOAD = 256 * 1024; // GameName + Payload (a JSON string, e.g. runner ghost data)
 
 type MessageRow = {
     id: number; thread_id: number; seq: number; sender_swid: string; client_message_id: number;
@@ -203,7 +205,7 @@ function isMember(threadId: number, swid: string): boolean {
 }
 
 /**
- * Sends a TEXT, STICKER or GAG message. A retry with the same
+ * Sends a TEXT, STICKER, GAG or GAME_STATE message. A retry with the same
  * (sender, ClientChatMessageId) gets back the sender's original
  * notification and writes nothing. Everyone in the thread, sender
  * included, gets AddChatThread<Type>Message at their own next sequence;
@@ -244,6 +246,11 @@ export function addMessage(sender: string, threadId: unknown, clientMessageId: u
             const f = filterText(text);
             if (f.blocked) throw new MixError("MODERATION_BLOCKED");
             payload = { Text: f.text, IsModerated: f.moderated };
+        } else if (type === "GAME_STATE") {
+            const { GameName, Payload } = fields ?? {};
+            if (typeof GameName !== "string" || GameName.length === 0 || GameName.length > 64) throw new MixError("INVALID_REQUEST");
+            if (typeof Payload !== "string" || Payload.length === 0 || Payload.length > MAX_GAME_PAYLOAD) throw new MixError("INVALID_REQUEST");
+            payload = { GameName, State: Payload }
         } else {
             const contentId = fields?.ContentId;
             if (typeof contentId !== "string" || contentId.length === 0 || contentId.length > 256) throw new MixError("INVALID_REQUEST");
