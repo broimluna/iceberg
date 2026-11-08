@@ -28,6 +28,7 @@ on first run.
 | `AUTH_REGISTER_PER_HOUR` | `5` | Registrations allowed per address per hour. `0` turns it off. |
 | `AUTH_APIKEY_PER_MIN` | `30` | API keys issued per address per minute. `0` turns it off. |
 | `AUTH_ENCRYPTION_KEY_PER_MIN` | `30` | Encryption keys (`POST /encryption-trusted/v1/encryptionKey`) issued per address per minute. `0` turns it off. |
+| `MIX_CHAT_MESSAGES_PER_MIN` | `30` | Mix chat messages (text, sticker, gag, game state) one user may send per minute; more get HTTP 429 (the SDK shows THROTTLED). `0` turns it off. |
 | `AUTH_ACCOUNT_FAILS_PER_15MIN` | `10` | Failed logins to one account (from any address) before its logins are refused until the 15 minutes are up, except from addresses that have logged into it before. `0` turns it off. |
 | `TRUST_PROXY` | *(off)* | The number of reverse proxies in front of the web API (e.g. `1` for nginx or Cloudflare alone). The client's address for the limits above is then read that many entries from the right of `X-Forwarded-For`; entries further left come from the client and are ignored. Leave it unset without a proxy. IPv6 addresses are limited per /64. |
 | `LEGACY_PASSWORD_CLAIM` | *(off)* | `1` lets the first login to an account that has no password set one. Only for old databases from before passwords existed: it lets anyone who knows the name take such an account. |

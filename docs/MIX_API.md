@@ -397,7 +397,7 @@ iceberg's current state.
 | PUT | `/chatThread/gagMessage` | AddChatThreadGagMessageRequest | ✅ (section 7) |
 | PUT | `/chatThread/photoMessage` | AddChatThreadPhotoMessageRequest | ❌ |
 | PUT | `/chatThread/videoMessage` | AddChatThreadVideoMessageRequest | ❌ |
-| PUT | `/chatThread/gameStateMessage` | AddChatThreadGameStateMessageRequest | ❌ |
+| PUT | `/chatThread/gameStateMessage` | AddChatThreadGameStateMessageRequest | ✅ (section 7; `Payload` up to 64 KB) |
 | POST | `/chatThread/gameStateMessage` | UpdateChatThreadGameStateMessageRequest | ❌ |
 | POST | `/chatThread/recentMessages` | GetRecentChatThreadMessagesRequest | ✅ (section 7) |
 | POST | `/chatThread/specificMessages` | GetSpecificChatThreadMessagesRequest | ✅ (section 7) |

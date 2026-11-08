@@ -161,7 +161,24 @@ const NOTIFICATION_TYPE: Record<string, string> = {
     MEMBER_LIST_CHANGED: "AddChatThreadMemberListChangedMessage",
 };
 const MAX_TEXT_UNITS = 1000;
-const MAX_GAME_PAYLOAD = 256 * 1024; // GameName + Payload (a JSON string, e.g. runner ghost data)
+const MAX_GAME_PAYLOAD = 64 * 1024; // Payload: a JSON string, e.g. runner ghost data
+
+// Messages are kept and copied into every member's notifications, so each
+// sender gets MIX_CHAT_MESSAGES_PER_MIN (default 30, 0 = off) a minute.
+// HTTP 429 is THROTTLED to the SDK.
+const messageLimit = Number(process.env.MIX_CHAT_MESSAGES_PER_MIN ?? 30);
+const sentThisMinute = new Map<string, { count: number; resetAt: number }>();
+function checkMessageRate(sender: string): void {
+    if (!(messageLimit > 0)) return;
+    const now = Date.now();
+    let e = sentThisMinute.get(sender);
+    if (!e || e.resetAt <= now) {
+        if (sentThisMinute.size >= 50_000) for (const [k, v] of sentThisMinute) if (v.resetAt <= now) sentThisMinute.delete(k);
+        e = { count: 0, resetAt: now + 60_000 };
+        sentThisMinute.set(sender, e);
+    }
+    if (++e.count > messageLimit) throw new MixError("THROTTLED", 429);
+}
 
 type MessageRow = {
     id: number; thread_id: number; seq: number; sender_swid: string; client_message_id: number;
@@ -212,6 +229,7 @@ function isMember(threadId: number, swid: string): boolean {
  * the message's SequenceNumber is the thread's next seq.
  */
 export function addMessage(sender: string, threadId: unknown, clientMessageId: unknown, type: MessageType, fields: any): MixNotification {
+    checkMessageRate(sender);
     if (!isLong(clientMessageId) || !Number.isSafeInteger(threadId)) throw new MixError("INVALID_REQUEST");
     const tid = threadId as number;
     const cid = clientMessageId;

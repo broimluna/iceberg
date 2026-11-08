@@ -2,7 +2,7 @@
 // and reply res.status(e.http).json({ Status: e.status }); any other error
 // is a 500.
 export class MixError extends Error {
-    constructor(public status: string, public http: 400 | 401 | 404 = 400) {
+    constructor(public status: string, public http: 400 | 401 | 404 | 429 = 400) {
         super(status);
     }
 }

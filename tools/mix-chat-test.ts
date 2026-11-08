@@ -6,7 +6,7 @@ import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({
-  env: { ALLOW_SWID_AUTH: "1" },
+  env: { ALLOW_SWID_AUTH: "1", MIX_CHAT_MESSAGES_PER_MIN: "0" }, // paging sends 60 at once; mix-limits-test covers the limit
   // Filter rules for the moderation checks (creating the table skips the starter list).
   beforeStart: (dbPath) => {
     const d = new Database(dbPath);
