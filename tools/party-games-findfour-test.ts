@@ -130,6 +130,15 @@ try {
     check(outputs(owner)[0]?.ScoreDelta === 3, `server plays the default column on timeout (${JSON.stringify(outputs(owner))})`);
   }
 
+  // ---- an earlier turn's backstop never plays a later turn ----
+  {
+    const { owner, guest } = await newGame();
+    await play(owner, guest, [3, 4]);
+    owner.clear();
+    await sleep(160); // 0.8 of the scaled 20 s turn, past the first turn's backstop
+    check(outputs(owner).length === 0, `no early auto-move from a stale turn timer (${JSON.stringify(outputs(owner))})`);
+  }
+
   // ---- a decided result stands if someone leaves during the outro ----
   {
     const { owner, guest } = await newGame();

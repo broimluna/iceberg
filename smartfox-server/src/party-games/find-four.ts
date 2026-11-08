@@ -38,6 +38,8 @@ export class FindFour extends PartyGameSession {
   private readonly board: number[][] = Array.from({ length: this.width }, () => [] as number[]);
   private turn = 0;
   private waitingFor = -1;
+  // Counts turns, so a backstop only fires for the turn that armed it.
+  private turnSeq = 0;
   // Set once a win or draw is decided (during the outro).
   private decided: Map<RegisteredSession, number> | undefined;
 
@@ -61,9 +63,10 @@ export class FindFour extends PartyGameSession {
   private startTurn(): void {
     this.waitingFor = this.turn;
     const mover = this.turn;
+    const seq = ++this.turnSeq;
     this.sendMessage(PLAYER_TURN_START, `{"PlayerId":${this.sid(mover)}}`);
     this.timer(this.seconds("TurnTimeInSeconds", 20) + BACKSTOP_GRACE_SECONDS, () => {
-      if (this.waitingFor === mover) this.place(mover, this.defaultColumn);
+      if (this.turnSeq === seq && this.waitingFor === mover) this.place(mover, this.defaultColumn);
     });
   }
 
