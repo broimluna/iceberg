@@ -196,7 +196,8 @@ app.post('/api/internal/identity', express.json(), (req, res) => {
 
 /**
  * POST /api/internal/set-role
- * :promote / :demote. Body: { username (any case), role }. Returns
+ * :promote / :demote. Body: { username, role }; the username may differ
+ * in case when that matches only one account. Returns
  * { success, username, role }; 409 for STAFF_ADMINS accounts.
  */
 app.post('/api/internal/set-role', express.json(), (req, res) => {

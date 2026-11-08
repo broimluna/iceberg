@@ -748,9 +748,15 @@ function getPlayerIdentityAndRole(swid) {
     `).get(swid) ?? null;
 }
 
-/** Canonical username for a case-insensitive match, or null. */
+/**
+ * The exact username if it exists, else the only username matching it
+ * ignoring case; null when there is none or more than one.
+ */
 function findUsernameNoCase(username) {
-    return db.prepare('SELECT username FROM players WHERE username = ? COLLATE NOCASE').get(username)?.username ?? null;
+    const exact = db.prepare('SELECT username FROM players WHERE username = ?').get(username);
+    if (exact) return exact.username;
+    const loose = db.prepare('SELECT username FROM players WHERE username = ? COLLATE NOCASE LIMIT 2').all(username);
+    return loose.length === 1 ? loose[0].username : null;
 }
 
 /** Writes players.role for an exact username; false when there's no such player. */

@@ -25,12 +25,17 @@ const post = async (path: string, body: unknown) => {
 try {
   await createPlayer(api.base, api.dbPath, "{root}", "Root");
   await createPlayer(api.base, api.dbPath, "{bob}", "Bob");
-  const root = usernameOf("{root}"), bob = usernameOf("{bob}");
-  // STAFF_ADMINS matches case-insensitively.
-  await api.restart({ ALLOW_SWID_AUTH: "1", STAFF_ADMINS: ` ${root.toUpperCase()} , someone-else` });
+  await createPlayer(api.base, api.dbPath, "{ROOT}", "Mallory");
+  const root = usernameOf("{root}"), bob = usernameOf("{bob}"), lookalike = usernameOf("{ROOT}");
+  check(lookalike !== root && lookalike.toLowerCase() === root.toLowerCase(), `test setup: a second account differing only in case (${root} / ${lookalike})`);
+  // STAFF_ADMINS matches exactly: usernames that differ only in case are
+  // different accounts.
+  await api.restart({ ALLOW_SWID_AUTH: "1", STAFF_ADMINS: ` ${root} , someone-else` });
 
   let r = await post("identity", { swid: "{root}" });
   check(r.status === 200 && r.json?.username === root && r.json?.role === "admin", `config admin's identity is admin (${JSON.stringify(r.json)})`);
+  r = await post("identity", { swid: "{ROOT}" });
+  check(r.json?.role === "player", `an account whose name differs only in case is not a config admin (${JSON.stringify(r.json)})`);
   r = await post("identity", { swid: "{bob}" });
   check(r.status === 200 && r.json?.username === bob && r.json?.role === "player", `new account is a player (${JSON.stringify(r.json)})`);
   r = await post("identity", { swid: "{nobody}" });
@@ -46,6 +51,10 @@ try {
   check(r.status === 200 && r.json?.username === bob, `set-role matches usernames in any case (${JSON.stringify(r.json)})`);
   r = await post("set-role", { username: bob, role: "superuser" });
   check(r.status === 400, `unknown role is 400 (${r.status})`);
+  r = await post("set-role", { username: root.toLowerCase() === root ? root.toUpperCase() : root.toLowerCase(), role: "moderator" });
+  check(r.status === 404, `an any-case name that matches two accounts is refused (${r.status} ${JSON.stringify(r.json)})`);
+  r = await post("set-role", { username: lookalike, role: "moderator" });
+  check(r.status === 200 && r.json?.username === lookalike, `the exact name picks that account (${JSON.stringify(r.json)})`);
   r = await post("set-role", { username: "ghost", role: "admin" });
   check(r.status === 404, `unknown username is 404 (${r.status})`);
   r = await post("set-role", { username: root, role: "player" });
