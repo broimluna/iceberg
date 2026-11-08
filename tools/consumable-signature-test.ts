@@ -3,9 +3,11 @@
 // con.use carrying that signature, for the same swid, once. The game
 // server signs con.partial; the web API only stores a partial carrying
 // that signature, for the same swid, once.
+import { Database } from "bun:sqlite";
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { createPlayer } from "./lib/mix-client.ts";
 import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
+import { SFSObjectWriter } from "../smartfox-server/src/sfs-wire.ts";
 
 const { check, finish } = makeChecker();
 const KEY = "test-join-key-" + Math.random().toString(36).slice(2);
@@ -65,6 +67,8 @@ const apiSig = await import("../web-api/src/utils/consumableSignature.ts");
   check(sfsSig.checkConsumable("use", { ...u, signature: "x|y." + sig.split(".")[1] }) === "bad signature", "malformed nonce -> bad signature");
   const far = apiSig.signConsumable("use", swid, "PizzaGroup", 0, Date.now() + 3_600_000);
   check(sfsSig.checkConsumable("use", { swid, type: "PizzaGroup", partialCount: 0, ...far }) === "bad signature", "goodUntil beyond five minutes -> bad signature");
+  const skewed = apiSig.signConsumable("use", swid, "PizzaGroup", 0, Date.now() + 20_000);
+  check(sfsSig.checkConsumable("use", { swid, type: "PizzaGroup", partialCount: 0, ...skewed }) === null, "a signer clock 20 s ahead is tolerated");
   let threw = false;
   try { apiSig.signConsumable("use", swid, "Pizza|Group", 0); } catch { threw = true; }
   check(threw, "signing a type containing | throws");
@@ -81,8 +85,8 @@ const apiSig = await import("../web-api/src/utils/consumableSignature.ts");
 
 // ---- web API: signed uses, no use without stock, verified partials ----
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", JOIN_SIGNING_KEY: KEY } });
-const SWID_A = "{c0000000-0000-0000-0000-00000000000a}";
-const SWID_B = "{c0000000-0000-0000-0000-00000000000b}";
+const SWID_A = "{a1000000-0000-0000-0000-00000000000a}";
+const SWID_B = "{b1000000-0000-0000-0000-00000000000b}";
 await createPlayer(api.base, api.dbPath, SWID_A, "SigTesterA");
 await createPlayer(api.base, api.dbPath, SWID_B, "SigTesterB");
 
@@ -101,6 +105,27 @@ const partialBody = (swid: string, type: string, partialCount: number) => {
 };
 
 {
+  const coinsOf = async (swid: string) => {
+    const db = new Database(api.dbPath, { readonly: true });
+    const row = db.query("SELECT coins FROM player_assets a JOIN player_identity i ON i.username = a.username WHERE i.swid = ?").get(swid) as any;
+    db.close();
+    return row?.coins as number | undefined;
+  };
+  await stock(SWID_A, "PizzaGroup"); // creates the player's assets row
+  const c0 = await coinsOf(SWID_A);
+  const neg = await buy(SWID_A, "PizzaGroup", -100);
+  check(neg.status === 400 && await coinsOf(SWID_A) === c0 && (await stock(SWID_A, "PizzaGroup")).itemCount === 0, `buying a negative count -> 400, coins unchanged (${neg.status}, ${c0} -> ${await coinsOf(SWID_A)})`);
+  const tooMany = await buy(SWID_A, "PizzaGroup", 100000);
+  const tooManyBody = await tooMany.json().catch(() => null);
+  check(tooMany.status === 400 && tooManyBody?.code === 707 && await coinsOf(SWID_A) === c0, `buying more than you can afford -> 400 code 707, coins unchanged (${tooMany.status}, ${JSON.stringify(tooManyBody)})`);
+  {
+    await stock(SWID_B, "PizzaGroup"); // creates the assets row
+    const db = new Database(api.dbPath);
+    db.run("UPDATE player_assets SET coins = 0 WHERE username = (SELECT username FROM player_identity WHERE swid = ?)", [SWID_B]);
+    db.close();
+    const broke = await buy(SWID_B, "PizzaGroup", 1);
+    check(broke.status === 400 && (await coinsOf(SWID_B)) === 0, `a player with 0 coins can't buy (${broke.status}, ${await coinsOf(SWID_B)})`);
+  }
   await buy(SWID_A, "PizzaGroup", 1);
   const r = await spend(SWID_A, "PizzaGroup");
   const used = await r.json();
@@ -139,8 +164,8 @@ const partialBody = (swid: string, type: string, partialCount: number) => {
 // ---- game server: con.use needs a signed, unused spend for this player ----
 const sfs = await startGameServer(api, KEY);
 try {
-  const A = new GameClient(api, sfs.port, "{c0000000-0000-0000-0000-0000000000a1}", "SigUserA");
-  const B = new GameClient(api, sfs.port, "{c0000000-0000-0000-0000-0000000000b1}", "SigUserB");
+  const A = new GameClient(api, sfs.port, "{a2000000-0000-0000-0000-0000000000a1}", "SigUserA");
+  const B = new GameClient(api, sfs.port, "{b2000000-0000-0000-0000-0000000000b1}", "SigUserB");
   await A.connect(); await B.connect();
   check(A.myId > 0 && B.myId > 0, `both logged in (${A.myId}, ${B.myId})`);
   await sleep(150);
@@ -202,6 +227,14 @@ try {
   B.clear();
   const again = JSON.parse(await A.use("PizzaGroup")); await sleep(150);
   check(again.data?.partialCount === 5 && actionCount() === 5, `next spend returns the partial and the tray comes back with 5 (${again.data?.partialCount}, ${actionCount()})`);
+
+  // Leaving the room hands the held tray to the next room (zone.transfer),
+  // so putting it away afterwards must not also store it as a partial.
+  check(actionCount() === 5, "A holds the tray again before leaving");
+  A.clear(); A.ext13("zone.logout", new SFSObjectWriter()); await sleep(150);
+  check(A.extOf("zone.transfer").length === 1, "zone.transfer sent");
+  A.setCon(null); await sleep(200);
+  check(A.extOf("con.partial").length === 0, `putting the tray away after zone.logout sends no con.partial (${A.extOf("con.partial").length})`);
 } finally {
   sfs.stop();
   await api.stop();

@@ -19,6 +19,9 @@ import crypto from "node:crypto";
 import { signingKey } from "./joinSignature.ts";
 
 const VALID_MS = 5 * 60_000;
+// Allowance for the two servers' clocks disagreeing when they run on
+// different hosts.
+const CLOCK_SKEW_MS = 30_000;
 
 export type ConsumablePurpose = "use" | "partial";
 export type ConsumableClaims = { swid: unknown; type: unknown; partialCount: unknown; goodUntil: unknown; signature: unknown };
@@ -44,7 +47,7 @@ export function checkConsumable(purpose: ConsumablePurpose, c: ConsumableClaims,
   const nonce = dot > 0 ? c.signature.slice(0, dot) : "";
   if (!NONCE.test(nonce) || !field(c.swid) || !field(c.type)) return "bad signature";
   if (!Number.isSafeInteger(c.partialCount) || (c.partialCount as number) < 0 || !Number.isSafeInteger(c.goodUntil)) return "bad signature";
-  if ((c.goodUntil as number) > now + VALID_MS) return "bad signature";
+  if ((c.goodUntil as number) > now + VALID_MS + CLOCK_SKEW_MS) return "bad signature";
   // Compared as text: base64url decoding ignores spare bits and padding, so
   // comparing bytes would let one signature be written several ways, each
   // a new entry for the replay set.
