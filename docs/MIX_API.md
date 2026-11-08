@@ -232,6 +232,9 @@ versioned CDN URL (`Mix/CpipeFileManifest.cs`, `Mix/Assets/CpipeManager.cs`).
      (above) runs and `CpipeUpdateOperation` waits for it: that's why
      `donotcopy/n7c4c656` must exist under `web-api/data/mix/cpipe/`.
      Checked live: boot completes, no stall.
+     The request has a 10 s watchdog (`REFRESH_TIMEOUT_SECONDS`): `WWW` has no
+     timeout of its own, so a host that drops packets would otherwise hold boot
+     for the OS connect timeout. On timeout the refresh reports "unchanged".
 
 The point of cpipe was that content (stickers, gags, games, the config
 itself) could be updated without shipping a new app build.
