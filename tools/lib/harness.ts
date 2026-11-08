@@ -122,3 +122,11 @@ export async function issueApiKey(base: string): Promise<string> {
   if (!key) throw new Error(`no api-key issued (${r.status})`);
   return key;
 }
+
+const runPasswords = new Map<string, string>();
+/** A random password for this run, the same for the same label (no fixed passwords in the repo). */
+export function pw(label: string): string {
+  let p = runPasswords.get(label);
+  if (!p) runPasswords.set(label, (p = `${label}-${crypto.randomBytes(9).toString("base64url")}`));
+  return p;
+}

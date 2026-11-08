@@ -1,6 +1,6 @@
 // The shared name rule (web-api/src/utils/names.ts) and every path that
 // sets a username or display name.
-import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey, pw } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 import { checkName } from "../web-api/src/utils/names.ts";
 
@@ -40,12 +40,12 @@ try {
     method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   for (const n of ["Cool😎Guy", "<color=red>Mod</color>", "аdmin", "x".repeat(5000), "ㅤㅤㅤ"]) {
-    let r = await register({ password: "hunter22", profile: { username: n } });
+    let r = await register({ password: pw("main"), profile: { username: n } });
     check(r.status === 400, `register refuses username ${JSON.stringify(n).slice(0, 30)} (${r.status})`);
-    r = await register({ password: "hunter22", profile: {}, displayName: { proposedDisplayName: n } });
+    r = await register({ password: pw("main"), profile: {}, displayName: { proposedDisplayName: n } });
     check(r.status === 400, `register refuses display name ${JSON.stringify(n).slice(0, 30)} (${r.status})`);
   }
-  const good = await register({ password: "hunter22", profile: { username: "  José_99 " }, displayName: { proposedDisplayName: "Jose Fan" } });
+  const good = await register({ password: pw("main"), profile: { username: "  José_99 " }, displayName: { proposedDisplayName: "Jose Fan" } });
   const body: any = await good.json();
   check(good.status === 200 && body?.data?.profile?.username === "José_99", `a valid name registers, trimmed (${good.status} ${body?.data?.profile?.username})`);
 
@@ -57,7 +57,7 @@ try {
   check((await rename("Renamed Ok")).status === 200, "in-game rename accepts a valid name");
 
   const mix = new MixClient(api.base);
-  await mix.login("José_99", "hunter22");
+  await mix.login("José_99", pw("main"));
   await mix.startSession();
   for (const n of ["Cool😎Guy", "аdmin", "a  b"]) {
     const r = (await mix.call("PUT", "/displayname", { DisplayName: n, Language: "en" })).body;

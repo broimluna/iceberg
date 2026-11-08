@@ -1,7 +1,7 @@
 // Mix session against a throwaway WebAPI copy, using a client that behaves
 // like the real SDK: Guest Controller login, RSA -> AES key exchange,
 // encrypted bodies, and notifications applied strictly at latest + 1.
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, pw } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1" } });
@@ -11,7 +11,7 @@ try {
   await createPlayer(api.base, api.dbPath, "{AAAA-1}", "alice");
   await createPlayer(api.base, api.dbPath, "{BBBB-2}", "bob");
   const A = new MixClient(api.base), B = new MixClient(api.base);
-  await A.login("alice", "pw-alice"); await B.login("bob", "pw-bob");
+  await A.login("alice", pw("alice")); await B.login("bob", pw("bob"));
   await A.startSession(); await B.startSession();
   check(A.swid === "{AAAA-1}" && B.swid === "{BBBB-2}", `login resolves swids (${A.swid}, ${B.swid})`);
 
@@ -39,7 +39,7 @@ try {
   const out = await A.call("POST", "/session/user/delete");
   check(out.http === 200, `alice logs out -> ${out.http}`);
   const A2 = new MixClient(api.base);
-  await A2.login("alice", "pw-alice"); await A2.startSession();
+  await A2.login("alice", pw("alice")); await A2.startSession();
   const after = await A2.state();
   check((after.Friendships ?? []).some((f: any) => f.FriendUserId === B.swid), `alice still friends with bob after logout (${JSON.stringify(after.Friendships)})`);
   const bobView = await B.state();

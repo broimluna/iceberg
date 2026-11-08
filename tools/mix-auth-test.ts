@@ -1,7 +1,7 @@
 // Mix requests must act only as the user their X-Mix-OneIdToken belongs
 // to: a bogus token, a forged body UserId, or someone else's session id
 // is rejected with the 401 status the SDK expects (MixWebCallFactory).
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, pw } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1" } });
@@ -19,7 +19,7 @@ try {
   await createPlayer(api.base, api.dbPath, "{BBBB-2}", "bob");
   await createPlayer(api.base, api.dbPath, "{CCCC-3}", "carol");
   const A = new MixClient(api.base), B = new MixClient(api.base);
-  await A.login("alice", "pw-alice"); await B.login("bob", "pw-bob");
+  await A.login("alice", pw("alice")); await B.login("bob", pw("bob"));
   await A.startSession(); await B.startSession();
   await A.state(); const bobBefore = (await B.state()).NotificationSequenceCounter;
 
@@ -48,7 +48,7 @@ try {
   const bobStill = await B.call("POST", "/state");
   check(bobStill.http === 200, `bob's own session still works (${bobStill.http})`);
   // Guest Controller logins must never write the password to the log.
-  check(!api.logs().includes("pw-alice") && !api.logs().includes("pw-bob"), "login passwords never appear in the server log");
+  check(!api.logs().includes(pw("alice")) && !api.logs().includes(pw("bob")), "login passwords never appear in the server log");
 } finally {
   api.stop();
 }

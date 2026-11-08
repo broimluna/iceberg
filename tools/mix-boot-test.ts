@@ -2,7 +2,7 @@
 // (GET {cpipe_url}?restrict=true&cv=..., Mix/CpipeManifestApi.cs) and the
 // files it names, served from cdnRoot.
 import { mkdirSync, writeFileSync } from "node:fs";
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, pw } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", MIX_CPIPE_CONFIG_VERSION: "1234" } });
@@ -39,7 +39,7 @@ try {
   await createPlayer(api.base, api.dbPath, "{DDDD-4}", "dana");
   const M = new MixClient(api.base, { clientId: "DI-SPARK-PROD" });
   let loggedIn = false;
-  try { await M.login("dana", "pw-dana"); await M.startSession(); loggedIn = true; } catch (e) { console.log((e as Error).message); }
+  try { await M.login("dana", pw("dana")); await M.startSession(); loggedIn = true; } catch (e) { console.log((e as Error).message); }
   check(loggedIn, "login + session with client ID DI-SPARK-PROD");
   const st = loggedIn ? await M.state() : {};
   for (const k of ["ChatThreads", "ChatThreadNicknames", "ChatThreadUnreadMessageCount", "ChatThreadLatestMessageSequenceNumbers",
@@ -80,7 +80,7 @@ try {
   await createPlayer(api.base, api.dbPath, "{FFFF-6}", "finn");
   const P = new MixClient(api.base, { clientId: "DI-SPARK-PROD", mixBase: `${api.base}/mix` });
   let prefixed = false;
-  try { await P.login("finn", "pw-finn"); await P.startSession(); prefixed = true; } catch (e) { console.log((e as Error).message); }
+  try { await P.login("finn", pw("finn")); await P.startSession(); prefixed = true; } catch (e) { console.log((e as Error).message); }
   check(prefixed, "session start under /mix");
   const pst = prefixed ? await P.call("POST", "/state") : { http: 0 };
   check(pst.http === 200, `/mix/state -> ${pst.http}`);

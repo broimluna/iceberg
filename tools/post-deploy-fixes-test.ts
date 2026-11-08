@@ -11,7 +11,7 @@
 // - A forged quest.set (its SignedResponse isn't verified) pays nothing.
 // - No X-Powered-By header.
 import { Database } from "bun:sqlite";
-import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey, pw } from "./lib/harness.ts";
 import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
 import { createPlayer } from "./lib/mix-client.ts";
 import { SFSObjectWriter } from "../smartfox-server/src/sfs-wire.ts";
@@ -27,7 +27,7 @@ const post = (path: string, body: unknown, key: string) => fetch(`${gc}${path}`,
   method: "POST", headers: { Authorization: `APIKEY ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
 });
 const register = async (username: string, displayName: string, key: string) =>
-  post("/guest/register?langPref=en", { password: "hunter22", profile: { username }, displayName: { proposedDisplayName: displayName } }, key);
+  post("/guest/register?langPref=en", { password: pw("main"), profile: { username }, displayName: { proposedDisplayName: displayName } }, key);
 const login = async (loginValue: string, password: string, key?: string) =>
   post("/guest/login", { loginValue, password }, key ?? (await issueApiKey(api.base)));
 
@@ -56,10 +56,10 @@ try {
   // ---- 2. login error codes ----
   const key0 = await issueApiKey(api.base);
   check((await register("PdUser1", "Pd Penguin", key0)).status === 200, "registered PdUser1");
-  let r = await login("PdUser1", "wrongpass");
+  let r = await login("PdUser1", pw("wrong"));
   let codes = await codesOf(r);
   check(r.status === 400 && codes.join() === "AUTHORIZATION_CREDENTIALS", `wrong password -> 400 AUTHORIZATION_CREDENTIALS (${r.status} ${codes})`);
-  r = await login("NoSuchPenguin", "whatever1");
+  r = await login("NoSuchPenguin", pw("nobody"));
   codes = await codesOf(r);
   check(r.status === 400 && codes.join() === "AUTHORIZATION_CREDENTIALS", `unknown account -> 400 AUTHORIZATION_CREDENTIALS (${r.status} ${codes})`);
   r = await post("/guest/login", { loginValue: "PdUser1" }, key0);
@@ -67,7 +67,7 @@ try {
   check(r.status === 400 && codes.every((c: string) => LOGIN_CODES.includes(c)) && !codes.includes("MISSING_VALUE"),
     `missing password -> a login code the client maps, not MISSING_VALUE (${r.status} ${codes})`);
   await createPlayer(api.base, api.dbPath, "{PD-NOPASS}", "NoPassPd");
-  r = await login("NoPassPd", "claimit1");
+  r = await login("NoPassPd", pw("claim"));
   codes = await codesOf(r);
   check(r.status === 400 && codes.join() === "AUTHORIZATION_CREDENTIALS", `password-less account -> AUTHORIZATION_CREDENTIALS (${r.status} ${codes})`);
 
@@ -77,7 +77,7 @@ try {
   check(r.status === 400 && codes.join() === "AUTHORIZATION_INVALID_REFRESH_TOKEN", `unknown refresh token -> 400 AUTHORIZATION_INVALID_REFRESH_TOKEN (${r.status} ${codes})`);
 
   // ---- 2. validate codes are ones the client maps ----
-  r = await post("/validate", { username: "ab", password: "hunter22" }, key0);
+  r = await post("/validate", { username: "ab", password: pw("main") }, key0);
   codes = await codesOf(r);
   check(codes.includes("INVALID_VALUE_USERNAME_SIZE") && codes.every((c: string) => VALIDATION_CODES.includes(c)), `short username -> INVALID_VALUE_USERNAME_SIZE (${codes})`);
   r = await post("/validate", { username: "GoodName1", password: "abc" }, key0);
@@ -86,7 +86,7 @@ try {
   r = await post("/validate", { username: "GoodName1", password: "x".repeat(129) }, key0);
   codes = await codesOf(r);
   check(codes.includes("INVALID_VALUE_PASSWORD_SIZE"), `password over 128 -> INVALID_VALUE_PASSWORD_SIZE, as register refuses it (${codes})`);
-  r = await post("/validate", { username: "PdUser1", password: "hunter22" }, key0);
+  r = await post("/validate", { username: "PdUser1", password: pw("main") }, key0);
   codes = await codesOf(r);
   check(codes.join() === "INUSE_VALUE", `taken username -> INUSE_VALUE (${codes})`);
 
@@ -105,7 +105,7 @@ try {
   r = await post("/validate", { displayName: "Pd Penguin" }, otherKey);
   check(r.status === 400 && (await codesOf(r)).includes("INUSE_VALUE"), `PdUser2's client still can't take PdUser1's name (${r.status})`);
   const loginKey = await issueApiKey(api.base);
-  check((await login("PdUser1", "hunter22", loginKey)).status === 200, "PdUser1 logs in with a new key");
+  check((await login("PdUser1", pw("main"), loginKey)).status === 200, "PdUser1 logs in with a new key");
   r = await post("/validate", { displayName: "pd penguin" }, loginKey);
   check(r.status === 200, `after login, the owner's own name (any case) validates (${r.status})`);
 
@@ -135,13 +135,13 @@ try {
 
   // ---- 2. lockouts reach the client as a lockout ----
   await api.restart({ ...baseEnv, AUTH_ACCOUNT_FAILS_PER_15MIN: "2" });
-  for (let i = 0; i < 2; i++) await login("PdUser1", "guess" + i);
-  r = await login("PdUser1", "guess9");
+  for (let i = 0; i < 2; i++) await login("PdUser1", pw("guess" + i));
+  r = await login("PdUser1", pw("guess9"));
   codes = await codesOf(r);
   check(r.status === 400 && codes.join() === "AUTHORIZATION_ACCOUNT_LOCKED_OUT", `locked account -> 400 AUTHORIZATION_ACCOUNT_LOCKED_OUT (${r.status} ${codes})`);
   await api.restart({ ...baseEnv, AUTH_LOGIN_PER_MIN: "1" });
-  await login("PdUser1", "x1x1x1");
-  r = await login("PdUser1", "x2x2x2");
+  await login("PdUser1", pw("x1"));
+  r = await login("PdUser1", pw("x2"));
   codes = await codesOf(r);
   check(r.status === 400 && codes.join() === "AUTHORIZATION_ACCOUNT_LOCKED_OUT", `per-address login limit -> 400 AUTHORIZATION_ACCOUNT_LOCKED_OUT, not RATE_LIMITED (the SDK swallows that one) (${r.status} ${codes})`);
 } finally {

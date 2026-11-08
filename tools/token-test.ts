@@ -1,7 +1,7 @@
 // Guest Controller tokens: an access token is only an access token and a
 // refresh token only refreshes, a used refresh token stops working, and
 // tokens never reach the log.
-import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey, pw } from "./lib/harness.ts";
 
 const { check, finish } = makeChecker();
 const api = await startWebApi();
@@ -10,7 +10,7 @@ const gc = `${api.base}/jgc/v5/client/T`;
 try {
   const reg = await fetch(`${gc}/guest/register?langPref=en`, {
     method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ password: "hunter22", profile: { username: "TokenUser" } }),
+    body: JSON.stringify({ password: pw("main"), profile: { username: "TokenUser" } }),
   });
   const body: any = await reg.json();
   const swid = body.data.profile.swid as string;

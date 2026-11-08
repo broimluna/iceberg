@@ -3,7 +3,7 @@
 // tools/mod.ts edits its rules while the server runs.
 import { Database } from "bun:sqlite";
 import { $ } from "bun";
-import { startWebApi, makeChecker } from "./lib/harness.ts";
+import { startWebApi, makeChecker, pw } from "./lib/harness.ts";
 import { MixClient, createPlayer } from "./lib/mix-client.ts";
 
 const api = await startWebApi({
@@ -27,7 +27,7 @@ const { check, finish } = makeChecker();
 try {
   await createPlayer(api.base, api.dbPath, "{MOD-1}", "molly");
   const M = new MixClient(api.base);
-  await M.login("molly", "pw-molly");
+  await M.login("molly", pw("molly"));
   await M.startSession();
   const mod = async (text: string) => (await M.call("PUT", "/moderation/text", { Text: text, Language: "en" })).body;
 
@@ -64,7 +64,7 @@ try {
   await createPlayer(api.base, api.dbPath, "{MOD-A}", "alice");
   await createPlayer(api.base, api.dbPath, "{MOD-B}", "bob");
   const A = new MixClient(api.base);
-  await A.login("alice", "pw-alice");
+  await A.login("alice", pw("alice"));
   await A.startSession();
   const mr = await A.call("PUT", "/moderation/reportPlayer", { ReportedUserId: "{MOD-B}", Reason: "ChatSwearing" });
   check(mr.http === 200 && mr.body?.Status === "OK", `Mix reportPlayer -> ${mr.http} ${JSON.stringify(mr.body)}`);
@@ -116,7 +116,7 @@ try {
 
   // ---- Sanctions: Disney's ladder (MIX_API.md section 9) ----
   const B = new MixClient(api.base);
-  await B.login("bob", "pw-bob");
+  await B.login("bob", pw("bob"));
   await B.startSession();
   await B.state();
   const cli = (...a: string[]) => $`bun ${import.meta.dir}/mod.ts ${a} --db ${api.dbPath}`.nothrow().quiet();
@@ -158,26 +158,26 @@ try {
   check(sres.exitCode === 0 && /level 2/.test(sOut) && /12 h|12h/.test(sOut), `suggested level 2 = 12 h ban (${sOut.trim()})`);
   const banned = await B.call("POST", "/state");
   check(banned.http === 401 && banned.body?.Status === "UNAUTHORIZED_BANNED", `banned bob's call -> ${banned.http} ${JSON.stringify(banned.body)}`);
-  let li = await gcLogin("bob", "pw-bob");
+  let li = await gcLogin("bob", pw("bob"));
   check(li.status === 400 && li.code === "PROFILE_USER_BANNED", `temp-banned login -> ${li.status} ${li.code}`);
   const wrongPw = await gcLogin("bob", "nope");
   check(wrongPw.code === "AUTHORIZATION_CREDENTIALS", `wrong password still says AUTHORIZATION_CREDENTIALS, not banned (${wrongPw.code})`);
 
   // Expiry.
   { const d3 = new Database(api.dbPath); d3.run("UPDATE mix_bans SET until = ? WHERE swid = '{MOD-B}'", [new Date(Date.now() - 60_000).toISOString()]); d3.close(); }
-  li = await gcLogin("bob", "pw-bob");
+  li = await gcLogin("bob", pw("bob"));
   check(li.ok, `login works after the ban expires (${li.status} ${li.code})`);
 
   // VULNERABLE_PERSON starts at level 3: a lock.
   sres = await cli("sanction", "bob", "VULNERABLE_PERSON", "1");
   check(sres.exitCode === 0 && /level 3/.test(sres.stdout.toString()), `VULNERABLE_PERSON 1 clamps to 3 (${sres.stdout.toString().trim()})`);
-  li = await gcLogin("bob", "pw-bob");
+  li = await gcLogin("bob", pw("bob"));
   check(li.status === 400 && li.code === "PROFILE_DISABLED", `locked login -> ${li.status} ${li.code}`);
 
   // Unban.
   const ub = await cli("unban", "bob");
   check(ub.exitCode === 0, `mod.ts unban bob -> ${ub.exitCode} ${ub.stderr.toString()}`);
-  li = await gcLogin("bob", "pw-bob");
+  li = await gcLogin("bob", pw("bob"));
   check(li.ok, `login works after unban (${li.status} ${li.code})`);
   const d4 = new Database(api.dbPath, { readonly: true });
   const sanctions = d4.query("SELECT type, level FROM mix_sanctions WHERE swid = '{MOD-B}' ORDER BY id").all();

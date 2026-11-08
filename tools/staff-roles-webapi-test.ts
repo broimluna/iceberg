@@ -1,7 +1,7 @@
 // Staff roles in the web API: the players.role column, STAFF_ADMINS and
 // the internal identity / set-role endpoints the game server uses.
 import { Database } from "bun:sqlite";
-import { startWebApi, makeChecker, issueApiKey } from "./lib/harness.ts";
+import { startWebApi, makeChecker, issueApiKey, pw } from "./lib/harness.ts";
 import { createPlayer } from "./lib/mix-client.ts";
 
 const { check, finish } = makeChecker();
@@ -67,7 +67,7 @@ try {
   for (const name of [root, root.toUpperCase(), bob]) {
     const reg = await fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
       method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ password: "hunter22", profile: { username: name } }),
+      body: JSON.stringify({ password: pw("main"), profile: { username: name } }),
     });
     const regBody: any = await reg.json().catch(() => null);
     check(reg.status === 400 && regBody?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with taken username ${name} is refused (${reg.status})`);
@@ -77,16 +77,16 @@ try {
   const register = async (body: unknown) => fetch(`${api.base}/jgc/v5/client/TEST/guest/register?langPref=en`, {
     method: "POST", headers: { Authorization: `APIKEY ${await issueApiKey(api.base)}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
-  let reg = await register({ password: "hunter22", profile: {}, displayName: { proposedDisplayName: "root" } });
+  let reg = await register({ password: pw("main"), profile: {}, displayName: { proposedDisplayName: "root" } });
   check(reg.status === 400 && ((await reg.json()) as any)?.error?.errors?.[0]?.code === "INUSE_VALUE", `register with a taken display name is refused (${reg.status})`);
-  reg = await register({ password: "hunter22", profile: { username: "Bob" } });
+  reg = await register({ password: pw("main"), profile: { username: "Bob" } });
   check(reg.status === 400, `register with a username equal to a display name is refused (${reg.status})`);
   // Padding or look-alike Unicode forms don't get around the check
   // (U+FF22 is a fullwidth "B", which NFKC folds to "B").
   for (const body of [
-    { password: "hunter22", profile: { username: "  Bob " } },
-    { password: "hunter22", profile: { username: "\uFF22ob" } },
-    { password: "hunter22", profile: {}, displayName: { proposedDisplayName: " root  " } },
+    { password: pw("main"), profile: { username: "  Bob " } },
+    { password: pw("main"), profile: { username: "\uFF22ob" } },
+    { password: pw("main"), profile: {}, displayName: { proposedDisplayName: " root  " } },
   ]) {
     reg = await register(body);
     check(reg.status === 400, `register with ${JSON.stringify(body.profile.username ?? (body as any).displayName.proposedDisplayName)} is refused (${reg.status})`);
