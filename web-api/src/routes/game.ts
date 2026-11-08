@@ -19,6 +19,8 @@ import config from "../config.ts";
 import { saveSessionForUser, generateSessionId } from "../utils/session.ts";
 import { QuestStatus } from "../utils/response.ts";
 import { signJoin } from "../utils/joinSignature.ts";
+import lots from "../../data/lots.json";
+import { logSafe } from "../utils/logSafe.ts";
 
 // ========== CONSTANTS ==========
 
@@ -391,7 +393,25 @@ router.post('/game/v1/igloos/language/:language/players', (req, res) => {
     const iglooZoneName = iglooId?.name || 'DefaultIgloo';
     const iglooOwnerId = iglooId?.instanceId || swid; // instanceId is the owner's SWID
     
-    console.log(`[JOIN IGLOO] ${displayName} (swid=${swid}) joining igloo ${iglooZoneName} owned by ${iglooOwnerId}`);
+    console.log(`[JOIN IGLOO] ${displayName} (swid=${swid}) joining igloo ${logSafe(iglooZoneName)} owned by ${logSafe(iglooOwnerId)}`);
+
+    // The owner's visibility setting (IglooVisibility: 0 private, 1 friends
+    // only, 2 public). ErrorResponse code 1010 is CP_IGLOO_UNAVAILABLE: the
+    // client reports a private igloo and returns to the previous room.
+    const refuse = (why) => {
+        console.log(`[JOIN IGLOO] ${displayName} refused: ${why}`);
+        return res.status(403).json({ code: 1010 });
+    };
+    if (typeof iglooZoneName !== 'string' || !Object.hasOwn(lots, iglooZoneName)) return refuse('not an igloo lot');
+    if (typeof iglooOwnerId !== 'string') return refuse('no owner');
+    if (iglooOwnerId !== swid) {
+        const owner = db.getPlayerBySwid(iglooOwnerId);
+        if (!owner) return refuse('unknown owner');
+        const visibility = db.getIglooData(owner.username)?.visibility ?? 1;
+        const isFriend = () => db.getMixFriendships(iglooOwnerId).some((f) => f.friendUserId === swid);
+        if (visibility === 0) return refuse('private igloo');
+        if (visibility !== 2 && !isFriend()) return refuse('friends-only igloo');
+    }
     
     // Use "Igloo" as the world name for igloos
     let iglooWorld = 'Igloo';

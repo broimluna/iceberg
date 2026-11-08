@@ -233,6 +233,42 @@ try {
     const del = await b.call("DELETE", "/igloo/v1/layout/515151");
     check(sql("SELECT * FROM igloo_layouts WHERE layout_id = 515151").length === 1, `and can't be deleted by them (${del.status})`);
   }
+  // ---- igloo layouts: slot limit, real lots, only owned decorations ----
+  {
+    const p = await player(); await p.call("GET", "/player/v1/"); p.setCoins(10000);
+    const layouts = () => sql("SELECT COUNT(*) AS n FROM igloo_layouts WHERE username = ?", p.username)[0].n as number;
+    const deco = (definitionId: number, type = 0, customProperties: Record<string, string> = {}) => ({
+      id: { name: `d${Math.random()}`, parent: "" }, type, definitionId,
+      position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: 1, normal: { x: 0, y: 1, z: 0 }, customProperties,
+    });
+    const created: number[] = [];
+    for (let i = 0; i < 4; i++) created.push((await p.call("POST", "/igloo/v1/layout", { name: `L${i}`, zoneId: "DefaultIgloo", decorationsLayout: [] })).status);
+    check(created.slice(0, 3).every((s) => s === 200) && created[3] !== 200 && layouts() === 3, `a 4th igloo layout is refused (${created}, ${layouts()} stored)`);
+    const id = sql("SELECT layout_id FROM igloo_layouts WHERE username = ? LIMIT 1", p.username)[0].layout_id as number;
+
+    let r = await p.call("PUT", "/igloo/v1/layout/987654321", { name: "sneaky", decorationsLayout: [] });
+    check(r.status === 404 && layouts() === 3, `updating an unknown layout id doesn't create one (${r.status}, ${layouts()} stored)`);
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { zoneId: "MoonIgloo" });
+    check(r.status === 400, `an unknown lot is refused (${r.status})`);
+
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1)] });
+    check(r.status === 400, `placing a decoration you don't own is refused (${r.status})`);
+    await p.call("POST", "/igloo/v1/decorations/0/1?count=2");
+    await p.call("POST", "/igloo/v1/decorations/1/1");
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1), deco(1), deco(1, 1)] });
+    check(r.status === 200, `placing owned decorations and structures works (${r.status})`);
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1), deco(1), deco(1)] });
+    check(r.status === 400, `placing more than you own is refused (${r.status})`);
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1, 1), deco(1, 1)] });
+    check(r.status === 400, `structures count too (${r.status})`);
+    // A partnered pair (both ends of one item) uses one decoration, as the client counts it.
+    r = await p.call("PUT", `/igloo/v1/layout/${id}`, { decorationsLayout: [deco(1), deco(1, 0, { guid: "a", partner: "b" }), deco(1, 0, { guid: "b", partner: "a" })] });
+    check(r.status === 200, `a partnered pair counts once (${r.status})`);
+    r = await p.call("POST", "/igloo/v1/layout", { name: "x", zoneId: "DefaultIgloo", decorationsLayout: [deco(5)] });
+    check(r.status === 400, `new layouts are checked too (${r.status})`);
+    const stored = JSON.parse(sql("SELECT decorations_layout_json AS j FROM igloo_layouts WHERE layout_id = ?", id)[0].j);
+    check(stored.length === 3, `the refused layouts weren't saved (${stored.length} items stored)`);
+  }
 } finally {
   await api.stop();
 }

@@ -23,6 +23,7 @@ import express from "express";
 import { positiveCount, NOT_ENOUGH_COINS } from "../utils/counts.ts";
 import { decorationCost } from "../utils/prices.ts";
 import { logSafe } from "../utils/logSafe.ts";
+import lots from "../../data/lots.json";
 const router = express.Router();
 import * as db from "../database.ts";
 import config from "../config.ts";
@@ -37,6 +38,48 @@ function signedResponse(data, swid) {
         data: data,
         signature: 'server_signature'
     };
+}
+
+const lotMaxItems = lots as Record<string, number>;
+
+/**
+ * Why a layout can't be saved, or null. The client's own limits, checked
+ * here too: the zone is a real lot, the layout holds at most that lot's
+ * MaxItems, and nothing is placed more often than the player owns it.
+ * Counted as DecorationInventoryService counts: per definitionId and type,
+ * and the two ends of a partnered decoration (customProperties guid and
+ * partner) use one.
+ */
+function layoutProblem(username, layout): string | null {
+    if (typeof layout.zoneId !== 'string' || !Object.hasOwn(lotMaxItems, layout.zoneId)) return 'unknown lot';
+    const items = layout.decorationsLayout;
+    if (!Array.isArray(items)) return 'decorationsLayout is not a list';
+    if (items.length > lotMaxItems[layout.zoneId]!) return 'too many items';
+    if (!Number.isInteger(layout.lightingId) || !Number.isInteger(layout.musicId)) return 'bad lighting or music';
+    if (typeof layout.name !== 'string' || !layout.extraInfo || typeof layout.extraInfo !== 'object' || Array.isArray(layout.extraInfo)) return 'bad name or extraInfo';
+
+    const owned = new Map<string, number>();
+    for (const item of db.getDecorationInventory(username).items) {
+        const key = `${item.decorationId.type}:${item.decorationId.definitionId}`;
+        owned.set(key, (owned.get(key) ?? 0) + item.count);
+    }
+    const placed = new Map<string, number>();
+    const partnersSeen = new Set<string>();
+    for (const item of items) {
+        if (!item || (item.type !== 0 && item.type !== 1) || !Number.isSafeInteger(item.definitionId)) return 'bad item';
+        const props = item.customProperties;
+        if (props != null && (typeof props !== 'object' || Array.isArray(props))) return 'bad item';
+        if (item.type === 0 && typeof props?.guid === 'string' && typeof props?.partner === 'string') {
+            const second = partnersSeen.has(props.partner);
+            partnersSeen.add(props.guid);
+            if (second) continue;
+        }
+        const key = `${item.type}:${item.definitionId}`;
+        const n = (placed.get(key) ?? 0) + 1;
+        if (n > (owned.get(key) ?? 0)) return `places ${key} more often than owned`;
+        placed.set(key, n);
+    }
+    return null;
 }
 
 /**
@@ -86,7 +129,7 @@ function handleUpdateIglooData(req, res) {
     const { swid, username } = req.player;
     const update = req.body;
     
-    console.log(`[IGLOO] ${username} updating igloo data:`, update);
+    console.log(`[IGLOO] ${username} updating igloo data: ${logSafe(JSON.stringify(update))}`);
     
     // Get current igloo data
     let iglooData = db.getIglooData ? db.getIglooData(username) : {
@@ -96,18 +139,20 @@ function handleUpdateIglooData(req, res) {
         maxIglooLayouts: 3
     };
     
-    // Apply updates
+    if (!update || typeof update !== 'object') return res.status(400).json({ error: 'Bad igloo data' });
+
+    // Apply updates. IglooVisibility: 0 private, 1 friends only, 2 public.
     if (update.visibility !== undefined && update.visibility !== null) {
+        if (![0, 1, 2].includes(update.visibility)) return res.status(400).json({ error: 'Bad visibility' });
         iglooData.visibility = update.visibility;
     }
     
     if (update.activeLayoutId !== undefined && update.activeLayoutId !== null) {
+        // Only one of the player's own layouts.
+        const layout = db.getIglooLayout(username, update.activeLayoutId);
+        if (!layout) return res.status(404).json({ error: 'Layout not found' });
         iglooData.activeLayoutId = update.activeLayoutId;
-        // Fetch the active layout
-        const layout = db.getIglooLayout ? db.getIglooLayout(username, update.activeLayoutId) : null;
-        if (layout) {
-            iglooData.activeLayout = layout;
-        }
+        iglooData.activeLayout = layout;
     }
     
     // Save updated igloo data
@@ -138,7 +183,14 @@ router.post('/igloo/v1/layout', (req, res) => {
     const layoutData = req.body;
     
     console.log(`[IGLOO] ${username} creating new layout: ${logSafe(layoutData?.name)}`);
-    
+    if (!layoutData || typeof layoutData !== 'object') return res.status(400).json({ error: 'Bad layout' });
+
+    const max = db.getIglooData(username)?.maxIglooLayouts ?? 3;
+    if (db.getIglooLayouts(username).length >= max) {
+        console.log(`[IGLOO] ${username} already has ${max} layouts, refused`);
+        return res.status(400).json({ error: 'No free igloo slot' });
+    }
+
     const now = Date.now();
     const layoutId = generateLayoutId();
     
@@ -156,8 +208,19 @@ router.post('/igloo/v1/layout', (req, res) => {
         memberOnly: true
     };
     
+    const problem = layoutProblem(username, savedLayout);
+    if (problem) {
+        console.log(`[IGLOO] ${username} layout refused: ${problem}`);
+        return res.status(400).json({ error: 'Bad layout' });
+    }
+
     // Save layout (a fresh id if it collides with someone else's)
-    while (!db.saveIglooLayout(username, savedLayout)) savedLayout.layoutId = generateLayoutId();
+    let saved = db.saveIglooLayout(username, savedLayout);
+    for (let tries = 0; !saved && tries < 5; tries++) {
+        savedLayout.layoutId = generateLayoutId();
+        saved = db.saveIglooLayout(username, savedLayout);
+    }
+    if (!saved) return res.status(500).json({ error: 'Could not save layout' });
     
     // If this is the first layout, set it as active
     const layouts = db.getIglooLayouts ? db.getIglooLayouts(username) : [];
@@ -223,21 +286,11 @@ function handleUpdateLayout(req, res) {
     
     console.log(`[IGLOO] ${username} updating layout: ${layoutId}`);
     
-    // Get existing layout or create default
-    let layout = db.getIglooLayout ? db.getIglooLayout(username, layoutId) : null;
-    
-    if (!layout) {
-        layout = {
-            layoutId: layoutId,
-            name: 'My Igloo',
-            zoneId: 'DefaultIgloo',
-            lightingId: 0,
-            musicId: 0,
-            extraInfo: {},
-            decorationsLayout: [],
-            createdDate: Date.now(),
-            memberOnly: true
-        };
+    // Only the player's own existing layouts; new ones go through POST
+    // /igloo/v1/layout and its slot limit.
+    const layout = db.getIglooLayout(username, layoutId);
+    if (!layout || !update || typeof update !== 'object') {
+        return res.status(404).json({ error: 'Layout not found' });
     }
     
     // Apply updates
@@ -262,6 +315,12 @@ function handleUpdateLayout(req, res) {
         layout.extraInfo = update.extraInfo;
     }
     
+    const problem = layoutProblem(username, layout);
+    if (problem) {
+        console.log(`[IGLOO] ${username} layout ${layoutId} refused: ${problem}`);
+        return res.status(400).json({ error: 'Bad layout' });
+    }
+
     // Save updated layout; another player's layout id is refused.
     if (!db.saveIglooLayout(username, layout)) {
         return res.status(404).json({ error: 'Layout not found' });

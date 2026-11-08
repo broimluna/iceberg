@@ -1989,7 +1989,7 @@ function getIglooLayout(username, layoutId) {
 // (and changes nothing) when the id is another player's layout.
 function saveIglooLayout(username, layout) {
     getOrCreatePlayer(username);
-    db.prepare(`
+    return db.prepare(`
         INSERT INTO igloo_layouts (layout_id, username, name, zone_id, lighting_id, music_id, extra_info_json, decorations_layout_json, created_date, last_modified_date, member_only)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(layout_id) DO UPDATE SET
