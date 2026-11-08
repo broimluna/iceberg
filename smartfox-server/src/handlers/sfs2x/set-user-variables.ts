@@ -21,9 +21,11 @@ import type { HandlerContext } from "../context.ts";
 export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContext): void {
   const raw = params["vl"];
   if (raw?.type === SFSDataType.SFS_ARRAY) {
+    const accepted = raw.value.map((v) => neutralizeVariableType(v, ctx.session.protocol)).filter((v) => isClientVariable(v, ctx));
+    if (accepted.length === 0) return;
     const vl: SFSValue = {
       type: SFSDataType.SFS_ARRAY,
-      value: raw.value.map((v) => unwrapSignedVariable(neutralizeVariableType(v, ctx.session.protocol), ctx)),
+      value: accepted.map((v) => unwrapSignedVariable(v, ctx)),
     };
     const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", ctx.session.userId).putRaw("vl", vl));
     ctx.send(packet);
@@ -38,6 +40,49 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
   } else {
     console.log(`[${new Date().toISOString()}] ${ctx.peer} - SetUserVariables with no "vl" array, not responding`);
   }
+}
+
+// The variables the client sets (SocketUserVars) and the type it sends
+// each as; colour, tube and outfit are SignedResponse JSON text. Any of
+// them may be NULL, which removes it. sess, con_prop and on_quest are set
+// by the server only. Everything else is dropped, so a modified client
+// can't rewrite variables other players' clients rely on.
+const CLIENT_VARIABLES: Record<string, VariableKind> = {
+  outfit: "string", proto: "string", colour: "string", tube: "string",
+  con: "object", bubble: "object",
+  loc: "int", awayfromkeyboard: "int", tempheadstatus: "int",
+};
+const VALUE_TYPE: Partial<Record<VariableKind, SFSDataType>> = {
+  null: SFSDataType.NULL, int: SFSDataType.INT, string: SFSDataType.UTF_STRING, object: SFSDataType.SFS_OBJECT,
+};
+// con is {type, name}; bubble is {value, diveState}.
+const MAX_OBJECT_KEYS = 4;
+const MAX_OBJECT_STRING_BYTES = 255;
+
+function isClientVariable(v: SFSValue, ctx: HandlerContext): boolean {
+  const why = rejectVariable(v);
+  if (why) console.log(`[${new Date().toISOString()}] ${ctx.peer} - user variable dropped (${why})`);
+  return why === null;
+}
+
+function rejectVariable(v: SFSValue): string | null {
+  if (v.type !== SFSDataType.SFS_ARRAY) return "not an entry";
+  const [name, kind, value] = v.value;
+  if (name?.type !== SFSDataType.UTF_STRING || !Object.hasOwn(CLIENT_VARIABLES, name.value)) return `not a client variable: ${JSON.stringify(String(name?.value)).slice(0, 40)}`;
+  if (kind?.type !== SFSDataType.VARIABLE_TYPE || !value) return `${name.value}: unknown type`;
+  if (kind.value !== "null" && kind.value !== CLIENT_VARIABLES[name.value]) return `${name.value}: wrong type ${kind.value}`;
+  if (value.type !== VALUE_TYPE[kind.value]) return `${name.value}: value doesn't match its type`;
+  if (value.type === SFSDataType.UTF_STRING && !fitsBytes(value.value, MAX_OUTFIT_BYTES)) return `${name.value}: too long`;
+  if (value.type === SFSDataType.SFS_OBJECT) {
+    const entries = Object.values(value.value);
+    if (entries.length > MAX_OBJECT_KEYS) return `${name.value}: too many fields`;
+    for (const e of entries) {
+      if (e.type === SFSDataType.UTF_STRING ? !fitsBytes(e.value, MAX_OBJECT_STRING_BYTES) : typeof e.value === "object" && e.value !== null) {
+        return `${name.value}: bad field`;
+      }
+    }
+  }
+  return null;
 }
 
 // The client equips consumables itself by setting "con" = {type: "consum",
