@@ -40,6 +40,11 @@ try {
   await Bun.sleep(100);
   check(!api.logs().includes("6.6.6.6"), "without TRUST_PROXY, a client-written X-Forwarded-For isn't logged as the address");
 
+  // ---- Mix bodies (friend requests, chat) are never logged ----
+  await fetch(`${api.base}/mix/no-such-route`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ Text: "private-chat-words" }) });
+  await Bun.sleep(100);
+  check(!api.logs().includes("private-chat-words"), "an unencrypted Mix body isn't logged");
+
   // ---- errors don't leak internals to the client ----
   const bad = await fetch(`${api.base}/diagnostics/v1/log`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{not json" });
   const text = await bad.text();

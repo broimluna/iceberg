@@ -115,6 +115,7 @@ try {
   check((await B!.drain()).length === 0, "bob gets nothing for the retry");
 
   // Moderation and length.
+  check(!api.logs().includes("hi 👋"), "the encrypted message text isn't written to the log");
   const darn = await send(A!, "text", t1.ChatThreadId, { Text: "darn it" });
   check(darn.http === 200 && darn.body?.Notification?.Message?.Text === "**** it" && darn.body?.Notification?.Message?.IsModerated === true && A!.apply(darn.body.Notification, "AddChatThreadTextMessage"),
     `"darn it" is stored masked (${JSON.stringify(darn.body?.Notification?.Message?.Text)})`);
