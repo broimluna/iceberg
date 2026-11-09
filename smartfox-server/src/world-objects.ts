@@ -1,5 +1,5 @@
-// Scheduled world objects: geysers, blinking lights, air vents. These use
-// SFS2X's MMO Items API, not extension commands.
+// Scheduled world objects (the Boardwalk geysers). These use SFS2X's MMO
+// Items API, not extension commands.
 //
 // - c=0, a=30 (proximity update): "q" lists items entering the player's
 //   area of interest as [itemId, variables, position]. A room with no
@@ -11,16 +11,22 @@
 //   Unlike user variables there's no isPrivate flag.
 //
 // The wire format, categories, variable keys and state values come from the
-// client. Which rooms have which objects, and where, comes from a Java SFS2X
-// extension's ScheduledWorldObjectManager: the Beacon Boardwalk geyser
-// positions are from game data, the rest are placeholders. Rooms are
-// matched by substring, so "Alpine:Town" falls under "Town".
+// client. Which rooms have which objects comes from Disney's
+// ScheduledWorldObjects server data (data/world-objects.json, world-data.ts),
+// by the room's exact zone. A group runs like Disney's OfflineRoomRunner:
+// every child starts inactive, one is active at a time, and every
+// cycleSeconds the current one goes inactive and the next goes active.
+// statetimestamp is the item's last transition, so a late joiner's
+// FastForwardStateAction lands at the right point.
 //
 // State is tracked per room, so several rooms can run at once. A room's
 // timers stop when its last player leaves (releaseRoomIfEmpty).
 
 import { SFSObjectWriter, SFSArrayWriter, encodePacket } from "./sfs-wire.ts";
 import { getByRoom } from "./session-registry.ts";
+import { zoneOfRoom } from "./scene-switches.ts";
+import { contentDateOf, scheduledGroups, type GroupData, type Vec3 } from "./world-data.ts";
+import { createPicker } from "./selection.ts";
 import type { HandlerContext } from "./handlers/context.ts";
 
 // Client ItemCategory value used for these objects.
@@ -33,42 +39,24 @@ const STATE_ACTIVE = 1;
 // Same single room id as login.ts.
 const ROOM_ID = 1;
 
-type SelectionBehaviour = "ordered" | "random" | "nonRepeatingRandom";
+// Multiplies every cycle (tests).
+const TIME_SCALE = (() => {
+  const v = Number(process.env.WORLD_OBJECTS_TIME_SCALE);
+  return Number.isFinite(v) && v > 0 ? v : 1;
+})();
 
-interface WorldObjectDef {
-  path: string;
-  position: [number, number, number];
-  activeSeconds: number;
-  inactiveSeconds: number;
-  startActive: boolean;
-}
-
-interface GroupMemberDef {
-  path: string;
-  position: [number, number, number];
-  activeDurationSeconds: number;
-}
-
-interface GroupDef {
-  groupId: string;
-  cycleTimeSeconds: number;
-  selectionBehaviour: SelectionBehaviour;
-  members: GroupMemberDef[];
-}
-
-interface LiveItem {
+export interface LiveItem {
   itemId: number;
   path: string;
-  position: [number, number, number];
+  position: Vec3;
   state: number;
-  activeSeconds: number;
-  inactiveSeconds: number;
+  // When state last changed (or the item was created), ms.
+  stateChangedMs: number;
 }
 
-interface RoomState {
+export interface RoomState {
   items: Map<string, LiveItem>; // path -> item
   timers: Set<NodeJS.Timeout>;
-  groupActive: Map<string, string>; // groupId -> currently-active path
 }
 
 const rooms = new Map<string, RoomState>();
@@ -78,53 +66,6 @@ let nextItemId = 1;
 // since they live in the same room item list on the client.
 export function allocateItemId(): number {
   return nextItemId++;
-}
-
-// ==================== Room -> default object defs ====================
-
-function individualDefsForRoom(roomName: string): WorldObjectDef[] {
-  const defs: WorldObjectDef[] = [];
-  if (roomName.includes("MtBlizzard") || roomName.includes("Mountain")) {
-    // Best-guess placeholder positions/timings, not CDN-sourced.
-    defs.push({ path: "Geyser1", position: [-10, 0, 15], activeSeconds: 5, inactiveSeconds: 10, startActive: true });
-    defs.push({ path: "Geyser2", position: [5, 0, 20], activeSeconds: 5, inactiveSeconds: 15, startActive: true });
-    defs.push({ path: "Geyser3", position: [12, 0, 12], activeSeconds: 5, inactiveSeconds: 8, startActive: true });
-  }
-  if (roomName.includes("Underwater") || roomName.includes("Diving")) {
-    defs.push({ path: "AirVent1", position: [0, -5, 0], activeSeconds: 3, inactiveSeconds: 7, startActive: true });
-    defs.push({ path: "AirVent2", position: [10, -8, 5], activeSeconds: 3, inactiveSeconds: 10, startActive: true });
-    defs.push({ path: "AirVent3", position: [-8, -6, -5], activeSeconds: 3, inactiveSeconds: 5, startActive: true });
-  }
-  if (roomName.includes("Town")) {
-    // Placeholder names and positions. A real capture shows two blinking lights here.
-    defs.push({ path: "TownLight1", position: [5, 3, 0], activeSeconds: 2, inactiveSeconds: 2, startActive: true });
-    defs.push({ path: "TownLight2", position: [-5, 3, 0], activeSeconds: 2, inactiveSeconds: 2, startActive: false });
-  }
-  return defs;
-}
-
-function groupDefsForRoom(roomName: string): GroupDef[] {
-  const groups: GroupDef[] = [];
-  if (roomName.includes("Boardwalk") || roomName.includes("AquaFunHut")) {
-    // Positions from game data. 17s cycle, random non-repeating pick, active
-    // for 30s (20s build-up + 10s eruption).
-    groups.push({
-      groupId: "AquaFunHutGeysers",
-      cycleTimeSeconds: 17,
-      selectionBehaviour: "nonRepeatingRandom",
-      members: [
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation01", position: [8.4, -1.54, 24.24], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation02", position: [10.43, -1.54, 21.68], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation03", position: [11.89, -1.54, 18.51], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation04", position: [2.45, -1.54, 20.1], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation05", position: [0.63, -1.54, 24.74], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation06", position: [3.86, -1.54, 26.87], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation07", position: [13.44, -1.54, 20.11], activeDurationSeconds: 30 },
-        { path: "/Minigames/AquaFunHut/GeyserLocations/GeyserLocation08", position: [8.06, -1.54, 20.37], activeDurationSeconds: 30 },
-      ],
-    });
-  }
-  return groups;
 }
 
 // ==================== Wire encoding ====================
@@ -143,7 +84,7 @@ function encodeItemVariables(item: LiveItem): SFSArrayWriter {
     .putSFSArray(itemIntVar("category", ITEM_CATEGORY_SCHEDULED_ROOM_OBJECT))
     .putSFSArray(itemIntVar("creator", 0))
     .putSFSArray(itemStringVar("path", item.path))
-    .putSFSArray(itemStringVar("statetimestamp", String(Date.now())))
+    .putSFSArray(itemStringVar("statetimestamp", String(item.stateChangedMs)))
     .putSFSArray(itemIntVar("scheduledworldobjectstate", item.state));
 }
 
@@ -165,11 +106,13 @@ export function sendWorldObjectsSnapshot(ctx: HandlerContext, roomName: string):
   );
 }
 
-// Broadcasts a timer-driven state change to the whole room (c=0, a=1007).
-function broadcastItemStateChange(roomName: string, item: LiveItem): void {
+// Changes an item's state and tells the whole room (c=0, a=1007).
+function setItemState(roomName: string, item: LiveItem, state: number): void {
+  item.state = state;
+  item.stateChangedMs = Date.now();
   const varList = new SFSArrayWriter()
     .putSFSArray(itemIntVar("scheduledworldobjectstate", item.state))
-    .putSFSArray(itemStringVar("statetimestamp", String(Date.now())));
+    .putSFSArray(itemStringVar("statetimestamp", String(item.stateChangedMs)));
   const params = new SFSObjectWriter().putInt("r", ROOM_ID).putInt("i", item.itemId).putSFSArray("v", varList);
   const packet = encodePacket(0, 1007, params);
   const targets = getByRoom(roomName);
@@ -183,92 +126,26 @@ function broadcastItemStateChange(roomName: string, item: LiveItem): void {
 
 // ==================== Scheduling ====================
 
-function scheduleIndividualTransition(roomName: string, state: RoomState, item: LiveItem, delaySeconds: number): void {
-  const timer = setTimeout(() => {
-    state.timers.delete(timer);
-    item.state = item.state === STATE_ACTIVE ? STATE_INACTIVE : STATE_ACTIVE;
-    broadcastItemStateChange(roomName, item);
-    scheduleIndividualTransition(roomName, state, item, item.state === STATE_ACTIVE ? item.activeSeconds : item.inactiveSeconds);
-  }, delaySeconds * 1000);
-  state.timers.add(timer);
-}
-
-function createIndividualObject(roomName: string, state: RoomState, def: WorldObjectDef): void {
-  const item: LiveItem = {
-    itemId: allocateItemId(),
-    path: def.path,
-    position: def.position,
-    state: def.startActive ? STATE_ACTIVE : STATE_INACTIVE,
-    activeSeconds: def.activeSeconds,
-    inactiveSeconds: def.inactiveSeconds,
-  };
-  state.items.set(def.path, item);
-  scheduleIndividualTransition(roomName, state, item, def.startActive ? def.activeSeconds : def.inactiveSeconds);
-}
-
-function pickNext(group: GroupDef, order: LiveItem[], shuffled: LiveItem[], indexRef: { i: number }): LiveItem {
-  switch (group.selectionBehaviour) {
-    case "ordered":
-      indexRef.i = (indexRef.i + 1) % order.length;
-      return order[indexRef.i]!;
-    case "random":
-      return order[Math.floor(Math.random() * order.length)]!;
-    case "nonRepeatingRandom":
-    default:
-      indexRef.i++;
-      if (indexRef.i >= shuffled.length) {
-        shuffled.splice(0, shuffled.length, ...shuffle(order));
-        indexRef.i = 0;
-      }
-      return shuffled[indexRef.i]!;
-  }
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
-  }
-  return copy;
-}
-
-function createGroup(roomName: string, state: RoomState, group: GroupDef): void {
-  const order: LiveItem[] = group.members.map((member) => {
-    const item: LiveItem = {
-      itemId: allocateItemId(),
-      path: member.path,
-      position: member.position,
-      state: STATE_INACTIVE,
-      activeSeconds: member.activeDurationSeconds,
-      inactiveSeconds: 0,
-    };
-    state.items.set(member.path, item);
+function startGroup(roomName: string, state: RoomState, group: GroupData): void {
+  if (group.children.length === 0) return;
+  const now = Date.now();
+  const children: LiveItem[] = group.children.map((child) => {
+    const item: LiveItem = { itemId: allocateItemId(), path: child.path, position: child.position, state: STATE_INACTIVE, stateChangedMs: now };
+    state.items.set(child.path, item);
     return item;
   });
-  let shuffled = group.selectionBehaviour === "nonRepeatingRandom" ? shuffle(order) : order;
-  const indexRef = { i: -1 };
-
+  const pick = createPicker(group.behaviour, children.length);
+  let current: LiveItem | undefined;
   let timer: NodeJS.Timeout | undefined;
-  const cycleNext = () => {
+  const cycle = () => {
     if (timer) state.timers.delete(timer);
-    const currentPath = state.groupActive.get(group.groupId);
-    if (currentPath) {
-      const current = state.items.get(currentPath);
-      if (current) {
-        current.state = STATE_INACTIVE;
-        broadcastItemStateChange(roomName, current);
-      }
-    }
-    const next = pickNext(group, order, shuffled, indexRef);
-    next.state = STATE_ACTIVE;
-    state.groupActive.set(group.groupId, next.path);
-    broadcastItemStateChange(roomName, next);
-    const durationSeconds = next.activeSeconds > 0 ? next.activeSeconds : group.cycleTimeSeconds;
-    timer = setTimeout(cycleNext, durationSeconds * 1000);
+    if (current) setItemState(roomName, current, STATE_INACTIVE);
+    current = children[pick()]!;
+    setItemState(roomName, current, STATE_ACTIVE);
+    timer = setTimeout(cycle, group.cycleSeconds * 1000 * TIME_SCALE);
     state.timers.add(timer);
   };
-  cycleNext();
+  cycle();
 }
 
 // Stops a room's timers and forgets its objects once nobody is in it.
@@ -296,10 +173,9 @@ export function worldObjectStats(): { rooms: number; timers: number } {
 export function ensureRoomWorldObjects(roomName: string): RoomState {
   const existing = rooms.get(roomName);
   if (existing) return existing;
-  const state: RoomState = { items: new Map(), timers: new Set(), groupActive: new Map() };
+  const state: RoomState = { items: new Map(), timers: new Set() };
   rooms.set(roomName, state);
-  for (const def of individualDefsForRoom(roomName)) createIndividualObject(roomName, state, def);
-  for (const group of groupDefsForRoom(roomName)) createGroup(roomName, state, group);
+  for (const group of scheduledGroups(zoneOfRoom(roomName), contentDateOf(roomName))) startGroup(roomName, state, group);
   if (state.items.size > 0) {
     console.log(`[${new Date().toISOString()}] world objects initialized for room "${roomName}" (${state.items.size} items)`);
   }
