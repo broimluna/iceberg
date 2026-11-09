@@ -11,6 +11,7 @@ import { withAccount } from "../account.ts";
 import type { HandlerContext } from "./context.ts";
 import { templateForTrigger } from "../party-games/definitions.ts";
 import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
+import { onLobbyPropPutAway } from "../party-games/lobby.ts";
 import { logSafe } from "../log-safe.ts";
 
 // Client ItemCategory.Consumable and ConsumableItemTemplate values.
@@ -587,6 +588,7 @@ export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject
     session.heldObject = undefined;
     onPartyGamePlayerQuit(session);
   }
+  onLobbyPropPutAway(session, next?.name);
   const previous = session.equippedConsumable;
   // Replayed to late joiners, so an oversized name isn't kept.
   const name = fitsBytes(next?.name, MAX_NAME_BYTES) ? next?.name : undefined;

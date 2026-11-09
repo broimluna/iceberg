@@ -17,6 +17,7 @@ const { nextLobbyWindow, assignSlot, openLobby, handleLobbyInteraction, onLobbyP
 const { registerGameType, sessionOf, endSession } = await import("../smartfox-server/src/party-games/manager.ts");
 const { PartyGameSession } = await import("../smartfox-server/src/party-games/session.ts");
 const { roomItemsIn } = await import("../smartfox-server/src/party-games/room-items.ts");
+const { handleClientConChanged } = await import("../smartfox-server/src/handlers/consumables.ts");
 
 // A stand-in for Dance Battle that only records how it was started.
 class Stub extends PartyGameSession {
@@ -112,6 +113,15 @@ try {
   check(rosterOf(p1!).map((p) => `${p.TeamId}/${p.RoleId}`).join() === "0/0,1/0,1/1", "a leaver is dropped from the roster");
   interact(p5!, item.itemId);
   check(rosterOf(p1!).map((p) => `${p.TeamId}/${p.RoleId}`).sort().join() === "0/0,0/1,1/0,1/1", "the freed slot is taken by the next joiner");
+
+  // The client's lobby X button clears its own "con" (the lobby prop): that's leaving.
+  handleClientConChanged(ctxOf(p4!), undefined);
+  check(rosterOf(p1!).length === 3 && !rosterOf(p1!).some((r) => r.UserSessionId === p4!.sid as any), "putting the lobby prop away leaves the lobby");
+  handleClientConChanged(ctxOf(p4!), undefined);
+  check(rosterOf(p1!).length === 3, "a second put-away changes nothing");
+  interact(p4!, item.itemId);
+  check(rosterOf(p1!).length === 4 && rosterOf(p1!).some((r) => r.UserSessionId === p4!.sid as any) && heldOf(p4!) === "pgame:DanceBattleLobbyServerAdded",
+    "a player who left can rejoin");
 
   for (const p of [p1, p2, p4, p5]) p!.clear();
   await sleep(1500);

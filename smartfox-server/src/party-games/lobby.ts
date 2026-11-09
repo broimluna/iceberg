@@ -185,13 +185,23 @@ function joinLobby(session: Session, lobby: Lobby): void {
 
 // Disconnects (and so room changes, which reconnect).
 export function onLobbyPlayerLeft(s: Session): void {
-  for (const lobby of lobbies.values()) {
-    const i = lobby.members.findIndex((m) => m.entry.session === s);
-    if (i < 0) continue;
-    lobby.members.splice(i, 1);
-    setRoomItemVar(lobby.item, "score", { type: "string", value: rosterJson(lobby.members) });
-    log(`${s.userName} left the lobby in ${lobby.roomName}`);
-  }
+  for (const lobby of lobbies.values()) dropMember(lobby, s);
+}
+
+// The client leaves a lobby (its X button) by clearing its own "con", the
+// lobby prop. Call before session.heldObject is updated.
+export function onLobbyPropPutAway(s: Session, nextName: string | undefined): void {
+  if (s.heldObject === undefined || s.heldObject === nextName) return;
+  const lobby = lobbies.get(s.roomName);
+  if (lobby && lobby.def.launcher?.lobbyProp === s.heldObject) dropMember(lobby, s);
+}
+
+function dropMember(lobby: Lobby, s: Session): void {
+  const i = lobby.members.findIndex((m) => m.entry.session === s);
+  if (i < 0) return;
+  lobby.members.splice(i, 1);
+  setRoomItemVar(lobby.item, "score", { type: "string", value: rosterJson(lobby.members) });
+  log(`${s.userName} left the lobby in ${lobby.roomName}`);
 }
 
 // ==================== Schedule ====================
