@@ -18,6 +18,8 @@ check(teamRoundScore([]) === 0, "an empty team scores 0");
 
 check(outcomeFor([1, 9], [1, 2, 3], 19).join() === "1,19,19", "outcome keeps correct moves, failure id for wrong and missing");
 check(outcomeFor([1, 2, 3, 3], [1, 2, 3], 19).join() === "1,2,3", "outcome is as long as the sequence");
+// The client only shows moves 1-3; the emote it plays is the server's choice.
+check(outcomeFor([2, 9], [2, 2], 19, [6, 7, 8, 9, 10]).join() === "7,19", "correct moves play the round's dance for that move, misses the failure move");
 
 const sets = (getPartyGame(3)!.gameData as { DanceSequenceSets: SequenceSet[] }).DanceSequenceSets;
 check(sequenceSetFor(sets, 2).SequenceLength === 6 && sequenceSetFor(sets, 0).SequenceLength === 3, "round sets come from the game data (0-based)");
