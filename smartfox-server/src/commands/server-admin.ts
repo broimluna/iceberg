@@ -58,7 +58,7 @@ export const commands: CommandDef[] = [
     },
   },
   {
-    name: "restart",
+    name: "admin-swre-restart",
     minRole: "admin",
     usage: `:admin-swre-restart [seconds 1-${MAX_RESTART_SECONDS}, default ${DEFAULT_RESTART_SECONDS}] | :admin-swre-restart cancel`,
     run(args, ctx) {
