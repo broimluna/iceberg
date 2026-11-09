@@ -41,17 +41,12 @@ function applyRewards(username, reward) {
     
     if (reward.equipmentTemplates) reward.equipmentTemplates.forEach(t => db.addEquipmentTemplate(username, t));
 
-    if (reward.equipmentInstances) {
-        for (const item of reward.equipmentInstances) {
-            if (item.definitionId) {
-                db.addEquipmentTemplate(username, item.definitionId);
-                db.saveEquipment(username, {
-                    equipmentId: null,
-                    dateTimeCreated: Date.now(),
-                    definitionId: item.definitionId,
-                    parts: item.parts || []
-                });
-            }
+    // Each instance gets its database id, so the caller can show it to the player.
+    const equipmentInstances = [];
+    for (const item of reward.equipmentInstances || []) {
+        if (item.definitionId) {
+            db.addEquipmentTemplate(username, item.definitionId);
+            equipmentInstances.push(db.addEquipmentInstance(username, item.definitionId, item.parts || []));
         }
     }
 
@@ -68,6 +63,8 @@ function applyRewards(username, reward) {
             db.addCollectibleCurrency(username, currency, amount);
         }
     }
+
+    return { ...reward, equipmentInstances };
 }
 
 // ========== REWARD ENDPOINTS ==========

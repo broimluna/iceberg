@@ -1691,6 +1691,20 @@ function saveEquipment(username, equipment) {
 }
 
 /**
+ * Creates a new equipment item for the player (the database assigns the id)
+ * and returns it in the client's CustomEquipment shape.
+ */
+function addEquipmentInstance(username, definitionId, parts = []) {
+    getOrCreatePlayer(username);
+    const dateTimeCreated = Date.now();
+    const result = db.prepare(`
+        INSERT INTO equipment (username, date_time_created, definition_id, parts_json)
+        VALUES (?, ?, ?, ?)
+    `).run(username, dateTimeCreated, definitionId, JSON.stringify(parts));
+    return { equipmentId: Number(result.lastInsertRowid), dateTimeCreated, definitionId, parts };
+}
+
+/**
  * Delete equipment
  */
 function deleteEquipment(username, equipmentId) {
@@ -2828,6 +2842,7 @@ export {
     getEquipment,
     getEquipmentById,
     saveEquipment,
+    addEquipmentInstance,
     deleteEquipment,
     
     // Claimed rewards

@@ -9,10 +9,10 @@ import { isRole, type Role } from "./commands/roles.ts";
 // web-api/src/routes/reward.ts.
 // Client-side CustomEquipment, as used by reward.add's "equipmentInstances".
 export interface EquipmentInstanceGrant {
-  equipmentId: number;
-  dateTimeCreated: number;
+  equipmentId?: number; // assigned by the WebAPI
+  dateTimeCreated?: number;
   definitionId: number;
-  parts: unknown[];
+  parts?: unknown[];
 }
 
 export interface RewardGrant {
@@ -69,7 +69,7 @@ export async function setRole(username: string, role: Role): Promise<SetRoleResu
   }
 }
 
-export async function grantReward(username: string, reward: RewardGrant): Promise<boolean> {
+export async function grantReward(username: string, reward: RewardGrant): Promise<RewardGrant | null> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/grant-reward`, {
       method: "POST",
@@ -79,14 +79,17 @@ export async function grantReward(username: string, reward: RewardGrant): Promis
     });
     if (!res.ok) {
       console.log(`[${new Date().toISOString()}] webapi-client: grant-reward for ${username} failed with status ${res.status}`);
-      return false;
+      return null;
     }
-    console.log(`[${new Date().toISOString()}] webapi-client: granted reward to ${username}: ${JSON.stringify(reward)}`);
-    return true;
+    // The WebAPI echoes the reward with database ids filled in (equipment instances).
+    const body = (await res.json().catch(() => null)) as { reward?: RewardGrant } | null;
+    const granted = body?.reward ?? reward;
+    console.log(`[${new Date().toISOString()}] webapi-client: granted reward to ${username}: ${JSON.stringify(granted)}`);
+    return granted;
   } catch (err) {
     // A down WebAPI must not take the game server with it.
     console.log(`[${new Date().toISOString()}] webapi-client: grant-reward request failed: ${(err as Error).message}`);
-    return false;
+    return null;
   }
 }
 

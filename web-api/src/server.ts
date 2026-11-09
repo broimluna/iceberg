@@ -118,9 +118,9 @@ app.post('/api/internal/grant-reward', express.json(), (req, res) => {
         if (!username || !reward) {
             return res.status(400).json({ error: 'Missing username or reward' });
         }
-        routes.applyRewards(username, reward);
-        console.log(`[INTERNAL-API] Granted reward to ${username} from game server:`, reward);
-        res.json({ success: true, assets: db.getPlayerAssets(username) });
+        const granted = routes.applyRewards(username, reward);
+        console.log(`[INTERNAL-API] Granted reward to ${username} from game server:`, granted);
+        res.json({ success: true, reward: granted, assets: db.getPlayerAssets(username) });
     } catch (error) {
         console.error('[INTERNAL-API] Error granting reward:', error);
         res.status(500).json({ error: 'Internal error' });
