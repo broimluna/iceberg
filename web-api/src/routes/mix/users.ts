@@ -3,7 +3,10 @@ import express from "express";
 import * as db from "../../database.ts";
 import { authenticateMix } from "./auth.ts";
 import { filterText } from "../../services/moderation.ts";
-import { hashUserId, buildResponse, defaultAvatar } from "./common.ts";
+import { hashUserId, buildResponse, userAvatar, parseAvatar } from "./common.ts";
+import { notify } from "../../services/mixNotify.ts";
+import { MixError, mixRoute } from "../../services/mixErrors.ts";
+import { chatPartners } from "../../services/mixChat.ts";
 
 const router = express.Router();
 
@@ -28,7 +31,7 @@ router.post('/users/byDisplayName', authenticateMix, (req, res) => {
                     HashedUserId: hashUserId(player.swid),
                     DisplayName: player.displayName || player.username,
                     FirstName: null,
-                    Avatar: defaultAvatar(player.swid),
+                    Avatar: userAvatar(player.swid),
                     Status: 'ACTIVE'
                 });
             }
@@ -54,7 +57,7 @@ router.post('/users/byUserId', authenticateMix, (req, res) => {
                 HashedUserId: hashUserId(player.swid),
                 DisplayName: player.displayName || player.username,
                 FirstName: null,
-                Avatar: defaultAvatar(player.swid),
+                Avatar: userAvatar(player.swid),
                 Status: 'ACTIVE'
             });
         }
@@ -89,7 +92,7 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
         const response = buildResponse({
             DisplayName: player.displayName || player.username,
             FirstName: null,
-            Avatar: defaultAvatar(player.swid)
+            Avatar: userAvatar(player.swid)
         });
         console.log(`[SEARCH] Found player, responding with:`, JSON.stringify(response));
         res.json(response);
@@ -102,6 +105,56 @@ router.post('/search/displayname', authenticateMix, (req, res) => {
         res.json(response);
     }
 });
+
+// =============================================================================
+// Avatar
+// =============================================================================
+
+// Each set writes a notification per friend and chat partner, so each user
+// gets MIX_AVATAR_SETS_PER_MIN (default 10, 0 = off) a minute; HTTP 429 is
+// THROTTLED to the SDK.
+const avatarLimit = Number(process.env.MIX_AVATAR_SETS_PER_MIN ?? 10);
+const avatarSets = new Map<string, { count: number; resetAt: number }>();
+function checkAvatarRate(swid: string): void {
+    if (!(avatarLimit > 0)) return;
+    const now = Date.now();
+    let e = avatarSets.get(swid);
+    if (!e || e.resetAt <= now) {
+        if (avatarSets.size >= 50_000) for (const [k, v] of avatarSets) if (v.resetAt <= now) avatarSets.delete(k);
+        e = { count: 0, resetAt: now + 60_000 };
+        avatarSets.set(swid, e);
+    }
+    if (++e.count > avatarLimit) throw new MixError("THROTTLED", 429);
+}
+
+// Everyone whose app holds this user's avatar: friends, both sides of a
+// pending invitation, and members of the user's current chat threads.
+function avatarAudience(swid: string): string[] {
+    const out = new Set<string>();
+    for (const f of db.getMixFriendships(swid)) out.add(f.friendUserId);
+    for (const inv of db.getMixFriendshipInvitations(swid)) if (inv.friendSwid) out.add(inv.friendSwid);
+    for (const m of chatPartners(swid)) out.add(m);
+    out.delete(swid);
+    return [...out];
+}
+
+/**
+ * PUT /avatar
+ * The avatar editor's save (AvatarSetter). The response's SetAvatar
+ * notification updates the caller's app; the same notification goes to
+ * everyone in avatarAudience, whose apps match it by AvatarId.
+ */
+router.put('/avatar', authenticateMix, (req, res) => mixRoute(res, () => {
+    const swid = req.mixUserId;
+    const parts = parseAvatar(req.body?.Avatar);
+    checkAvatarRate(swid);
+    return db.inTransaction(() => {
+        db.setMixAvatar(swid, parts);
+        const Avatar = userAvatar(swid);
+        for (const other of avatarAudience(swid)) notify(other, 'SetAvatar', { Avatar });
+        return buildResponse({ Notification: notify(swid, 'SetAvatar', { Avatar }) });
+    });
+}));
 
 
 // =============================================================================

@@ -3,7 +3,7 @@ import * as db from "../../database.ts";
 import { inTransaction } from "../../database.ts";
 import { notify } from "../../services/mixNotify.ts";
 import { authenticateMix } from "./auth.ts";
-import { buildResponse, generateId, mixUser, defaultAvatar } from "./common.ts";
+import { buildResponse, generateId, mixUser, userAvatar } from "./common.ts";
 import { onFriendshipTrustRemoved } from "../../services/mixChat.ts";
 const router = express.Router();
 
@@ -126,7 +126,7 @@ router.post('/friendship/recommend', authenticateMix, (req, res) => {
         .map(p => ({
             DisplayName: p.display_name || p.username,
             FirstName: null,
-            Avatar: defaultAvatar(p.swid)
+            Avatar: userAvatar(p.swid)
         }));
     
     res.json(buildResponse({

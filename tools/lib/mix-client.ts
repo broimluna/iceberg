@@ -64,6 +64,10 @@ export const REQUIRED: Record<string, (n: any) => boolean> = {
   ClearUnreadMessageCount: (n) => idsOk(n.ChatThreadIds),
   AddAlert: (n) => has(n.Alert?.Text) && has(n.Alert?.AlertId) && has(n.Alert?.Level) && has(n.Alert?.Timestamp),
   ClearAlert: (n) => idsOk(n.AlertIds),
+  // No validator in the SDK, but HandleAvatarSet reads Avatar.AvatarId.Value
+  // and AvatarBuilder every part's TintIndex/XOffset/YOffset .Value.
+  SetAvatar: (n) => has(n.Avatar?.AvatarId) && ["Accessory", "Brow", "Costume", "Eyes", "Hair", "Hat", "Nose", "Mouth", "Skin"]
+    .every((k) => has(n.Avatar[k]?.TintIndex) && has(n.Avatar[k]?.XOffset) && has(n.Avatar[k]?.YOffset)),
 };
 
 // GetNotificationsResponse fields that are not notification lists.

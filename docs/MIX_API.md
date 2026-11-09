@@ -363,7 +363,7 @@ iceberg's current state.
 | POST | `/search/displayname` | DisplayNameSearchRequest | ✅ |
 | PUT | `/displayname` | SetDisplayNameRequest | ✅ |
 | POST | `/displayname/validate` | ValidateDisplayNamesRequest | ✅ (+ `/v2`) |
-| PUT | `/avatar` | SetAvatarRequest | ❌ |
+| PUT | `/avatar` | SetAvatarRequest | ✅ |
 | PUT | `/nickname` | AddNicknameRequest | ❌ |
 | POST | `/nickname/delete` | RemoveNicknameRequest | ❌ |
 | POST | `/languagePreference` | SetLanguageRequest | ✅ |
@@ -602,12 +602,23 @@ This used the prebuilt `testing` release of OpenCPIsland/DisneyMix
 - **Every user object needs an `Avatar`.** `FriendRecommender` and
   `DisplayNameSearcher` do `Avatar.AvatarId.Value` without a null check.
   A recommendation without one crashed the Friends screen and the app
-  logged out. iceberg gives each user a default avatar with a stable
-  `AvatarId` (48 bits of the SWID's SHA-256) until real avatars exist.
+  logged out. Every user object carries the user's saved avatar (or a
+  default), always with the same `AvatarId` (48 bits of the SWID's
+  SHA-256).
 - The avatar editor calls `PUT /avatar` with the full avatar. Its
   `AvatarId` arrives as `-9223372036854776000`, which is `long.MinValue`
-  after losing JSON double precision, meaning "new avatar". This is
-  phase 5.
+  after losing JSON double precision, meaning "new avatar". iceberg
+  ignores it and keeps the user's stable id. The parts are stored
+  (`mix_avatars`) and checked: SelectionKey up to 32 of `[A-Za-z0-9_.-]`,
+  integer TintIndex 0-1000, finite offsets within +/-10. A missing part
+  keeps the default, since `AvatarBuilder` reads every part's values
+  without a null check. The response's `SetAvatar` notification updates
+  the caller. The same notification goes to friends, both sides of
+  pending invitations and chat co-members: `LocalUser.UpdateAvatar`
+  applies it to whichever user has that `AvatarId`, so their apps update
+  live. `MIX_AVATAR_SETS_PER_MIN` (default 10, 0 = off) limits saves per
+  user (429, THROTTLED), because each save writes one notification per
+  recipient.
 - Logging out calls `POST /session/user/delete` (see the logout finding
   above).
 

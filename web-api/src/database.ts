@@ -546,6 +546,15 @@ function initializeDatabase() {
         )
     `);
 
+    // Mix avatars (PUT /avatar), the client's Avatar parts as JSON.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS mix_avatars (
+            swid TEXT PRIMARY KEY,
+            avatar TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // Mix presence state
     db.exec(`
         CREATE TABLE IF NOT EXISTS mix_presence_state (
@@ -2459,6 +2468,18 @@ function removeMixFriendship(swid, friendUserId) {
  * @param {string} swid - The player's SWID
  * @returns {Array} Array of { invitationId, friendDisplayName, isInviter, isTrusted }
  */
+function getMixAvatar(swid) {
+    const row = db.prepare('SELECT avatar FROM mix_avatars WHERE swid = ?').get(swid);
+    return row ? JSON.parse(row.avatar) : null;
+}
+
+function setMixAvatar(swid, avatar) {
+    db.prepare(`
+        INSERT INTO mix_avatars (swid, avatar) VALUES (?, ?)
+        ON CONFLICT(swid) DO UPDATE SET avatar = excluded.avatar, updated_at = CURRENT_TIMESTAMP
+    `).run(swid, JSON.stringify(avatar));
+}
+
 function getMixFriendshipInvitations(swid) {
     const rows = db.prepare('SELECT * FROM mix_friendship_invitations WHERE swid = ?').all(swid);
     return rows.map(row => ({
@@ -2874,6 +2895,8 @@ export {
     deleteMixSession,
     updateMixSessionActivity,
     getMixFriendships,
+    getMixAvatar,
+    setMixAvatar,
     addMixFriendship,
     removeMixFriendship,
     getMixFriendshipInvitations,

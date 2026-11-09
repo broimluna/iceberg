@@ -37,6 +37,13 @@ export function currentMembers(threadId: number): string[] {
         .map((r) => r.swid);
 }
 
+/** Everyone who shares a current chat thread with swid. */
+export function chatPartners(swid: string): string[] {
+    return (sql.query(`SELECT DISTINCT o.swid FROM mix_chat_members m
+        JOIN mix_chat_members o ON o.thread_id = m.thread_id AND o.left_at IS NULL
+        WHERE m.swid = ? AND m.left_at IS NULL AND o.swid != m.swid`).all(swid) as { swid: string }[]).map((r) => r.swid);
+}
+
 export function latestSeq(threadId: number): number {
     return (sql.query("SELECT COALESCE(MAX(seq), 0) AS n FROM mix_chat_messages WHERE thread_id = ?").get(threadId) as { n: number }).n;
 }

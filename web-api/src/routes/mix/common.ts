@@ -1,5 +1,7 @@
 // Shared helpers for the Mix API routes.
 import crypto from "crypto";
+import * as db from "../../database.ts";
+import { MixError } from "../../services/mixErrors.ts";
 
 // State variables
 export const presenceState = new Map();
@@ -44,7 +46,7 @@ export function mixUser(swid, player) {
         HashedUserId: hashUserId(swid),
         DisplayName: name,
         FirstName: name,
-        Avatar: defaultAvatar(swid),
+        Avatar: userAvatar(swid),
         Status: null,
         Nickname: null
     };
@@ -66,12 +68,43 @@ export function generateDefaultAvatar() {
     };
 }
 
-// A user's avatar until real avatars exist (PUT /avatar, phase 5). The
-// Mix app dereferences Avatar on every user it receives (FriendRecommender,
-// DisplayNameSearcher, chat members) and keys its local avatar store by
-// AvatarId, so the id is stable per user: 48 bits of the SWID's hash,
-// which stays a safe JSON integer.
-export function defaultAvatar(swid) {
-    const id = parseInt(crypto.createHash('sha256').update(String(swid)).digest('hex').slice(0, 12), 16);
-    return { ...generateDefaultAvatar(), AvatarId: id };
+export const AVATAR_PARTS = ["Accessory", "Brow", "Costume", "Eyes", "Hair", "Hat", "Nose", "Mouth", "Skin"] as const;
+
+// The Mix app keys its local avatar store by AvatarId and applies a
+// SetAvatar notification to whichever user has that id
+// (LocalUser.UpdateAvatar), so each user keeps one id for good: 48 bits of
+// the SWID's hash, which stays a safe JSON integer.
+function avatarId(swid) {
+    return parseInt(crypto.createHash('sha256').update(String(swid)).digest('hex').slice(0, 12), 16);
+}
+
+// A user's avatar: what they last saved with PUT /avatar, else the default.
+// The app dereferences Avatar on every user it receives (FriendRecommender,
+// DisplayNameSearcher, chat members), so there always is one.
+export function userAvatar(swid) {
+    return { ...generateDefaultAvatar(), ...(db.getMixAvatar(swid) ?? {}), AvatarId: avatarId(swid), SlotId: 0 };
+}
+
+const SELECTION_KEY = /^[A-Za-z0-9_.-]{0,32}$/;
+const OFFSET_LIMIT = 10;
+
+// The parts of a PUT /avatar body, checked. A part left out keeps the
+// default, because AvatarBuilder reads every part's values without a null
+// check. The client's AvatarId and SlotId are ignored (see userAvatar).
+export function parseAvatar(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new MixError("INVALID_REQUEST");
+    const defaults = generateDefaultAvatar();
+    const parts = {};
+    for (const name of AVATAR_PARTS) {
+        const p = input[name];
+        if (p === undefined || p === null) { parts[name] = defaults[name]; continue; }
+        const { SelectionKey, TintIndex, XOffset, YOffset } = p;
+        if (typeof SelectionKey !== 'string' || !SELECTION_KEY.test(SelectionKey)
+            || !Number.isInteger(TintIndex) || TintIndex < 0 || TintIndex > 1000
+            || ![XOffset, YOffset].every((v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= OFFSET_LIMIT)) {
+            throw new MixError("INVALID_REQUEST");
+        }
+        parts[name] = { SelectionKey, TintIndex, XOffset, YOffset };
+    }
+    return parts;
 }
