@@ -91,6 +91,12 @@ try {
     p.setCoins(item.Cost);
     const ok = await p.call("PUT", `/disneystore/v1/purchase/${item.Id}/1`);
     check(ok.status === 200 && p.coins() === 0, `a store purchase with the coins works (${ok.status}, ${p.coins()})`);
+    // Items added after the old data dump (the client's own catalog): an emote pack and a decal.
+    p.setCoins(35);
+    const emote = await p.call("PUT", "/disneystore/v1/purchase/164/1");
+    check(emote.status === 200 && p.coins() === 15 && ["Joy", "Disgust"].every((e) => emote.json?.assets?.emotePacks?.includes(e)), `an emote-pack item is granted and charged (${emote.status}, ${p.coins()}, ${JSON.stringify(emote.json?.assets?.emotePacks)})`);
+    const decal = await p.call("PUT", "/disneystore/v1/purchase/163/1");
+    check(decal.status === 200 && p.coins() === 0 && decal.json?.assets?.decals?.includes(277), `a decal item is granted (${decal.status}, ${p.coins()})`);
   }
 
   // ---- 6. igloo decorations ----

@@ -138,6 +138,13 @@ function applyReward(username, reward, count) {
         }
     }
     
+    // Add emote packs
+    if (reward.emotePacks) {
+        for (const packId of reward.emotePacks) {
+            db.addEmotePack(username, packId);
+        }
+    }
+    
     // Add tubes
     if (reward.tubes) {
         for (const tubeId of reward.tubes) {
