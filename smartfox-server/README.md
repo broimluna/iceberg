@@ -108,6 +108,8 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 | `:find <user>` | moderator | Which room a player is in. |
 | `:kick <user>` | moderator | Disconnects a player ranked below you. |
 | `:mute <user> [minutes]` / `:unmute <user>` | moderator | Stops a player's chat reaching anyone (default 10 minutes, at most 1440). Lasts until it expires or the server restarts. |
+| `:dancebattle` | moderator | Opens a Dance Battle lobby in your room now (the stage is in Town). |
+| `:tuberace red\|blue` | moderator | Opens that tube race lobby in your Mt Blizzard room now. |
 | `:ac <coins> [user]` | admin | Gives coins (1–1,000,000). |
 | `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
 | `:admin-alert <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |

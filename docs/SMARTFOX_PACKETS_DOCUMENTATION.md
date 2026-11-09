@@ -351,6 +351,46 @@ ends at once for both: the one who stays at 0, the quitter listed at 1 with
 no reward (the owner's end screen looks up its own placement). Rules and timings come from `GameData` in
 `smartfox-server/data/party-games.json`.
 
+#### Scheduled lobbies (Dance Battle, tube races)
+
+Templates with launcher method 1 (ZoneSchedule) open a lobby in every room
+of their zone (the room name's third `:` field) on multiples of
+`EveryXMinutesAfterTheHour` since the epoch, for `LobbyLengthInSeconds`. A
+room has at most one lobby per template (Mt Blizzard runs red and blue at
+once) and a player is in at most one. The lobby is a room MMO item
+(`PartygameLobbyMmoItem`): `category` 6, `creator` 0, `int_a` template,
+`ttl` seconds (all INT: the client reads them with `IntValue`, which throws
+on a double), `statetimestamp` (string, epoch seconds), `score` (string,
+the roster as `PartyGamePlayerCollection`). Joining is an `l.a` Interact
+with `o` `{"type":1,"id":"<item id>"}`: the server equips the lobby prop
+(`con` {type `pgame`}) and, when `LobbyLocomotionState` is non-zero, sets
+`loc` (tubes: 1 Slide). Putting the lobby prop away (the client's X button
+clears its own `con`) leaves the lobby. When the time is up the prop comes
+off and the game starts about a second later.
+
+#### Tube races (templates 4 red, 5 blue)
+
+| Type | Dir | `message` |
+|---|---|---|
+| 10 SetTubeRaceModifierLayout | IN | `{"ModifierLayoutId": n}`: which of the course's three modifier layouts the client shows. |
+| 11 CollectTubeRaceScoreModifier | OUT | `{"ModifierId": n}`, when the racer touches a modifier. |
+| 12 PlayerFinishedTubeRace | OUT | `{}`, when the racer crosses the finish. |
+| 13 TubeRacePlayerResult | IN | `{"PlayerId": <long>, "CompletionTimeInMilliseconds": <long>, "ScoreModifier": n, "OverallScore": n}`. The local player's own result opens its end popup ("calculating" until `pgame.end`); others add rows. |
+
+`loc` is 7 (Racing) during the race and 0 after. The server times each
+racer from the start; a finish under `MinimumCompletionTimeInSeconds`, over
+`MaximumCompletionTimeInSeconds` or more than `MaxValidationRadius` from
+`RaceEndPosition` (last reported position) scores `DefaultPoints`. A claimed
+modifier counts only if it is in the active layout and the racer's reported
+path passed within 3 m of it (positions in
+`smartfox-server/data/tube-races.json`). Score =
+`StartingPoints - ms * PointsDeductedPerSecond / 1000 + modifiers`. The race
+ends when everyone has a result, or at the maximum time plus 5 s, when the
+unfinished get a `DefaultPoints` result; `pgame.end` follows
+`ShowRewardsDelayInSeconds` later. Placement by score, then time, capped at
+4; a lone racer gets `SinglePlayerPlacement`. Invalid and unfinished racers
+are placed but not paid.
+
 ---
 
 ## Implementation notes
