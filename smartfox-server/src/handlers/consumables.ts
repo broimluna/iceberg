@@ -9,8 +9,9 @@ import { onConsumableUsed, onPlayerStateChanged } from "../daily-tasks.ts";
 import { grantReward } from "../webapi-client.ts";
 import { withAccount } from "../account.ts";
 import type { HandlerContext } from "./context.ts";
-import { templateForTrigger } from "../party-games/definitions.ts";
+import { getPartyGame, templateForTrigger } from "../party-games/definitions.ts";
 import { canStart, canStartWith, onPartyGamePlayerQuit, sessionOf, startPartyGame } from "../party-games/manager.ts";
+import { ACTION_START } from "../party-games/fish-bucket.ts";
 import { onLobbyPropPutAway } from "../party-games/lobby.ts";
 import { logSafe } from "../log-safe.ts";
 
@@ -469,8 +470,15 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
     invitationGuests.set(holder.userId, guests);
     return true;
   }
+  startInvitation(holderEntry, name, template, players);
+  return true;
+}
+
+// Closes a filled (or owner-started) invitation and starts its game after the
+// handoff delay. The invitation goes only once the start is certain.
+function startInvitation(holderEntry: RegisteredSession, name: string, template: number, players: RegisteredSession[]): void {
+  const holder = holderEntry.session;
   invitationGuests.delete(holder.userId);
-  // The invitation goes only once the start is certain.
   setHeldActionCount(holder, 0);
   removeHeldItem(holder);
   handoffCancelled.set(holder.userId, false);
@@ -483,7 +491,36 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
     }
     if (!startPartyGame(template, players)) log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff)`);
   }, INVITATION_HANDOFF_MS);
-  return true;
+}
+
+// An `l.a` action byte from a player holding an open invitation whose game
+// the owner starts (LobbyType STRICT_USER_START, e.g. Fish Bucket). The Start
+// button is the Snowball button, whose release is LaunchThrow; every other
+// non-Move byte is logged so the live bytes can be confirmed.
+export function onInvitationAction(ctx: HandlerContext, action: number): void {
+  const holder = ctx.session;
+  const name = holder.equippedConsumable;
+  if (!name || CONSUMABLES[name]?.experience !== "partyGameLobby") return;
+  const template = templateForTrigger(name);
+  const def = template === undefined ? undefined : getPartyGame(template);
+  if (!def || def.lobbyType !== 1 || !holder.heldActionCount) return;
+  if (action !== 0 && action !== 1 && action !== 2 && action !== 12) log(`${ctx.peer} - [FISH] start action byte=${action} (${name}, ${holder.heldActionCount} slots open)`);
+  if (action !== ACTION_START || !canStart(template!) || sessionOf(holder)) return;
+  const holderEntry = getByRoom(holder.roomName).find((e) => e.session === holder);
+  if (!holderEntry) return;
+  // Guests who have since left the room or joined a game no longer count.
+  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
+  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
+  const players = [holderEntry, ...guests];
+  if (players.length < def.minPlayers) {
+    log(`${ctx.peer} - ${holder.userName}'s ${name}: Start with ${players.length} player(s), needs ${def.minPlayers}`);
+    return;
+  }
+  if (!canStartWith(template!, players)) {
+    log(`${ctx.peer} - ${holder.userName}'s ${name} can't start yet, invitation kept`);
+    return;
+  }
+  startInvitation(holderEntry, name, template!, players);
 }
 
 export function forgetInvitation(session: Session): void {

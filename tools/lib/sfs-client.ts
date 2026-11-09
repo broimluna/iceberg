@@ -111,6 +111,10 @@ export class GameClient {
     this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", [0, 0, 0]).putByte("a", 2)
       .putUtfString("o", `{"type":2,"id":"${sid}","tag":"Player"}`));
   }
+  /** An `l.a` with a bare action byte (a button press). */
+  action(byte: number) {
+    this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", [0, 0, 0]).putByte("a", byte));
+  }
   clear() { this.ext = []; this.updates = []; }
   extOf(cmd: string) { return this.ext.filter((e) => e.cmd === cmd).map((e) => e.p); }
   varsOf(u: number) { return this.updates.filter((x) => x.u === u).map((x) => x.vars); }

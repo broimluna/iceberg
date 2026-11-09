@@ -72,7 +72,7 @@ export const CONSUMABLES: Record<string, ConsumableDef> = {
   SeaweedSmoothieTray: { experience: "playerHeld", shareable: true, totalItemQuantity: 4, recipient: "SeaweedSmoothieServerAdded" },
   SeaweedSmoothieServerAdded: { experience: "playerHeld", serverAdded: true },
   ScavengerHuntGroup: { experience: "partyGameLobby" },
-  FishBucketGroup: { experience: "partyGameLobby" },
+  FishBucketGroup: { experience: "partyGameLobby", totalItemQuantity: 3 },
   FindFourGroup: { experience: "partyGameLobby" },
   SpicyPizzaGroup: { experience: "playerHeld", shareable: true, totalItemQuantity: 6, recipient: "SpicyPizzaServerAdded" },
   SpicyPizzaServerAdded: { experience: "playerHeld", serverAdded: true },

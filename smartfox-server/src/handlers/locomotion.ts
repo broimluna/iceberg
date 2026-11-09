@@ -1,7 +1,7 @@
 import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getFloatArray, getByte, getUtfString, fitsBytes } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
-import { handleConsumableInteraction } from "./consumables.ts";
+import { handleConsumableInteraction, onInvitationAction } from "./consumables.ts";
 import { handleLobbyInteraction, onThrowAction } from "../party-games/lobby.ts";
 import { onPartyGameAction, onPartyGamePlayerMoved } from "../party-games/manager.ts";
 import { onLocomotion } from "../daily-tasks.ts";
@@ -39,6 +39,8 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   ctx.session.lastPosition = position;
   // Party games react to action bytes (the Hider's drop), before the move.
   onPartyGameAction(ctx.session, action, position as [number, number, number]);
+  // An owner-start invitation (Fish Bucket): the Start button.
+  onInvitationAction(ctx, action);
   // Tube races check finishes and score modifiers against the racer's path.
   onPartyGamePlayerMoved(ctx.session, position as [number, number, number]);
   const locomotionResponseP = new SFSObjectWriter()
