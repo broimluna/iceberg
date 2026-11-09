@@ -182,20 +182,20 @@ try {
   if (run("announce")) {
     await root.connect(); await bob.connect(); await carol.connect();
     const alerts = (c: Client) => c.ext.filter((e) => e.cmd === "server.alert").map((e) => e.p.message!.value as string);
-    await SAY(root, ":announce Party at the dock!");
+    await SAY(root, ":admin-alert Party at the dock!");
     check([root, bob, carol].every((c) => alerts(c).includes("Party at the dock!")), "every player gets the server.alert popup");
     check([root, bob, carol].every((c) => c.bubbles.includes("Party at the dock!")), "SFS2X players also get the bubble");
     // Chat is capped at 200 characters, so that's the longest announcement.
-    await SAY(root, ":announce " + "x".repeat(190));
-    check(alerts(carol)[0]?.length === 190, `a long announcement arrives whole (${alerts(carol)[0]?.length})`);
+    await SAY(root, ":admin-alert " + "x".repeat(187));
+    check(alerts(carol)[0]?.length === 187, `a long announcement arrives whole (${alerts(carol)[0]?.length})`);
     await SAY(root, ":restart 600");
     check(root.bubbles.some((b) => b.includes("not supervised")), `without the supervisor the admin is warned (${root.bubbles})`);
     await SAY(root, ":restart cancel");
-    await SAY(root, ":announce");
+    await SAY(root, ":admin-alert");
     check(root.errors.some((e) => e.startsWith("Usage:")) && alerts(carol).length === 0, "an empty announcement is refused");
     await setRoleVia(bob, "moderator");
     bob.disconnect(); await sleep(150); await bob.connect();
-    await SAY(bob, ":announce hi");
+    await SAY(bob, ":admin-alert hi");
     check(bob.errors.includes("Unknown command") && alerts(carol).length === 0, "a moderator can't announce");
     await disconnectAll();
   }

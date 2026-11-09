@@ -110,7 +110,7 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 | `:mute <user> [minutes]` / `:unmute <user>` | moderator | Stops a player's chat reaching anyone (default 10 minutes, at most 1440). Lasts until it expires or the server restarts. |
 | `:ac <coins> [user]` | admin | Gives coins (1–1,000,000). |
 | `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
-| `:announce <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
+| `:admin-alert <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
 | `:restart [seconds]` / `:restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
 | `:promote <user> moderator\|admin` / `:demote <user>` | admin | Changes a role; works for offline players. |
 

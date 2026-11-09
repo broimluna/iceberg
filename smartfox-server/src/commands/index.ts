@@ -25,8 +25,9 @@ export function handleCommand(text: string, ctx: HandlerContext): boolean {
   const { session } = ctx;
   if (!hasRole(session, "moderator")) return false;
   const trimmed = text.trim();
-  // At least two letters, so emoticons like :D and :P stay chat.
-  if (!/^:[A-Za-z]{2,}(\s|$)/.test(trimmed)) return false;
+  // At least two letters, so emoticons like :D and :P stay chat; names may
+  // have hyphenated parts (:admin-alert).
+  if (!/^:[A-Za-z]{2,}(-[A-Za-z]+)*(\s|$)/.test(trimmed)) return false;
   const [word, ...args] = trimmed.slice(1).split(/\s+/);
   const name = word!.toLowerCase();
   const def = commandTable().find((c) => c.name === name);
