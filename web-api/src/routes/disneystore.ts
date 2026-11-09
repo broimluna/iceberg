@@ -4,7 +4,7 @@
  * Handles Disney Store item purchases.
  * 
  * Endpoints:
- * - POST /disneystore/v1/purchase/:type/:count - Purchase item (PurchaseDisneyStoreItemOperation)
+ * - PUT /disneystore/v1/purchase/:type/:count - Purchase item (PurchaseDisneyStoreItemOperation)
  */
 
 import { positiveCount, NOT_ENOUGH_COINS } from "../utils/counts.ts";
@@ -149,12 +149,12 @@ function applyReward(username, reward, count) {
 }
 
 /**
- * POST /disneystore/v1/purchase/:type/:count
+ * PUT /disneystore/v1/purchase/:type/:count
  * Purchase a Disney Store item
  * 
  * Response: PurchaseDisneyStoreItemResponse { assets, inventory, decorationInventory, wsEvents? }
  */
-router.post('/disneystore/v1/purchase/:type/:count', (req, res) => {
+router.put('/disneystore/v1/purchase/:type/:count', (req, res) => {
     const { swid, username } = req.player;
     const itemId = parseInt(req.params.type);
     const count = positiveCount(req.params.count, 99);

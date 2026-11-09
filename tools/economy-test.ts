@@ -84,12 +84,12 @@ try {
     let item: any = null;
     JSON.stringify(store, (_k, v) => { if (!item && v && typeof v === "object" && typeof v.Id === "number" && typeof v.Cost === "number" && v.Cost > 0 && v.Reward) item = v; return v; });
     p.setCoins(item.Cost - 1);
-    const neg = await p.call("POST", `/disneystore/v1/purchase/${item.Id}/-100`);
+    const neg = await p.call("PUT", `/disneystore/v1/purchase/${item.Id}/-100`);
     check(neg.status === 400 && p.coins() === item.Cost - 1, `a negative store count is refused (${neg.status}, ${p.coins()})`);
-    const poor = await p.call("POST", `/disneystore/v1/purchase/${item.Id}/1`);
+    const poor = await p.call("PUT", `/disneystore/v1/purchase/${item.Id}/1`);
     check(poor.status === 400 && poor.json?.code === 707 && p.coins() === item.Cost - 1, `buying without the coins is refused with 707 (${poor.status})`);
     p.setCoins(item.Cost);
-    const ok = await p.call("POST", `/disneystore/v1/purchase/${item.Id}/1`);
+    const ok = await p.call("PUT", `/disneystore/v1/purchase/${item.Id}/1`);
     check(ok.status === 200 && p.coins() === 0, `a store purchase with the coins works (${ok.status}, ${p.coins()})`);
   }
 
