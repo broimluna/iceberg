@@ -13,6 +13,7 @@ import crypto from "crypto";
 import * as db from "../database.ts";
 import { buildRsaPublicKeyFromBytes, decryptAesCbc, encryptAesCbc } from "../lib/crypto.ts";
 import { rateLimit } from "../utils/rateLimit.ts";
+import { logSafe } from "../utils/logSafe.ts";
 
 // No login is needed and every call stores a key, so calls are limited per
 // address. The client asks once and reuses the key until it stops working.
@@ -40,7 +41,9 @@ router.post('/encryption-trusted/v1/encryptionKey', keyLimit, (req, res) => {
         // Extract public key components from request
         // The client sends exponent and modulus as base64-encoded strings
         if (!publicKeyData || !publicKeyData.exponent || !publicKeyData.modulus) {
-            console.error('[ENCRYPTION] Missing public key data in request');
+            const h = req.headers;
+            const raw = (req as any).rawBody;
+            console.error(`[ENCRYPTION] Missing public key data in request: content-type=${logSafe(String(h['content-type'] ?? '(none)'))} length=${logSafe(String(h['content-length'] ?? '?'))} key-id=${h['x-encryption-key-id'] ? 'set' : 'none'} method-override=${logSafe(String(h['x-http-method-override'] ?? 'none'))} client=${logSafe(String(h['x-cp-client-version'] ?? '?'))} body=${typeof publicKeyData}:${logSafe(JSON.stringify(publicKeyData ?? null).slice(0, 200))} raw=${Buffer.isBuffer(raw) ? raw.length : 'none'}`);
             return res.status(400).json({ error: 'Missing public key data' });
         }
         
