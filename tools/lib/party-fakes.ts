@@ -11,6 +11,8 @@ export interface FakePlayer {
   sid: string;
   ext: { cmd: string; p: SFSObjectData }[];
   vars: { u: number; vars: Record<string, unknown> }[];
+  // MMO item packets: proximity updates (a=30) and item variable changes (a=1007).
+  mmo: { a: number; p: SFSObjectData }[];
   clear(): void;
   extOf(cmd: string): SFSObjectData[];
   // pgame.message bodies as {type, json}.
@@ -39,9 +41,9 @@ export function makePlayer(name: string, room: string): FakePlayer {
   const sid = String(nextSid++);
   session.playerSessionId = sid;
   const fake: FakePlayer = {
-    session, sid, ext: [], vars: [],
+    session, sid, ext: [], vars: [], mmo: [],
     entry: undefined as unknown as RegisteredSession,
-    clear() { fake.ext = []; fake.vars = []; },
+    clear() { fake.ext = []; fake.vars = []; fake.mmo = []; },
     extOf(cmd) { return fake.ext.filter((e) => e.cmd === cmd).map((e) => e.p); },
     messages() {
       return fake.extOf("pgame.message").map((p) => ({ type: p.type!.value as number, json: JSON.parse(p.message!.value as string) }));
@@ -54,9 +56,26 @@ export function makePlayer(name: string, room: string): FakePlayer {
     const c = env.c?.value as number, a = env.a?.value as number;
     const p = (env.p?.type === SFSDataType.SFS_OBJECT ? env.p.value : {}) as SFSObjectData;
     if (c === 1 && a === 13) fake.ext.push({ cmd: p.c?.value as string, p: (p.p?.value ?? {}) as SFSObjectData });
+    else if (c === 0 && (a === 30 || a === 1007)) fake.mmo.push({ a, p });
     else if (c === 0 && a === 12) fake.vars.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]) });
   };
   fake.entry = { session, peer: name, send, close() {} };
   register(fake.entry);
   return fake;
+}
+
+// An MMO item tuple [itemId, variables, position] from a=30 "q".
+export function decodeItemTuple(t: SFSValue): { id: number; vars: Record<string, unknown>; position: number[] } {
+  const [id, vars, pos] = t.value as SFSValue[];
+  return { id: id!.value as number, vars: decodeItemVars(vars!.value as SFSValue[]), position: pos!.value as number[] };
+}
+
+// Item variables are [name, VariableType, value] (no isPrivate flag).
+export function decodeItemVars(vl: SFSValue[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const v of vl) {
+    const e = v.value as SFSValue[];
+    out[e[0]!.value as string] = e[2]!.value;
+  }
+  return out;
 }

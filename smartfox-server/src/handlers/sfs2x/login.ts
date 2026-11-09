@@ -5,6 +5,7 @@ import { JOIN_DELAY_MS, ALLOW_UNSIGNED_LOGIN } from "../../config.ts";
 import { checkJoinSignature } from "../../join-signature.ts";
 import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
 import { sendConsumableItemsSnapshot } from "../consumables.ts";
+import { sendRoomItemsSnapshot } from "../../party-games/room-items.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
 import { buildUserVariablesArray } from "../../user-variables.ts";
 import { restoreTransientData } from "../../transient-data.ts";
@@ -134,6 +135,8 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     sendWorldObjectsSnapshot(ctx, roomName);
     // Party blasters etc. already in the room (consumables.ts).
     sendConsumableItemsSnapshot(ctx, roomName);
+    // Party-game lobbies and games (party-games/room-items.ts).
+    sendRoomItemsSnapshot(ctx, roomName);
     // ctx has the same shape as a RegisteredSession.
     sendExistingOccupantsToJoiner(ctx, roomName);
     broadcastNewJoinerToRoom(roomName, session);
