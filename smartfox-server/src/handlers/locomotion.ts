@@ -4,6 +4,7 @@ import { getByRoomExcluding } from "../session-registry.ts";
 import { handleConsumableInteraction, onInvitationAction } from "./consumables.ts";
 import { handleLobbyInteraction, onThrowAction } from "../party-games/lobby.ts";
 import { onPartyGameAction, onPartyGamePlayerMoved } from "../party-games/manager.ts";
+import { onIslandTargetThrow } from "../island-targets/playground.ts";
 import { onLocomotion } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 
@@ -37,6 +38,8 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   // Used by validate.state and zone.player_location.
   const previous = ctx.session.lastPosition;
   ctx.session.lastPosition = position;
+  // Crate Co targets: the server decides snowball hits from LaunchThrow.
+  onIslandTargetThrow(ctx.session, action, previous, position, velocity);
   // Party games react to action bytes (the Hider's drop), before the move.
   onPartyGameAction(ctx.session, action, position as [number, number, number]);
   // An owner-start invitation (Fish Bucket): the Start button.
