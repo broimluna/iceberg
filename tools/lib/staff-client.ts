@@ -34,7 +34,7 @@ export async function startServers(opts: { sfsEntry?: string; sfsEnv?: Record<st
     cwd: `${import.meta.dir}/../../smartfox-server`,
     env: {
       ...process.env, SFS_TCP_PORT: String(sfsPort), SFS_NOTIFY_PORT: String(sfsPort + 200),
-      WEBAPI_INTERNAL_URL: api.base, JOIN_SIGNING_KEY: key, ...opts.sfsEnv,
+      WEBAPI_INTERNAL_URL: api.base, JOIN_SIGNING_KEY: key, PARTY_GAME_SCHEDULE: "off", ...opts.sfsEnv,
     },
     stdout: "pipe", stderr: "pipe",
   });
@@ -73,6 +73,8 @@ export class Client {
   /** Ordinary chat from other players, as the client would show it. */
   roomChats: string[] = [];
   ext: { cmd: string; p: SFSObjectData }[] = [];
+  /** MMO item packets: proximity updates (a=30) and item variable changes (a=1007). */
+  mmo: { a: number; p: SFSObjectData }[] = [];
 
   constructor(public servers: Servers, public swid: string, public name: string, public room = "Town") {}
 
@@ -145,6 +147,7 @@ export class Client {
       const p = (env.p?.type === SFSDataType.SFS_OBJECT ? env.p.value : {}) as SFSObjectData;
       if (c === 0 && a === 1 && typeof p.id?.value === "number") this.myId = p.id.value as number;
       if (c === 0 && a === 1005) this.kickReason = p.dr?.value as number;
+      if (c === 0 && (a === 30 || a === 1007)) this.mmo.push({ a: a as number, p });
       if (c !== 1 || a !== 13) continue;
       const cmd = p.c?.value as string;
       const inner = (p.p?.type === SFSDataType.SFS_OBJECT ? p.p.value : {}) as SFSObjectData;
@@ -159,7 +162,7 @@ export class Client {
   }
 
   /** Clears what has been received so far. */
-  reset() { this.bubbles = []; this.errors = []; this.roomChats = []; this.ext = []; }
+  reset() { this.bubbles = []; this.errors = []; this.roomChats = []; this.ext = []; this.mmo = []; }
   disconnect() { this.sock.end(); }
 }
 

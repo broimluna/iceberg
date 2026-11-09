@@ -312,6 +312,20 @@ try {
     await disconnectAll();
   }
 
+  if (run("dancebattle")) {
+    await root.connect(); await bob.connect();
+    const lobbyItems = (c: Client) => c.mmo.filter((m) => m.a === 30 && m.p.q);
+    for (const c of [root, bob]) c.reset();
+    await SAY(root, ":dancebattle");
+    check(root.bubbles.some((b) => b.includes("Dance Battle lobby opened")), `:dancebattle opens a lobby (${root.bubbles}, ${root.errors})`);
+    check(lobbyItems(bob).length === 1, "the whole room sees the lobby item");
+    await SAY(root, ":dancebattle");
+    check(root.errors.includes("A lobby or game is already running here") && lobbyItems(bob).length === 0, `a second one is refused, no new item (${root.errors})`);
+    await SAY(bob, ":dancebattle");
+    check(root.roomChats.includes(":dancebattle") && lobbyItems(root).length === 0 && bob.bubbles.length + bob.errors.length === 0, "a player's :dancebattle is plain chat and opens nothing");
+    await disconnectAll();
+  }
+
   if (run("unsigned")) {
     // SFS_ALLOW_UNSIGNED_LOGIN (development) accepts the login and credits
     // the account, but never grants a staff role.
