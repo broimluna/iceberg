@@ -69,6 +69,11 @@ export abstract class PartyGameSession {
     host.end(this, placements, unpaid);
   }
 
+  // The prop a player holds while in this game; putting it away is quitting.
+  get gameProp(): string | null {
+    return this.def.playerProp;
+  }
+
   abstract onStart(): void;
   // After pgame.end went out (the session is over and its timers are gone).
   onEnded(): void {}

@@ -16,6 +16,7 @@ const until = async (cond: () => boolean, ms = 8000) => { const end = Date.now()
 
 const { startPartyGame, handlePartyGameMessage, onPartyGamePlayerLeft, setRewardGranter, sessionOf } = await import("../smartfox-server/src/party-games/manager.ts");
 const { DanceBattle } = await import("../smartfox-server/src/party-games/dance-battle.ts");
+const { handleClientConChanged } = await import("../smartfox-server/src/handlers/consumables.ts");
 
 const grants: { username: string; reward: any }[] = [];
 setRewardGranter((username, reward) => { grants.push({ username, reward }); });
@@ -125,7 +126,7 @@ try {
   await sleep(300);
   for (const p of Object.values(h)) unregister(p.session);
 
-  // ================= Match 3: a team empties =================
+  // ================= Match 3: a team empties before anyone scored =================
   const before3 = grants.length;
   const k = mk("m3");
   const gm = startMatch(k);
@@ -136,7 +137,29 @@ try {
   await until(() => k.a1.extOf("pgame.end").length > 0);
   const end3 = parseIds(k.a1.extOf("pgame.end")[0]!.results!.value as string);
   check(end3.length === 2 && end3.every((e: any) => e.Placement === 0), `when a team empties the other team wins and only they are listed (${JSON.stringify(end3)})`);
-  check(grants.length === before3 + 2, "the remaining team is paid");
+  check(grants.length === before3, "but a win with nothing scored pays nobody (no join-and-walk-out farming)");
+  await sleep(300);
+  for (const p of Object.values(k)) unregister(p.session);
+
+  // ================= Match 4: a quitter, then the other team leaves after a scored round =================
+  const before4 = grants.length;
+  const q = mk("m4");
+  const gq = startMatch(q);
+  await until(() => itemVar(q.s, "turn")?.RoundNum === 0 && gq.phase === "display");
+  const t0 = itemVar(q.s, "turn");
+  await until(() => gq.phase === "input");
+  for (const m of t0.Moves) { send(gq, q.a1, m); send(gq, q.a2, m); }
+  await until(() => itemVar(q.s, "score")?.Team1Score === 1);
+  // a2 puts the game prop away: that is the client's quit.
+  handleClientConChanged(ctxOf(q.a2), undefined);
+  check(q.a2.session.heldObject === undefined, "putting the game prop away is noticed");
+  check(!gq.ended, "the game goes on without them");
+  unregister(q.b1.session); onPartyGamePlayerLeft(q.b1.session);
+  unregister(q.b2.session); onPartyGamePlayerLeft(q.b2.session);
+  await until(() => q.a1.extOf("pgame.end").length > 0);
+  const end4 = parseIds(q.a1.extOf("pgame.end")[0]!.results!.value as string);
+  check(end4.length === 2 && end4.every((e: any) => e.Placement === 0), `the remaining team wins; the quitter is still listed (${JSON.stringify(end4)})`);
+  check(grants.length === before4 + 1 && grants.at(-1)!.username === "m4a1", `only the player who stayed is paid (${JSON.stringify(grants.slice(before4))})`);
   await sleep(300);
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);

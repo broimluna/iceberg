@@ -64,6 +64,11 @@ export class DanceBattle extends PartyGameSession {
   private readonly quit = new Set<PartyGamePlayer>();
   private readonly stamps = new Map<string, number>();
 
+  // Dance Battle has no player prop in its data; the game prop is gameData.GameProp.
+  override get gameProp(): string {
+    return GAME_PROP;
+  }
+
   constructor(id: number, def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) {
     super(id, def, players, slots);
     this.data = def.gameData as unknown as DanceData;
@@ -174,10 +179,13 @@ export class DanceBattle extends PartyGameSession {
     const placements = new Map<RegisteredSession, number>();
     const unpaid = new Set<RegisteredSession>();
     if (empty.length === 1) {
+      const winner = empty[0] === 0 ? 1 : 0;
+      // Winning because the other team walked out only pays if the winners had scored.
+      const paid = decide(this.totals[winner], 0).paid;
       for (const p of this.players) {
         if (p.left) continue;
         placements.set(p.entry, p.teamId === empty[0] ? 1 : 0);
-        if (this.quit.has(p)) unpaid.add(p.entry);
+        if (this.quit.has(p) || !paid) unpaid.add(p.entry);
       }
     }
     this.endWith(placements, unpaid);
