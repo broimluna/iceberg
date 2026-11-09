@@ -180,6 +180,29 @@ try {
     check(coins(b).length === 0 && coins(a).length > 0, `the quitter is unpaid: a=${coins(a)} b=${coins(b)}`);
   }
   {
+    // Quit during the 1 s outro, after the deck ran out: the final standings are already decided, so it is still paid.
+    const [a, b] = await game(2, [1]);
+    act(a, FISH);
+    check(await waitFor(() => states(a).includes(3)), "outro reached");
+    onPartyGamePlayerQuit(b.session);
+    check(await waitFor(() => results(a).length === 1), "the outro quit ends the game");
+    check(results(a)[0] === resultsOf([[a, 0], [b, 1]]), `final placements kept: ${results(a)[0]}`);
+    await sleep(20);
+    check(coins(b).join() === "15" && coins(a).join() === "25", `an outro quitter is paid: a=${coins(a)} b=${coins(b)}`);
+  }
+  {
+    // A player who quit during play stays unpaid even if the outro-quit path ends the game.
+    const [a, b, c] = await game(3, [1]);
+    onPartyGamePlayerQuit(c.session);
+    act(a, FISH);
+    check(await waitFor(() => states(a).includes(3)), "outro reached with c already quit");
+    onPartyGamePlayerQuit(b.session);
+    check(await waitFor(() => results(a).length === 1), "ended");
+    await sleep(20);
+    check(coins(c).length === 0 && coins(b).length === 1, `earlier quitter unpaid, outro quitter paid: b=${coins(b)} c=${coins(c)}`);
+  }
+
+  {
     const [a, b] = await game(2, [1, 1, 1, 1]);
     onPartyGamePlayerLeft(b.session);
     check(results(a)[0] === resultsOf([[a, 0]]), `a disconnect lists only players still here: ${results(a)[0]}`);

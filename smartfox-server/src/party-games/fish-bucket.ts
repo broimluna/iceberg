@@ -71,6 +71,8 @@ export class FishBucket extends PartyGameSession {
   private readonly quit = new Set<PartyGamePlayer>();
   // Set once the deck is spent (during the outro).
   private decided: Map<RegisteredSession, number> | undefined;
+  // Who was already unpaid when the standings were decided (quit during play); an outro quitter finished, so is paid.
+  private decidedUnpaid = new Set<RegisteredSession>();
 
   constructor(id: number, def: PartyGameDef, players: RegisteredSession[]) {
     super(id, def, players);
@@ -206,6 +208,7 @@ export class FishBucket extends PartyGameSession {
     this.phase = "over";
     const { placements, unpaid } = this.standings();
     this.decided = placements;
+    this.decidedUnpaid = unpaid;
     this.sendMessage(SET_GAME_STATE, { GameStateId: STATE_FINISHED });
     this.timer(OUTRO_SECONDS, () => this.endWith(placements, unpaid));
   }
@@ -213,7 +216,7 @@ export class FishBucket extends PartyGameSession {
   // A player quit (kept in the room, waiting for pgame.end) or disconnected.
   private leave(player: PartyGamePlayer): void {
     if (this.decided) {
-      this.endWith(new Map([...this.decided].filter(([entry]) => !this.players.find((p) => p.entry === entry)?.left)), new Set([...this.quit].filter((p) => !p.left).map((p) => p.entry)));
+      this.endWith(new Map([...this.decided].filter(([entry]) => !this.players.find((p) => p.entry === entry)?.left)), new Set([...this.decidedUnpaid].filter((entry) => !this.players.find((p) => p.entry === entry)?.left)));
       return;
     }
     this.sendMessage(PLAYER_LEFT_GAME, `{"PlayerId":${this.sid(this.players.indexOf(player))}}`);
