@@ -20,7 +20,13 @@ import { addRoomItem, setRoomItemVar, removeRoomItem, ITEM_CATEGORY_PARTY_GAME_L
 import { canStart, isInPartyGame, sessionOf, setPartyGameProp, startPartyGame } from "./manager.ts";
 import { TIME_SCALE } from "./session.ts";
 
+// Domain.LocomotionAction bytes.
 const LOCOMOTION_ACTION_INTERACT = 2;
+const LOCOMOTION_ACTION_CHARGE_THROW = 3;
+const LOCOMOTION_ACTION_LAUNCH_THROW = 4;
+const LOCOMOTION_ACTION_CANCEL_THROW = 10;
+// A charge with no launch or cancel after this long no longer holds a join back.
+const MAX_CHARGE_MS = 10_000;
 const OBJECT_TYPE_SERVER = 1;
 // The game starts a moment after the lobby prop comes off: user-variable
 // changes landing in the same client frame as the game start break the client
@@ -140,8 +146,34 @@ export function handleLobbyInteraction(ctx: HandlerContext, action: number, obje
   if ((obj?.type !== OBJECT_TYPE_SERVER && obj?.type !== "SERVER") || typeof obj.id !== "string") return;
   const { session } = ctx;
   const lobby = lobbies.get(session.roomName);
+  if (!lobby || lobby.item.itemId !== Number(obj.id)) return;
+  // Equipping the lobby prop mid-charge locks the thrower in the throw
+  // animation, so the join waits for LaunchThrow / CancelThrow.
+  if (session.throwChargingSince !== undefined && Date.now() - session.throwChargingSince < MAX_CHARGE_MS) {
+    session.pendingLobbyItem = lobby.item.itemId;
+    return;
+  }
+  joinLobby(session, lobby);
+}
+
+// l.a actions of the snowball throw.
+export function onThrowAction(session: Session, action: number): void {
+  if (action === LOCOMOTION_ACTION_CHARGE_THROW) {
+    session.throwChargingSince = Date.now();
+    return;
+  }
+  if (action !== LOCOMOTION_ACTION_LAUNCH_THROW && action !== LOCOMOTION_ACTION_CANCEL_THROW) return;
+  session.throwChargingSince = undefined;
+  const pending = session.pendingLobbyItem;
+  session.pendingLobbyItem = undefined;
+  const lobby = lobbies.get(session.roomName);
+  if (pending !== undefined && lobby?.item.itemId === pending) joinLobby(session, lobby);
+}
+
+function joinLobby(session: Session, lobby: Lobby): void {
+  session.pendingLobbyItem = undefined;
   const entry = getByRoom(session.roomName).find((e) => e.session === session);
-  if (!lobby || lobby.item.itemId !== Number(obj.id) || !entry || !session.playerSessionId) return;
+  if (!entry || !session.playerSessionId) return;
   if (isInPartyGame(session) || lobby.members.some((m) => m.entry === entry)) return;
   const slot = assignSlot(lobby.members, lobby.def.maxPlayers / lobby.def.numTeams, lobby.def.numTeams);
   if (!slot) return;

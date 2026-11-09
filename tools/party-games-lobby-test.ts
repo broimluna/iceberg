@@ -13,7 +13,7 @@ const quiet = console.log;
 console.log = (...a: unknown[]) => { if (!(typeof a[0] === "string" && a[0].startsWith("["))) quiet(...a); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const { nextLobbyWindow, assignSlot, openLobby, handleLobbyInteraction, onLobbyPlayerLeft, releaseRoomLobbiesIfEmpty } = await import("../smartfox-server/src/party-games/lobby.ts");
+const { nextLobbyWindow, assignSlot, openLobby, handleLobbyInteraction, onLobbyPlayerLeft, releaseRoomLobbiesIfEmpty, onThrowAction } = await import("../smartfox-server/src/party-games/lobby.ts");
 const { registerGameType, sessionOf, endSession } = await import("../smartfox-server/src/party-games/manager.ts");
 const { PartyGameSession } = await import("../smartfox-server/src/party-games/session.ts");
 const { roomItemsIn } = await import("../smartfox-server/src/party-games/room-items.ts");
@@ -141,6 +141,32 @@ try {
   unregister(p2!.session); onLobbyPlayerLeft(p2!.session);
   await sleep(1500);
   check(!sessionOf(p1!.session) && p1!.extOf("pgame.start.v2").length === 0, "two players left on the same team: no game");
+
+  // Mid-snowball-throw: swapping the held prop during a charge locks the
+  // thrower in the throw, so the join waits for the throw to end.
+  {
+    const [t1, t2, t3] = ["t1", "t2", "t3"].map((n) => makePlayer(n, ROOM)) as FakePlayer[];
+    openLobby(ROOM, 3);
+    const itemT = roomItemsIn(ROOM).at(-1)!;
+    const act = (p: FakePlayer, a: number) => onThrowAction(p.session, a);
+    act(t1!, 3); // ChargeThrow
+    interact(t1!, itemT.itemId);
+    check(!rosterOf(t1!).some((r) => r.UserSessionId === t1!.sid as any) && heldOf(t1!) === "(unchanged)", "a charging player isn't joined or re-equipped yet");
+    act(t1!, 4); // LaunchThrow
+    check(rosterOf(t1!).some((r) => r.UserSessionId === t1!.sid as any) && heldOf(t1!) === "pgame:DanceBattleLobbyServerAdded", "the join happens once the throw is launched");
+    act(t2!, 3); interact(t2!, itemT.itemId); act(t2!, 10); // CancelThrow
+    check(rosterOf(t2!).some((r) => r.UserSessionId === t2!.sid as any), "a cancelled throw also lets the join through");
+    act(t3!, 3); interact(t3!, itemT.itemId);
+    act(t3!, 0); // a plain move doesn't end the throw
+    check(!rosterOf(t3!).some((r) => r.UserSessionId === t3!.sid as any), "a move during the charge keeps the join waiting");
+    t3!.session.throwChargingSince = Date.now() - 60_000;
+    interact(t3!, itemT.itemId);
+    check(rosterOf(t3!).some((r) => r.UserSessionId === t3!.sid as any), "a charge that never ended doesn't block joining forever");
+    act(t1!, 3); act(t1!, 4);
+    check(rosterOf(t1!).filter((r) => r.UserSessionId === t1!.sid as any).length === 1, "a later throw by a member doesn't join twice");
+    for (const p of [t1, t2, t3]) { unregister(p!.session); onLobbyPlayerLeft(p!.session); }
+    await sleep(1500);
+  }
 
   // Player cap.
   const crowd = Array.from({ length: 21 }, (_, i) => makePlayer(`c${i}`, ROOM));

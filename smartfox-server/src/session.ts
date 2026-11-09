@@ -48,6 +48,11 @@ export class Session {
   heldObject: string | undefined;
   // "loc" user variable: Domain.LocomotionState byte (0 when cleared).
   locomotionState = 0;
+  // When the current snowball charge started (l.a ChargeThrow, ms), until
+  // LaunchThrow or CancelThrow; and a party-game lobby item the player
+  // interacted with meanwhile, joined once the throw ends.
+  throwChargingSince: number | undefined;
+  pendingLobbyItem: number | undefined;
   // Path of the last LOCAL object the player interacted with (l.a Interact).
   lastInteraction: string | undefined;
   // When this player last took an item from someone's tray (ms).

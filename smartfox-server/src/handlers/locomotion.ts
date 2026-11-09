@@ -2,7 +2,7 @@ import { SFSObjectWriter, encodePacket, type SFSObjectData } from "../sfs-wire.t
 import { getFloatArray, getByte, getUtfString, fitsBytes } from "../wire-helpers.ts";
 import { getByRoomExcluding } from "../session-registry.ts";
 import { handleConsumableInteraction } from "./consumables.ts";
-import { handleLobbyInteraction } from "../party-games/lobby.ts";
+import { handleLobbyInteraction, onThrowAction } from "../party-games/lobby.ts";
 import { onLocomotion } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 
@@ -49,7 +49,9 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   for (const entry of getByRoomExcluding(ctx.session.roomName, ctx.session.userId)) entry.send(packet);
   // Pinata hits, trays.
   handleConsumableInteraction(ctx, action, object);
-  // Party-game lobbies: interacting with the lobby item joins it.
+  // Party-game lobbies: interacting with the lobby item joins it (after
+  // any snowball throw in progress).
+  onThrowAction(ctx.session, action);
   handleLobbyInteraction(ctx, action, object);
   // Daily challenges: scene switches and action watchers.
   onLocomotion(ctx, previous, position, action, object);
