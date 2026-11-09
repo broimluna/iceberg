@@ -36,6 +36,8 @@ const POSITIONS_BACKSTOP_SECONDS = 10;
 const TURN_GRACE_SECONDS = 2;
 const OUTRO_SECONDS = 1;
 const MAX_GAME_POSITIONS = 4;
+// Players stand this far (m) from the cannon when the server builds the start positions.
+const SYNTH_RADIUS = 3;
 // Generous: the template's MaxGameStartDistance is 5 m.
 const MAX_POSITION_DISTANCE = 30;
 
@@ -99,8 +101,27 @@ export class FishBucket extends PartyGameSession {
   onStart(): void {
     this.deck = FishBucket.makeDeck(this.def, this.players.length);
     this.timer(POSITIONS_BACKSTOP_SECONDS, () => {
-      if (this.phase === "positions") this.endWith(new Map());
+      if (this.phase === "positions") this.synthesizePositions();
     });
+  }
+
+  // The client creates its cannon only from SetGameStartPositions, and its destroy() throws
+  // without one, so a game never ends before they are sent. When the owner's never come (a
+  // stalled or departed owner), they are built around the last position the server knows.
+  private synthesizePositions(): void {
+    const anchor = [this.players[0]!, ...this.players.slice(1)].filter((p) => !p.left).map((p) => p.entry.session.lastPosition).find((at) => at?.length === 3);
+    if (!anchor) {
+      this.log(`no start positions and no known position, ending with no results`);
+      this.endWith(new Map());
+      return;
+    }
+    this.log(`no start positions from the owner, building them around ${anchor.join(",")}`);
+    const [x, y, z] = anchor as [number, number, number];
+    const ring = (i: number): Vec => {
+      const a = (i * 2 * Math.PI) / this.players.length;
+      return { x: x + SYNTH_RADIUS * Math.cos(a), y, z: z + SYNTH_RADIUS * Math.sin(a) };
+    };
+    this.beginIntro(ring(0), this.players.slice(1).map((_, i) => ring(i + 1)), [{ x, y, z }]);
   }
 
   onMessage(player: PartyGamePlayer, type: number, message: unknown): void {
@@ -121,6 +142,10 @@ export class FishBucket extends PartyGameSession {
       this.log(`start positions too far from the owner, ignored`);
       return;
     }
+    this.beginIntro(owner, others, game);
+  }
+
+  private beginIntro(owner: Vec, others: Vec[], game: Vec[]): void {
     this.phase = "intro";
     // Rebuilt from the validated numbers; the client's own JSON is never echoed.
     this.sendMessage(SET_GAME_START_POSITIONS, { OwnerPosition: owner, PlayerPositions: others, GamePositions: game, IntData: [this.deck.length] });

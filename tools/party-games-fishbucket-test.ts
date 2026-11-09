@@ -87,8 +87,35 @@ try {
     FishBucket.makeDeck = () => [1];
     const [o, g] = [makePlayer(`o${++n}`, ROOM), makePlayer(`g${n}`, ROOM)];
     startPartyGame(1, [o.entry, g.entry]);
-    check(await waitFor(() => results(o).length === 1, 400), "no positions in 10 s ends the game with no results");
+    check(await waitFor(() => results(o).length === 1, 400), "no positions in 10 s and no known position ends the game with no results");
     check(results(o)[0] === "[]", `empty results: ${results(o)[0]}`);
+  }
+  {
+    // The client builds its cannon only on SetGameStartPositions (its destroy() throws without one), so a missing
+    // owner message is replaced by positions built around the owner's last known spot and the game is played.
+    FishBucket.makeDeck = () => [1, 1];
+    const [o, g, h] = [makePlayer(`o${++n}`, ROOM), makePlayer(`g${n}`, ROOM), makePlayer(`h${n}`, ROOM)];
+    o.session.lastPosition = [10, 2, -5];
+    startPartyGame(1, [o.entry, g.entry, h.entry]);
+    check(await waitFor(() => raws(g, 4).length === 1, 400), "the backstop sends start positions");
+    const m = JSON.parse(raws(g, 4)[0]!);
+    check(m.PlayerPositions.length === 2 && m.GamePositions.length === 1 && m.IntData[0] === 2, `shape: ${raws(g, 4)[0]}`);
+    check(m.GamePositions[0].x === 10 && m.GamePositions[0].y === 2 && m.GamePositions[0].z === -5, "the cannon is at the owner's last position");
+    const near = (q: any) => Math.hypot(q.x - 10, q.z + 5) > 1 && Math.hypot(q.x - 10, q.z + 5) < 5 && q.y === 2;
+    check([m.OwnerPosition, ...m.PlayerPositions].every(near), "players stand 1-5 m from the cannon");
+    const spots = [m.OwnerPosition, ...m.PlayerPositions].map((q: any) => `${q.x.toFixed(2)},${q.z.toFixed(2)}`);
+    check(new Set(spots).size === 3, `at distinct spots: ${spots}`);
+    check(await waitFor(() => turns(o).length > 0), "the game then plays on from the Intro");
+    check(raws(h, 4).length === 1, "everyone got the same positions once");
+  }
+  {
+    // The owner left (never sent positions): another player's position anchors the synthesized ones.
+    FishBucket.makeDeck = () => [1];
+    const [o, g, h] = [makePlayer(`o${++n}`, ROOM), makePlayer(`g${n}`, ROOM), makePlayer(`h${n}`, ROOM)];
+    g.session.lastPosition = [1, 0, 1];
+    startPartyGame(1, [o.entry, g.entry, h.entry]);
+    onPartyGamePlayerLeft(o.session);
+    check(await waitFor(() => raws(g, 4).length === 1, 400) && JSON.parse(raws(g, 4)[0]!).GamePositions[0].x === 1, "an owner who left: positions anchor on a present player");
   }
 
   // ---- turns ----
