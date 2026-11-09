@@ -12,7 +12,7 @@ protocol is detected from its first packet, so both kinds of client can
 share a room.
 
 ```sh
-bun start               # or, to come back up after an admin's :restart:
+bun start               # or, to come back up after an admin's :admin-swre-restart:
 bun run start:supervised
 ```
 
@@ -30,7 +30,7 @@ bun run start:supervised
 - `src/handlers/`: CPI extension commands, one file per feature. The
   command-to-handler map is in `handlers/registry.ts`.
 - `src/commands/`: staff chat commands (see below).
-- `src/supervisor.ts`: restarts the server when it exits for `:restart`.
+- `src/supervisor.ts`: restarts the server when it exits for `:admin-swre-restart`.
 - `src/session-registry.ts`: who's connected and in which room. Room
   broadcasts use this.
 - `src/world-objects.ts`: scheduled world objects (MMO Room Items).
@@ -111,7 +111,7 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 | `:ac <coins> [user]` | admin | Gives coins (1–1,000,000). |
 | `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
 | `:admin-alert <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
-| `:restart [seconds]` / `:restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
+| `:admin-swre-restart [seconds]` / `:admin-swre-restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
 | `:promote <user> moderator\|admin` / `:demote <user>` | admin | Changes a role; works for offline players. |
 
 `[user]` defaults to yourself. Names can be typed in any case when only
@@ -119,7 +119,7 @@ one account matches.
 
 ### Running with auto-restart
 
-`:restart` ends the process with exit code 75. `bun run start:supervised`
+`:admin-swre-restart` ends the process with exit code 75. `bun run start:supervised`
 starts the server again whenever that happens; without it the server just
 stops. Under systemd, plain `bun start` with
 `Restart=on-failure` and `RestartForceExitStatus=75` does the same.

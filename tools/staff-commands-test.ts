@@ -188,9 +188,9 @@ try {
     // Chat is capped at 200 characters, so that's the longest announcement.
     await SAY(root, ":admin-alert " + "x".repeat(187));
     check(alerts(carol)[0]?.length === 187, `a long announcement arrives whole (${alerts(carol)[0]?.length})`);
-    await SAY(root, ":restart 600");
+    await SAY(root, ":admin-swre-restart 600");
     check(root.bubbles.some((b) => b.includes("not supervised")), `without the supervisor the admin is warned (${root.bubbles})`);
-    await SAY(root, ":restart cancel");
+    await SAY(root, ":admin-swre-restart cancel");
     await SAY(root, ":admin-alert");
     check(root.errors.some((e) => e.startsWith("Usage:")) && alerts(carol).length === 0, "an empty announcement is refused");
     await setRoleVia(bob, "moderator");
@@ -201,7 +201,7 @@ try {
   }
 
   if (run("restart")) {
-    // :restart stops the process, so it gets its own servers under the supervisor.
+    // :admin-swre-restart stops the process, so it gets its own servers under the supervisor.
     const sup = await startServers({ sfsEntry: "src/supervisor.ts" });
     try {
       const admin = new Client(sup, "{rs-admin}", "RsAdmin"), mod = new Client(sup, "{rs-mod}", "RsMod"), player = new Client(sup, "{rs-player}", "RsPlayer");
@@ -213,21 +213,21 @@ try {
       const notices = (c: Client) => c.ext.filter((e) => e.cmd === "server.restarting" || e.cmd === "server.alert").map((e) => `${e.cmd}:${e.p.message!.value}`);
       // Over a day is refused: a timer that long overflows and would fire at once.
       for (const bad of ["0", "-1", "1.5", "soon", "86401", "3000000"]) {
-        await say(admin, `:restart ${bad}`);
-        check(admin.errors.some((e) => e.startsWith("Usage:")) && notices(player).length === 0, `:restart ${bad} is refused`);
+        await say(admin, `:admin-swre-restart ${bad}`);
+        check(admin.errors.some((e) => e.startsWith("Usage:")) && notices(player).length === 0, `:admin-swre-restart ${bad} is refused`);
       }
-      await say(mod, ":restart 5");
+      await say(mod, ":admin-swre-restart 5");
       check(mod.errors.includes("Unknown command") && notices(player).length === 0, "a moderator can't restart");
-      await say(admin, ":restart 65");
+      await say(admin, ":admin-swre-restart 65");
       check(notices(player)[0] === "server.restarting:GlobalUI.ErrorMessages.ServerRestarting", `the countdown starts with server.restarting (${notices(player)})`);
       check(player.bubbles.some((b) => b === "Server restarting in 1 minute 5 seconds"), `and a bubble with the time (${player.bubbles})`);
       check(admin.bubbles.some((b) => b.includes("65")) && !admin.bubbles.some((b) => b.includes("not supervised")), `confirmed, supervised (${admin.bubbles})`);
-      await say(admin, ":restart cancel");
+      await say(admin, ":admin-swre-restart cancel");
       check(notices(player).includes("server.alert:Server restart cancelled"), `cancel is announced (${notices(player)})`);
       for (const x of [admin, mod, player]) x.reset();
       await sleep(6000);
       check(notices(player).length === 0 && !player.closed, "a cancelled countdown sends nothing more");
-      await say(admin, ":restart 4");
+      await say(admin, ":admin-swre-restart 4");
       await until(() => player.closed, 7000);
       check(notices(player).includes("server.alert:Server restarting in 3 seconds"), `the 3 second notice (${notices(player)})`);
       check(player.kickReason === 0 && player.closed && admin.closed, `everyone is disconnected (reason ${player.kickReason})`);

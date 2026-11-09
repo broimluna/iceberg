@@ -98,7 +98,7 @@ proximityListUpdate, mmoItemVariablesUpdate
 1 kick, 2 ban). The client disconnects with that reason. SFS3 handles the
 same action and key (`ResClientDisconnect`; its fourth reason, 3, is
 "unknown", the only one it reconnects after). The server sends 1 for
-`:kick` and 0 for `:restart`.
+`:kick` and 0 for `:admin-swre-restart`.
 
 Lower-level transport events also present, connection plumbing only:
 `Sfs2X.Bitswarm.BBox.BBEvent` (bb-connect, bb-disconnect, bb-data,
@@ -286,7 +286,7 @@ returns early).
 | Wire | Dir | Payload |
 |---|---|---|
 | `server.alert` | IN | `message` (utf_string, at most 500 characters): shown as a popup. Sent by `:admin-alert` and the restart countdown. |
-| `server.restarting` | IN | `message` = a localization key, `GlobalUI.ErrorMessages.ServerRestarting`: the "server restarting" popup. Sent when a `:restart` countdown starts. |
+| `server.restarting` | IN | `message` = a localization key, `GlobalUI.ErrorMessages.ServerRestarting`: the "server restarting" popup. Sent when a `:admin-swre-restart` countdown starts. |
 
 ### Party games
 
