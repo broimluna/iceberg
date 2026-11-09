@@ -5,6 +5,9 @@ const router = express.Router();
 
 // At most this many ERROR/CRITICAL entries are logged per request.
 const MAX_LOGGED_ENTRIES = 20;
+// Long enough for a client exception's stack trace; bodies are capped at
+// 100 KB by express.json, so this can't log much more than was sent.
+const MAX_ENTRY_CHARS = 8000;
 
 /**
  * POST /diagnostics/v1/log
@@ -22,7 +25,7 @@ router.post('/diagnostics/v1/log', (req, res) => {
             console.error(`[DIAGNOSTICS] further entries in this request not logged`);
             break;
         }
-        console.error(`[CLIENT LOG] [${entry.severity}] ${logSafe(entry.message)}`);
+        console.error(`[CLIENT LOG] [${entry.severity}] ${logSafe(entry.message, MAX_ENTRY_CHARS)}`);
     }
 
     res.json({});

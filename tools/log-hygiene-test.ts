@@ -31,7 +31,13 @@ try {
 
   await post([{ severity: "ERROR", message: "y".repeat(100_000) }]);
   await Bun.sleep(100);
-  check(!api.logs().includes("y".repeat(1000)), "a 100,000-character message is cut");
+  check(!api.logs().includes("y".repeat(10_000)), "a 100,000-character message is cut");
+
+  // A client exception's stack trace (~5,000 chars) is what makes it useful.
+  const trace = "NullReferenceException\n" + "  at Some.Frame (x) [0x00012]\n".repeat(160) + "END-OF-TRACE";
+  await post([{ severity: "ERROR", message: trace }]);
+  await Bun.sleep(100);
+  check(api.logs().includes("END-OF-TRACE"), `a ${trace.length}-character client stack trace is logged whole`);
 
   const before = api.logs().split("[CLIENT LOG]").length;
   await post(Array.from({ length: 500 }, (_, i) => ({ severity: "CRITICAL", message: `entry ${i}` })));
