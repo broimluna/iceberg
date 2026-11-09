@@ -21,7 +21,8 @@ setRewardGranter((username, reward) => { grants.push({ username, reward }); });
 
 // Scaled (0.01): intro 50 ms, fish delay 30 ms, squid delay 50 ms, turn 100 ms + 20 ms grace, positions backstop 100 ms.
 const ROOM = "Alpine:Town:en";
-const FISH = 4, PASS = 7;
+// Retail buttons: Fish = Action1 (l.a 7), Pass = Action2 (l.a 8).
+const FISH = 7, PASS = 8;
 let n = 0;
 
 async function waitFor(cond: () => boolean, ms = 2000): Promise<boolean> {
@@ -94,8 +95,8 @@ try {
   {
     const [a, b] = await game(2, [1, 2, -2, 1, 1, 1, 1, 1]);
     check(turns(b).join() === turnOf(a), "a starts");
-    act(b, FISH); act(a, 0); act(a, 3); act(a, 10); act(a, 9);
-    check(outputs(a).length === 0, "Fish by the wrong player, Move, ChargeThrow, CancelThrow, Action3: nothing");
+    act(b, FISH); act(a, 0); act(a, 3); act(a, 4); act(a, 10); act(a, 9);
+    check(outputs(a).length === 0, "Fish by the wrong player, Move, ChargeThrow, LaunchThrow, CancelThrow, Action3: nothing");
     act(a, PASS);
     check(turns(a).length === 1, "Pass before any draw is ignored");
     act(a, FISH); act(a, FISH);
@@ -103,8 +104,8 @@ try {
     act(a, PASS);
     check(turns(a).length === 1, "Pass during the post-draw delay is ignored");
     await sleep(60);
-    act(a, 8);
-    check(outputs(a).length === 2 && outputs(a)[1] === `{"PlayerId":${a.sid},"ScoreDelta":2}`, `Action2 also draws; deck order kept: ${outputs(a)}`);
+    act(a, FISH);
+    check(outputs(a).length === 2 && outputs(a)[1] === `{"PlayerId":${a.sid},"ScoreDelta":2}`, `Fish again after a fish card draws again; deck order kept: ${outputs(a)}`);
     await sleep(60);
     act(a, PASS);
     check(turns(a).join() === [turnOf(a), turnOf(b)].join(), `Pass hands over immediately: ${turns(a)}`);

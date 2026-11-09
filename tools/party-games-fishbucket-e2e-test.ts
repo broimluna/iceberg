@@ -15,6 +15,9 @@ const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", JOIN_SIGNING_KEY: K
 const sfs = await startGameServer(api, KEY, { PARTY_GAME_TIME_SCALE: "0.02" });
 const REWARD_COINS = [25, 15, 10, 5];
 
+// Retail buttons (locomotion actions): lobby Start and Fish = Action1 (l.a 7), Pass = Action2 (l.a 8).
+const START = 7, FISH = 7, PASS = 8;
+
 class Client extends GameClient {
   constructor(swid: string, name: string) { super(api, sfs.port, swid, name); }
   act(action: number) { this.action(action); }
@@ -39,7 +42,7 @@ async function run(label: string, clients: Client[], drop?: Client) {
   for (const c of clients) c.clear();
   O!.setCon("FishBucketGroup"); await sleep(100); await O!.use("FishBucketGroup"); await sleep(200);
   for (const g of guests) { g.interactWith(O!.sid); await sleep(150); }
-  O!.act(4);
+  O!.act(START);
   check(await until(() => clients.every((c) => c.extOf("pgame.start.v2").length === 1), 5000), `${label}: everyone gets pgame.start.v2`);
   const id = O!.extOf("pgame.start.v2")[0]!.id!.value as number;
   const before = new Map(clients.map((c) => [c, coins(c.username)]));
@@ -56,12 +59,12 @@ async function run(label: string, clients: Client[], drop?: Client) {
       const turns = c.raws(6), outs = c.raws(5);
       if (turns.length > (seenTurns.get(c) ?? 0)) {
         seenTurns.set(c, turns.length);
-        if (turns.at(-1) === `{"PlayerId":${c.sid}}`) c.act(4);
+        if (turns.at(-1) === `{"PlayerId":${c.sid}}`) c.act(FISH);
       }
       if (outs.length > (seenOutputs.get(c) ?? 0)) {
         seenOutputs.set(c, outs.length);
         const last = JSON.parse(outs.at(-1)!.replace(/"PlayerId":(\d+)/, '"PlayerId":"$1"'));
-        if (last.PlayerId === c.sid && last.ScoreDelta > 0) setTimeout(() => { if (alive.has(c)) c.act(7); }, 120);
+        if (last.PlayerId === c.sid && last.ScoreDelta > 0) setTimeout(() => { if (alive.has(c)) c.act(PASS); }, 120);
       }
     }
     if (drop && !dropped && O!.raws(5).length >= 2) { dropped = true; drop.sock.destroy(); alive.delete(drop); }

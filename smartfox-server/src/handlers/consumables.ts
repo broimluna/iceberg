@@ -520,8 +520,8 @@ function startInvitation(holderEntry: RegisteredSession, name: string, template:
 
 // An `l.a` action byte from a player holding an open invitation whose game
 // the owner starts (LobbyType STRICT_USER_START, e.g. Fish Bucket). The Start
-// button is the Snowball button, whose release is LaunchThrow; every other
-// non-Move byte is logged so the live bytes can be confirmed.
+// button is Action1 (l.a 7; see fish-bucket.ts for the OpenCPI enum shift);
+// every other non-Move byte is logged.
 export function onInvitationAction(ctx: HandlerContext, action: number): void {
   const holder = ctx.session;
   const name = holder.equippedConsumable;

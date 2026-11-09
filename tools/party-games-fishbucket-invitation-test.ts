@@ -10,7 +10,8 @@ const KEY = "test-join-key-" + Math.random().toString(36).slice(2);
 const api = await startWebApi({ env: { ALLOW_SWID_AUTH: "1", JOIN_SIGNING_KEY: KEY } });
 const sfs = await startGameServer(api, KEY, { PARTY_GAME_TIME_SCALE: "0.01", INVITATION_AUTOSTART_SECONDS: "6" });
 const until = async (cond: () => boolean, ms = 2000) => { const end = Date.now() + ms; while (!cond() && Date.now() < end) await sleep(20); return cond(); };
-const LAUNCH_THROW = 4, CHARGE_THROW = 3;
+// Retail Start button = Action1 (l.a 7); a snowball throw is ChargeThrow 3 + LaunchThrow 4.
+const START = 7, LAUNCH_THROW = 4, CHARGE_THROW = 3;
 
 class Client extends GameClient {
   constructor(swid: string, name: string) { super(api, sfs.port, swid, name); }
@@ -34,13 +35,13 @@ try {
   A.interactWith(O.sid);
   await sleep(1000);
   check(noGame() && O.varsOf(O.myId).some((v) => v.con_prop === '{"actionCount":2}'), "one guest joined, 2 slots left, no game");
-  O.action(CHARGE_THROW);
+  O.action(CHARGE_THROW); O.action(LAUNCH_THROW);
   await sleep(1000);
-  check(noGame(), "the throw's press (ChargeThrow) isn't Start");
-  A.action(LAUNCH_THROW);
+  check(noGame(), "a snowball throw (ChargeThrow, LaunchThrow) isn't Start");
+  A.action(START);
   await sleep(1000);
   check(noGame(), "a guest can't Start");
-  O.action(LAUNCH_THROW);
+  O.action(START);
   check(await until(() => O.started().length > 0, 4000), "the owner's Start begins the game");
   const start = O.started()[0];
   check(start?.template?.value === 1 && start?.players?.value === `{"Players":[{"TeamId":0,"UserSessionId":${O.sid},"RoleId":0},{"TeamId":0,"UserSessionId":${A.sid},"RoleId":0}]}`, `template 1, owner first, one guest: ${start?.players?.value}`);
@@ -52,14 +53,14 @@ try {
 
   // ---- Start with no guests does nothing, the invitation stays ----
   await hold();
-  O.action(LAUNCH_THROW);
+  O.action(START);
   await sleep(1500);
   check(noGame() && !all.some((c) => c.varsOf(O.myId).some((v) => v.con === null)), "Start with 0 guests: no game, invitation kept");
 
   // ---- cancel during the handoff ----
   A.interactWith(O.sid);
   await sleep(300);
-  O.action(LAUNCH_THROW);
+  O.action(START);
   await sleep(300);
   O.setCon(null);
   await sleep(2000);
@@ -71,7 +72,7 @@ try {
   B.interactWith(O.sid); await sleep(300);
   A.sock.destroy();
   await sleep(300);
-  O.action(LAUNCH_THROW);
+  O.action(START);
   check(await until(() => O.started().length > 0, 4000), "Start still works with the remaining guest");
   check(O.started()[0]?.players?.value === `{"Players":[{"TeamId":0,"UserSessionId":${O.sid},"RoleId":0},{"TeamId":0,"UserSessionId":${B.sid},"RoleId":0}]}`, `the departed guest is dropped: ${O.started()[0]?.players?.value}`);
   B.setCon(null);
@@ -84,7 +85,7 @@ try {
   X.interactWith(O.sid); await sleep(300);
   X.sock.destroy();
   await sleep(300);
-  O.action(LAUNCH_THROW);
+  O.action(START);
   await sleep(1500);
   check(noGame(), "Start after the only guest left: no game");
   check(O.varsOf(O.myId).at(-1)?.con_prop === '{"actionCount":3}', `the departed guest's slot is open again: ${JSON.stringify(O.varsOf(O.myId).at(-1))}`);
@@ -92,7 +93,7 @@ try {
   // ---- a guest now holding something else isn't pulled in; with them free again the invitation starts by itself ----
   B.interactWith(O.sid); await sleep(300);
   B.setCon("Popscorn"); await sleep(300);
-  O.action(LAUNCH_THROW);
+  O.action(START);
   await sleep(1500);
   check(noGame(), "Start with the only guest holding another item: no game");
   B.setCon(null);

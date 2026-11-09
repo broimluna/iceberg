@@ -9,14 +9,15 @@
 //        PlayerTurnStart (6) {PlayerId}, PlayerLeftGame (7) {PlayerId}
 //   out: SetGameStartPositions {OwnerPosition, PlayerPositions[players-1],
 //        GamePositions[>=1]} from the owner (players[0]) only.
-// The retail client never sends a draw as a pgame.message. Pass is the Action1
-// button (l.a 7). Fish and the owner's Start are Snowball buttons whose press
-// dispatches only an InputEvents.ActionEvent: neither the OpenCPI nor the retail
-// decompile turns that into an l.a or a message, so how (or whether) they reach a
-// server is unconfirmed. Fish is accepted as LaunchThrow (4) or Action2 (8) in case it
-// does; every other non-Move byte and every unhandled pgame.message is logged
-// (`[FISH] ...`) so a live round shows what arrives. Meanwhile an idle turn is dealt
-// a card on timeout, so a game always runs to the end of the deck.
+// The client never sends a draw as a pgame.message: the buttons are locomotion
+// actions. The button prefabs store InputEvents.Actions numbers in the retail
+// enum (Jump 0, Interact 1, Snowball 2, Action1 3, Action2 4): Fish and the
+// owner's lobby Start are 3 = Action1 (l.a 7), Pass is 4 = Action2 (l.a 8);
+// FishBucket.onDoActionEvent disables the controls on exactly Action1/Action2.
+// OpenCPI inserted Sprint into that enum, so a client without the prefab fix
+// sends nothing for Fish/Start and l.a 7 for Pass. Every other non-Move byte and
+// every unhandled pgame.message is logged (`[FISH] ...`). An idle turn is still
+// dealt a card on timeout, so a game of AFK players runs to the end of the deck.
 import type { RegisteredSession } from "../session-registry.ts";
 import { PartyGameSession, type PartyGamePlayer } from "./session.ts";
 import type { PartyGameDef } from "./definitions.ts";
@@ -24,10 +25,10 @@ import { applyDelta, buildDeck, placementsFromScores } from "./fish-bucket-rules
 
 const SET_GAME_STATE = 1, SET_GAME_START_POSITIONS = 4, SHOW_TURN_OUTPUT = 5, PLAYER_TURN_START = 6, PLAYER_LEFT_GAME = 7;
 const STATE_INTRO = 1, STATE_GAME = 2, STATE_FINISHED = 3;
-// The owner's Start press (a throw released), also what the invitation code listens for.
-export const ACTION_START = 4;
-export const FISH_ACTIONS = [4, 8];
-export const PASS_ACTIONS = [7];
+// The owner's lobby Start press (Action1), what the invitation code listens for.
+export const ACTION_START = 7;
+export const FISH_ACTIONS = [7];
+export const PASS_ACTIONS = [8];
 // Bytes sent continuously or by ordinary play: Move 0, Jump 1, Interact 2, and 12.
 const QUIET_ACTIONS = new Set([0, 1, 2, 12]);
 const POSITIONS_BACKSTOP_SECONDS = 10;
