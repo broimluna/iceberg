@@ -284,6 +284,11 @@ try {
     startPartyGame(1, ps.map((p) => p.entry));
     onPartyGamePlayerQuit(ps[1]!.session);
     check(results(ps[1]!).length === 0 && sessionOf(ps[1]!.session) !== undefined, "a positions-phase quitter is not released early");
+    // ...but is freed once the intro is over (the cannon exists), not left locked for the whole game.
+    send(ps[0]!, 4, validPositions(3));
+    check(await waitFor(() => states(ps[0]!).includes(2)), "the game reaches the Game state");
+    check(results(ps[1]!).join() === "[]" && sessionOf(ps[1]!.session) === undefined, `the quitter is released when the intro ends: ${results(ps[1]!)}`);
+    check(results(ps[0]!).length === 0 && results(ps[2]!).length === 0 && turns(ps[0]!).join() === turnOf(ps[0]!), "the others play on");
   }
 
   // ---- logging ----

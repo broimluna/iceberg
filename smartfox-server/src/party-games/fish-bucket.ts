@@ -155,6 +155,8 @@ export class FishBucket extends PartyGameSession {
         this.endLone();
         return;
       }
+      // Quitters from the positions phase or the intro: the cannon exists by now, so their client can be torn down.
+      for (const p of this.players) if (this.quit.has(p) && !p.left) this.release(p);
       this.sendMessage(SET_GAME_STATE, { GameStateId: STATE_GAME });
       this.startTurn();
     });
