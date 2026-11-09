@@ -20,6 +20,14 @@ export const TIME_SCALE = (() => {
 export interface PartyGamePlayer {
   entry: RegisteredSession;
   left: boolean;
+  // Team and slot in pgame.start.v2's player list (0/0 for single-team games).
+  teamId: number;
+  roleId: number;
+}
+
+export interface PartyGameSlot {
+  teamId: number;
+  roleId: number;
 }
 
 export abstract class PartyGameSession {
@@ -28,9 +36,9 @@ export abstract class PartyGameSession {
   ended = false;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
-  constructor(readonly id: number, readonly def: PartyGameDef, players: RegisteredSession[]) {
+  constructor(readonly id: number, readonly def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) {
     this.templateId = def.id;
-    this.players = players.map((entry) => ({ entry, left: false }));
+    this.players = players.map((entry, i) => ({ entry, left: false, teamId: slots?.[i]?.teamId ?? 0, roleId: slots?.[i]?.roleId ?? 0 }));
   }
 
   // Runs fn after `seconds` (scaled), unless the game has ended by then.

@@ -15,10 +15,10 @@ import type { HandlerContext } from "../handlers/context.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
 import { withAccount } from "../account.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
-import { host, type PartyGameSession } from "./session.ts";
+import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
 
-export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[]) => PartyGameSession;
+export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) => PartyGameSession;
 
 const REWARD_SOURCE_MINI_GAME = 5;
 const MAX_MESSAGE_BYTES = 4096;
@@ -46,9 +46,18 @@ export function setRewardGranter(fn: (username: string, reward: RewardGrant) => 
   granter = fn;
 }
 
+// Invitation games (Find Four) have a player prop; lobby-launched ones
+// (launcher method 1, ZoneSchedule: Dance Battle) don't.
+function startable(def: PartyGameDef | undefined): def is PartyGameDef {
+  return !!def && (!!def.playerProp || def.launcher?.method === 1) && factories.has(def.gameType);
+}
+
 export function canStart(templateId: number): boolean {
-  const def = getPartyGame(templateId);
-  return !!def && !!def.playerProp && factories.has(def.gameType);
+  return startable(getPartyGame(templateId));
+}
+
+export function isInPartyGame(s: Session): boolean {
+  return sessionByUser.has(s.userId);
 }
 
 // Whether startPartyGame(templateId, players) would start: a known game,
@@ -56,7 +65,7 @@ export function canStart(templateId: number): boolean {
 // id and not already in a game.
 export function canStartWith(templateId: number, players: RegisteredSession[]): boolean {
   const def = getPartyGame(templateId);
-  if (!def || !canStart(templateId)) return false;
+  if (!startable(def)) return false;
   if (players.length < def.minPlayers || players.length > def.maxPlayers) return false;
   if (new Set(players.map((p) => p.session.userId)).size !== players.length) return false;
   const connected = new Set(getAll().map((e) => e.session));
@@ -80,7 +89,7 @@ export function guarded(game: PartyGameSession, fn: () => void): void {
 
 // "con" {type: "pgame", name} with no con_prop: the client raises
 // PARTYGAME_EQUIPPED for it.
-function setGameProp(entry: RegisteredSession, name: string | undefined): void {
+export function setPartyGameProp(entry: RegisteredSession, name: string | undefined): void {
   const s = entry.session;
   s.heldObject = name;
   const v = new SFSArrayWriter().putUtfString("con");
@@ -95,19 +104,20 @@ function present(game: PartyGameSession): RegisteredSession[] {
   return game.players.filter((p) => !p.left).map((p) => p.entry);
 }
 
-export function startPartyGame(templateId: number, players: RegisteredSession[]): PartyGameSession | undefined {
+// `slots[i]` is players[i]'s team and role in the player list the client gets.
+export function startPartyGame(templateId: number, players: RegisteredSession[], slots?: PartyGameSlot[]): PartyGameSession | undefined {
   const def = getPartyGame(templateId);
   const factory = def ? factories.get(def.gameType) : undefined;
-  if (!def || !factory || !def.playerProp || !canStartWith(templateId, players)) {
+  if (!def || !factory || slots && slots.length !== players.length || !canStartWith(templateId, players)) {
     log(`can't start template ${templateId} with ${players.map((p) => p.session.userName).join(", ")}`);
     return undefined;
   }
-  const game = factory(nextSessionId++, def, players);
+  const game = factory(nextSessionId++, def, players, slots);
   sessions.set(game.id, game);
   for (const p of players) sessionByUser.set(p.session.userId, game);
-  for (const p of players) setGameProp(p, def.playerProp);
+  if (def.playerProp) for (const p of players) setPartyGameProp(p, def.playerProp);
   // Session ids can exceed 2^53, so they're spliced in as raw text.
-  const playerData = `{"Players":[${players.map((p) => `{"TeamId":0,"UserSessionId":${p.session.playerSessionId},"RoleId":0}`).join(",")}]}`;
+  const playerData = `{"Players":[${players.map((p, i) => `{"TeamId":${slots?.[i]?.teamId ?? 0},"UserSessionId":${p.session.playerSessionId},"RoleId":${slots?.[i]?.roleId ?? 0}}`).join(",")}]}`;
   const start = extensionPacket("pgame.start.v2",
     new SFSObjectWriter().putInt("id", game.id).putInt("template", templateId).putUtfString("players", playerData));
   for (const p of players) p.send(start);
@@ -131,7 +141,7 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
   const results = [...placements].map(([p, place]) => `{"PlayerSessionId":${p.session.playerSessionId},"Placement":${place}}`);
   const end = extensionPacket("pgame.end", new SFSObjectWriter().putInt("id", game.id).putUtfString("results", `[${results.join(",")}]`));
   for (const p of here) p.send(end);
-  for (const p of here) if (p.session.heldObject === game.def.playerProp) setGameProp(p, undefined);
+  if (game.def.playerProp) for (const p of here) if (p.session.heldObject === game.def.playerProp) setPartyGameProp(p, undefined);
 
   for (const [p, place] of placements) {
     const reward = rewardFor(game.def, place);

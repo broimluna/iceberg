@@ -9,7 +9,7 @@ import { unregister, type RegisteredSession } from "../smartfox-server/src/sessi
 import { PartyGameSession, type PartyGamePlayer } from "../smartfox-server/src/party-games/session.ts";
 import {
   registerGameType, startPartyGame, endSession, sessionOf, handlePartyGameMessage,
-  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith,
+  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith, isInPartyGame,
 } from "../smartfox-server/src/party-games/manager.ts";
 
 const { check, finish } = makeChecker();
@@ -33,6 +33,7 @@ class TestGame extends PartyGameSession {
   finishWith(p: Map<RegisteredSession, number>) { this.endWith(p); }
 }
 registerGameType(2, (id, def, players) => new TestGame(id, def, players));
+registerGameType(3, (id, def, players, slots) => new TestGame(id, def, players, slots));
 
 const grants: { username: string; reward: unknown }[] = [];
 setRewardGranter((username, reward) => { grants.push({ username, reward }); });
@@ -146,6 +147,25 @@ try {
   check(guest.ext.length === 0, "nothing sent to the player who left");
   check(grants.length === 2, "a balked game pays nothing");
   check(sessionOf(owner.session) === undefined, "owner free after balk");
+
+  // ---- lobby-launched, team-slotted games (template 3: no player prop) ----
+  const four = ["t0", "t1", "t2", "t3"].map((n) => makePlayer(n, ROOM));
+  for (const p of four) p.clear();
+  check(canStart(3), "template 3 (lobby-launched, no player prop) can start");
+  check(!canStartWith(3, [four[0]!.entry]), "template 3 needs at least 2 players");
+  const crowd = Array.from({ length: 21 }, (_, i) => makePlayer(`crowd${i}`, ROOM));
+  check(!canStartWith(3, crowd.map((p) => p.entry)), "template 3 allows at most 20 players");
+  const slots = [{ teamId: 0, roleId: 0 }, { teamId: 1, roleId: 0 }, { teamId: 0, roleId: 1 }, { teamId: 1, roleId: 1 }];
+  const d = startPartyGame(3, four.map((p) => p.entry), slots)!;
+  check(!!d && isInPartyGame(four[0]!.session), "isInPartyGame is true for a player in the game");
+  const dst = four[0]!.extOf("pgame.start.v2")[0]?.players?.value as string;
+  check(dst === `{"Players":[${four.map((p, i) => `{"TeamId":${slots[i]!.teamId},"UserSessionId":${p.sid},"RoleId":${slots[i]!.roleId}}`).join(",")}]}`,
+    `pgame.start.v2 carries the slots: ${dst}`);
+  check(four.every((p) => p.vars.length === 0), "no game prop is equipped when the template has none");
+  check((d as TestGame).players.map((p) => `${p.teamId}/${p.roleId}`).join() === "0/0,1/0,0/1,1/1", "session players carry teamId/roleId");
+  endSession(d, new Map([[four[0]!.entry, 0], [four[1]!.entry, 1]]));
+  check(four.every((p) => !isInPartyGame(p.session)), "isInPartyGame is false after the end");
+  check(four.every((p) => p.vars.length === 0), "no game prop is cleared at the end either");
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);
 }
