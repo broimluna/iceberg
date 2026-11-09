@@ -69,6 +69,23 @@ app.use(express.json({
     }
 }));
 app.use(express.text({ type: 'text/plain' })); // For quest status updates which send just a number
+// Unity's web request defaults to application/x-www-form-urlencoded, and
+// some client builds send their JSON bodies under it. Read those as JSON;
+// anything that isn't JSON stays unparsed (no route takes form data).
+app.use(express.text({
+    type: (req) => !req.headers['x-encryption-key-id'] && (req.headers['content-type'] || '').includes('application/x-www-form-urlencoded'),
+}));
+app.use((req, res, next) => {
+    if (typeof req.body === 'string' && (req.headers['content-type'] || '').includes('application/x-www-form-urlencoded')) {
+        const text = req.body.trim();
+        let parsed = {};
+        if (text.startsWith('{') || text.startsWith('[')) {
+            try { parsed = JSON.parse(text); } catch { /* not JSON: leave it empty */ }
+        }
+        req.body = parsed;
+    }
+    next();
+});
 // Allow raw binary bodies for encrypted Mix API requests
 app.use(express.raw({ type: 'application/mix', limit: '10mb' }));
 

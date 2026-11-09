@@ -86,6 +86,12 @@ try {
   check(notArray.status === 400, `a non-array body -> 400, not a crash (${notArray.status})`);
   const tooMany = await byIds(JSON.stringify(Array.from({ length: 501 }, (_, i) => `{X-${i}}`)));
   check(tooMany.status === 400, `over 500 swids -> 400 (${tooMany.status})`);
+  // Unity's web request defaults to a form content type; some builds send
+  // their JSON bodies under it.
+  const formTyped = await fetch(`${BASE}/player/v1/id`, { method: "POST", headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" }, body: JSON.stringify(["{TESTSWID-1}", "{NOPE}"]) });
+  check(formTyped.ok && ((await formTyped.json()) as any[]).length === 2, `a JSON body sent as x-www-form-urlencoded is read as JSON (${formTyped.status})`);
+  const realForm = await fetch(`${BASE}/player/v1/id`, { method: "POST", headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" }, body: "a=1&b=2" });
+  check(realForm.status === 400, `a real form body isn't mistaken for JSON (${realForm.status})`);
   const mixed = await byIds(JSON.stringify(["{TESTSWID-1}", 5, null]));
   check(mixed.ok && ((await mixed.json()) as any[]).length === 1, "non-string entries are skipped");
 } finally {
