@@ -151,6 +151,10 @@ export class FishBucket extends PartyGameSession {
     this.sendMessage(SET_GAME_START_POSITIONS, { OwnerPosition: owner, PlayerPositions: others, GamePositions: game, IntData: [this.deck.length] });
     this.sendMessage(SET_GAME_STATE, { GameStateId: STATE_INTRO });
     this.timer(this.seconds("IntroTimeInSeconds", 5), () => {
+      if (this.players.filter((p) => this.active(p)).length <= 1) {
+        this.endLone();
+        return;
+      }
       this.sendMessage(SET_GAME_STATE, { GameStateId: STATE_GAME });
       this.startTurn();
     });
@@ -246,16 +250,22 @@ export class FishBucket extends PartyGameSession {
     }
     this.sendMessage(PLAYER_LEFT_GAME, `{"PlayerId":${this.sid(this.players.indexOf(player))}}`);
     const stay = this.players.filter((p) => this.active(p));
-    if (stay.length <= 1) {
-      const { placements, unpaid } = this.standings();
-      for (const p of stay) placements.set(p.entry, 0);
-      this.endWith(placements, unpaid);
+    // Before the intro is over the cannon may not exist, and the client's destroy() throws without it:
+    // the intro's end ends a lone stayer's game.
+    if (stay.length <= 1 && this.phase !== "positions" && this.phase !== "intro") {
+      this.endLone();
       return;
     }
     if (this.phase === "turn" && this.players[this.cur] === player) this.nextTurn();
     // The client restores a quitter's controls only in destroy(), which runs on pgame.end. Its
     // destroy() throws before the cannon exists (positions, intro), so those wait for the real end.
     if (this.phase === "turn" || this.phase === "delay") this.release(player);
+  }
+
+  private endLone(): void {
+    const { placements, unpaid } = this.standings();
+    for (const p of this.players.filter((q) => this.active(q))) placements.set(p.entry, 0);
+    this.endWith(placements, unpaid);
   }
 
   onPlayerQuit(player: PartyGamePlayer): void {

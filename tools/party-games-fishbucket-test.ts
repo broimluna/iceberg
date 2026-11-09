@@ -118,6 +118,20 @@ try {
     check(await waitFor(() => raws(g, 4).length === 1, 400) && JSON.parse(raws(g, 4)[0]!).GamePositions[0].x === 1, "an owner who left: positions anchor on a present player");
   }
 
+  {
+    // A lone stayer's win also waits for the cannon: ending in the positions phase or intro would throw in the client's destroy().
+    FishBucket.makeDeck = () => [1, 1];
+    const [o, g] = [makePlayer(`o${++n}`, ROOM), makePlayer(`g${n}`, ROOM)];
+    startPartyGame(1, [o.entry, g.entry]);
+    onPartyGamePlayerQuit(g.session);
+    await sleep(20);
+    check(results(o).length === 0 && sessionOf(o.session) !== undefined, "a guest quitting before positions does not end the game yet");
+    send(o, 4, validPositions(2));
+    check(results(o).length === 0, "nor right after the positions");
+    check(await waitFor(() => results(o).length === 1), "it ends once the intro is over");
+    check(results(o)[0] === resultsOf([[o, 0], [g, 1]]) && states(o).includes(2) === false, `the stayer wins without a turn: ${results(o)[0]} ${states(o)}`);
+  }
+
   // ---- turns ----
   {
     const [a, b] = await game(2, [1, 2, -2, 1, 1, 1, 1, 1]);
