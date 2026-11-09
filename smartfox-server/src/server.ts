@@ -33,7 +33,7 @@ import { onPlayerLeft } from "./daily-tasks.ts";
 import { onPartyGamePlayerLeft } from "./party-games/manager.ts";
 import { forgetInvitation } from "./handlers/consumables.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
-import { releaseRoomPlaygroundsIfEmpty } from "./island-targets/playground.ts";
+import { forgetIslandTargetThrower, releaseRoomPlaygroundsIfEmpty } from "./island-targets/playground.ts";
 import { onLobbyPlayerLeft, releaseRoomLobbiesIfEmpty } from "./party-games/lobby.ts";
 import { logSafe } from "./log-safe.ts";
 
@@ -348,6 +348,7 @@ const connectionHandler = (socket: net.Socket) => {
     // Last one out stops the room's geyser/light timers.
     releaseRoomIfEmpty(session.roomName);
     releaseRoomLobbiesIfEmpty(session.roomName);
+    forgetIslandTargetThrower(session);
     releaseRoomPlaygroundsIfEmpty(session.roomName);
     console.log(`[${new Date().toISOString()}] ${peer} closed (error=${hadError})`);
   });

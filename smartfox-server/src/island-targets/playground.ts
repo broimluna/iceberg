@@ -80,6 +80,10 @@ interface Playground {
 }
 
 const rooms = new Map<string, Playground[]>();
+// Account -> when it was last paid. An account is paid once per schedule
+// window across every room (games in all rooms start on the same slots),
+// so idle alts in other worlds or a second session can't multiply rewards.
+const paidAt = new Map<string, number>();
 
 // Player names and room names go through logSafe.
 function log(msg: string): void {
@@ -238,6 +242,11 @@ function applyHit(pg: Playground, game: Game, target: LiveTarget, userId: number
   if (game.targets.some((t) => t.hits < t.capacity)) return;
 
   game.roundOver = true;
+  // The group goes now: the client already ended the round on the last
+  // 1007, while a joiner in the linger would read a live group's later
+  // removal as a timeout. The fallen targets stay up for their animation.
+  if (game.group) removeRoomItem(game.group);
+  game.group = undefined;
   const last = game.phaseIndex === game.superset.phases.length - 1;
   if (last) win(pg, game);
   const serial = game.serial;
@@ -258,16 +267,33 @@ function extensionPacket(cmd: string, p: SFSObjectWriter): OutgoingPacket {
   return encodePacket(1, 13, new SFSObjectWriter().putUtfString("c", cmd).putSFSObject("p", p));
 }
 
-// The final target fell: streak, then rewards for everyone in the zone who
-// landed a hit this game, shared out per the superset's totals.
+// Who a final win pays: in the zone, landed a hit this game, with a player
+// session id and a verified account; one session per account, and no
+// account paid in the current window.
+function payable(pg: Playground, game: Game, now: number): RegisteredSession[] {
+  const windowMs = pg.data.everyXMinutes * 60_000 * TIME_SCALE;
+  for (const [account, at] of paidAt) if (now - at >= windowMs) paidAt.delete(account);
+  const accounts = new Set<string>();
+  return playersInZone(pg).filter((e) => {
+    const account = e.session.accountName;
+    if (!account || !e.session.playerSessionId || (game.hitsByUser.get(e.session.userId) ?? 0) === 0) return false;
+    if (accounts.has(account) || paidAt.has(account)) return false;
+    accounts.add(account);
+    return true;
+  });
+}
+
+// The final target fell: streak, then rewards shared out per the superset's
+// totals among the payable players.
 function win(pg: Playground, game: Game): void {
   rollDay(pg);
   setStats(pg, pg.current + 1, Math.max(pg.best, pg.current + 1));
-  const eligible = playersInZone(pg).filter((e) => (game.hitsByUser.get(e.session.userId) ?? 0) > 0);
+  const now = Date.now();
+  const eligible = payable(pg, game, now);
   const reward = splitReward(game.superset.totalReward, game.superset.minPerPlayerReward, eligible.length);
   for (const e of eligible) {
     const sid = e.session.playerSessionId;
-    if (!sid) continue;
+    paidAt.set(e.session.accountName!, now);
     withAccount(e.session, "island targets reward", (account) => granter(account, reward));
     const payload = `{"goodUntil":0,"signature":"","swid":"","data":{"source":${REWARD_SOURCE_MINI_GAME},"sourceId":"${REWARD_SOURCE_ID}","rewards":{"${sid}":${JSON.stringify(reward)}}}}`;
     e.send(extensionPacket("reward.add_delayed", new SFSObjectWriter().putUtfString("reward", payload)));
@@ -276,6 +302,15 @@ function win(pg: Playground, game: Game): void {
 }
 
 // ==================== Throws ====================
+
+const DROP_LOG_GAP_MS = 1000;
+// userId -> when a dropped throw was last logged. Entries go when the player leaves.
+const droppedLoggedMs = new Map<number, number>();
+
+export function forgetIslandTargetThrower(s: Session): void {
+  droppedLoggedMs.delete(s.userId);
+  for (const list of rooms.values()) for (const pg of list) pg.lastThrowMs.delete(s.userId);
+}
 
 export function onIslandTargetThrow(s: Session, action: number, previous: number[] | undefined, p: number[], v: number[] | undefined): void {
   if (action !== ACTION_LAUNCH_THROW || !v) return;
@@ -287,6 +322,12 @@ export function onIslandTargetThrow(s: Session, action: number, previous: number
     log(`throw user=${logSafe(s.userName)} nearest=${nearest} dist=${dist.toFixed(2)} t=${t.toFixed(2)} hit=${hit ? "yes" : "no"} reason=${reason}`);
 
   const guard = now < game.startsMs ? "early" : throwGuard(now, p, v, previous, pg.lastThrowMs.get(s.userId), MIN_THROW_GAP_MS * TIME_SCALE);
+  // A dropped throw is logged (and traced, for the log) at most once a
+  // second per player, so a flood of them costs nothing.
+  if (guard) {
+    if (now - (droppedLoggedMs.get(s.userId) ?? -Infinity) < DROP_LOG_GAP_MS * TIME_SCALE) return;
+    droppedLoggedMs.set(s.userId, now);
+  }
   const live = game.targets.filter((t) => t.hits < t.capacity);
   const trace = guard === "invalid" ? {} : traceThrow(p as Vec3, v as Vec3, live.map((t) => ({ path: t.data.path, center: t.data.hitSphere.center, radius: t.data.hitSphere.radius })));
   const nearest = trace.nearest ?? { path: "-", dist: NaN, t: 0 };

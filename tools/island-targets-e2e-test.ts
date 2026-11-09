@@ -147,10 +147,13 @@ try {
   await waitStarts(P1);
   const aim0 = liveTargets(P1)[0];
   const v0 = aimAt(p, aim0, liveTargets(P1));
+  // Dropped throws are logged at most once a (scaled) second each.
+  const DROP_LOG = 1000 * SCALE + 30;
   launchThrow(P1, p, v0);
   launchThrow(P1, p, v0); // straight after: rate
-  await sleep(GAP);
+  await sleep(Math.max(GAP, DROP_LOG));
   launchThrow(P1, p, [0, 0, 25]); // speed
+  await sleep(DROP_LOG);
   launchThrow(P1, [p[0] + 4, p[1], p[2]], v0); // drift
   await sleep(300);
   check(countOf(P1, aim0.path) === 1, `only the first of the guarded throws counts (${countOf(P1, aim0.path)})`);
@@ -180,7 +183,9 @@ try {
 
   // ---- phase 1 cleared -> phase 2 ----
   await clearPhase(P1, P1, p);
-  check(!view(P1).has(g1.id) && t1.every((t) => !view(P1).has(t.id)), "a won round's group and targets are removed");
+  check(!view(P1).has(g1.id) && t1.some((t) => view(P1).has(t.id)), "a won round's group goes at once, its fallen targets stay up");
+  await until(() => t1.every((t) => !view(P1).has(t.id)), 3000);
+  check(t1.every((t) => !view(P1).has(t.id)), "and the targets go after the linger");
   await until(() => !!group(P1), 3000 + 3000 * SCALE);
   const g2 = group(P1);
   check(g2?.vars.path === superset.phases[1].path, `the next phase follows (${g2?.vars.path})`);

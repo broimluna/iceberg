@@ -35,7 +35,7 @@ check(worldLines.length === 3, `each bad file is logged (${worldLines.length})`)
 
 // ---- date windows ----
 const windowed = bad("dates", JSON.stringify({
-  scheduledWorldObjects: { Boardwalk: [{ path: "/G", behaviour: "ordered", cycleSeconds: 5, children: [], activeDates: { start: "2026-10-01", end: "2026-10-31" } }] },
+  scheduledWorldObjects: { Boardwalk: [{ path: "/G", behaviour: "ordered", cycleSeconds: 5, children: [{ path: "/G/a", position: [0, 0, 0] }], activeDates: { start: "2026-10-01", end: "2026-10-31" } }] },
   islandTargets: {},
 }));
 loadWorldData(windowed);
@@ -43,6 +43,32 @@ check(scheduledGroups("Boardwalk", "2026-10-15").length === 1 && scheduledGroups
 check(scheduledGroups("Boardwalk", "2026-11-01").length === 0 && scheduledGroups("Boardwalk").length === 0, "and not outside them or with no date");
 loadWorldData();
 check(scheduledGroups("Boardwalk").length === 1, "the default reload restores the shipped data");
+
+// ---- bad entries inside a good file are dropped, the rest kept ----
+const shipped = JSON.parse(await Bun.file(new URL("../smartfox-server/data/world-objects.json", import.meta.url)).text());
+const goodGroup = shipped.scheduledWorldObjects.Boardwalk[0];
+const goodPg = shipped.islandTargets.MtBlizzard[0];
+const entries = bad("entries", JSON.stringify({
+  scheduledWorldObjects: {
+    Boardwalk: [goodGroup, { ...goodGroup, cycleSeconds: 0 }, { ...goodGroup, behaviour: "sideways" }, { ...goodGroup, children: [{ path: "/x", position: [0, "a", 0] }] }],
+    Town: { not: "an array" },
+  },
+  islandTargets: {
+    MtBlizzard: [goodPg, { ...goodPg, supersets: [] }, { ...goodPg, everyXMinutes: 0 },
+      { ...goodPg, supersets: [{ ...goodPg.supersets[0], phases: [{ ...goodPg.supersets[0].phases[0], targets: [] }] }] },
+      { ...goodPg, supersets: [{ ...goodPg.supersets[0], phases: [{ ...goodPg.supersets[0].phases[0], targets: [{ ...goodPg.supersets[0].phases[0].targets[0], minHits: 0 }] }] }] }],
+    Town: "nope",
+  },
+}));
+logged.length = 0;
+console.log = (...a: unknown[]) => { const line = a.join(" "); if (line.includes("[WORLD]")) logged.push(line); else quiet(...a); };
+let threwEntries = false;
+try { loadWorldData(entries); } catch { threwEntries = true; }
+console.log = quiet;
+check(!threwEntries && scheduledGroups("Boardwalk").length === 1 && scheduledGroups("Town").length === 0, `only the good geyser group is kept (${scheduledGroups("Boardwalk").length})`);
+check(playgrounds("MtBlizzard").length === 1 && playgrounds("Town").length === 0, `only the good playground is kept (${playgrounds("MtBlizzard").length})`);
+check(logged.filter((l) => l.includes("dropped")).length === 9, `each bad entry or zone is logged (${logged.length}: ${logged.join(" | ").slice(0, 300)})`);
+loadWorldData();
 
 // ---- picker ----
 const ordered = createPicker("ordered", 3);
