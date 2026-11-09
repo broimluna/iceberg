@@ -32,6 +32,8 @@ const HIDER_PROP = "ScavengerHuntHiderServerAdded";
 const FINDER_PROP = "ScavengerHuntFinderServerAdded";
 const PROP_SETTLE_SECONDS = 1;
 const FINISH_DELAY_SECONDS = 1;
+// How often the Finder's distance to the nearest marble is logged (to tell "well hidden" from "not tracked").
+const FINDER_LOG_SECONDS = 5;
 
 const MAX_SAMPLES = 50;
 
@@ -101,7 +103,23 @@ export class ScavengerHunt extends PartyGameSession {
       this.state = STATE_FINDING;
       this.sendMessage(SET_GAME_STATE, { GameStateId: STATE_FINDING });
       this.log(`finding, ${this.hidden} marbles hidden`);
+      this.watchFinder();
       this.timer(this.seconds("FindTimeInSeconds", 55) + this.seconds("FindBufferTimeInSeconds", 3), () => this.finish());
+    });
+  }
+
+  // Logs the Finder's position and distance to the nearest remaining marble while Finding.
+  private watchFinder(): void {
+    this.timer(FINDER_LOG_SECONDS, () => {
+      if (this.state !== STATE_FINDING || this.decided) return;
+      const here = this.lastPos.get(this.finder);
+      let nearest: { id: number; d: number } | undefined;
+      for (const [id, at] of this.marbles) {
+        const d = here ? Math.hypot(here[0] - at[0], here[1] - at[1], here[2] - at[2]) : Infinity;
+        if (!nearest || d < nearest.d) nearest = { id, d };
+      }
+      if (nearest) this.log(`finder at ${here?.map((c) => c.toFixed(1)).join(",") ?? "?"} nearest=${nearest.id} dist=${Number.isFinite(nearest.d) ? nearest.d.toFixed(1) : "?"}m`);
+      this.watchFinder();
     });
   }
 
@@ -150,6 +168,7 @@ export class ScavengerHunt extends PartyGameSession {
     const id = this.nextItemId++;
     this.marbles.set(id, [position[0], position[1], position[2]]);
     this.hidden++;
+    this.log(`drop ok item=${id} pos=${position[0]},${position[1]},${position[2]}`);
     this.sendMessage(ADD_ITEM, `{"ItemId":${id},"Pos":{"x":${position[0]},"y":${position[1]},"z":${position[2]}}}`);
   }
 

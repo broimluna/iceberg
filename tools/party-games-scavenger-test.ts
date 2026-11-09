@@ -10,7 +10,8 @@ const { ScavengerHunt } = await import("../smartfox-server/src/party-games/scave
 
 const { check, finish } = makeChecker();
 const quiet = console.log;
-console.log = (...a: unknown[]) => { if (!(typeof a[0] === "string" && a[0].startsWith("["))) quiet(...a); };
+const logLines: string[] = [];
+console.log = (...a: unknown[]) => { if (typeof a[0] === "string" && a[0].startsWith("[")) logLines.push(a[0]); else quiet(...a); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const grants: { username: string; reward: any }[] = [];
 setRewardGranter((username, reward) => { grants.push({ username, reward }); });
@@ -251,6 +252,17 @@ try {
     check(results(finder)[0] === resultsOf([[finder, 0]]), `the decided result stands when the Hider leaves: ${results(finder)[0]}`);
     await sleep(100);
     check(results(finder).length === 1, "ended once");
+  }
+  // ---- diagnostics: accepted drops and the Finder's distance to the nearest marble are logged ----
+  {
+    logLines.length = 0;
+    const { hider, finder } = await hiding();
+    drop(hider, [1, 0, 2]);
+    check(logLines.some((l) => l.includes("drop ok item=1 pos=1,0,2")), `an accepted drop is logged with its position: ${logLines.filter((l) => l.includes("drop"))}`);
+    finder.session.lastPosition = [4, 0, 6];
+    onPartyGamePlayerMoved(finder.session, [4, 0, 6]);
+    await waitFor(() => states(finder).includes(2));
+    check(await waitFor(() => logLines.some((l) => l.includes("finder at 4.0,0.0,6.0 nearest=1 dist=5.0m")), 1500), "the Finder's position and distance to the nearest marble are logged");
   }
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);
