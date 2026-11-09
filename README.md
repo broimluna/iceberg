@@ -44,7 +44,7 @@ variables.
 **Working, verified against real clients (retail 1.13.0 and OpenCPI):**
 - Full SFS2X wire protocol: handshake, login, room join, ping, user
   variables, raw TCP and WebSocket transports, and the MMO items used for
-  scheduled world objects (geysers, blinking lights).
+  scheduled world objects (the Boardwalk geysers).
 - Multiple players in one room can see each other and each other's
   movement, with join and leave handled correctly.
 - Chat, including the encrypted chat key exchange.
@@ -63,6 +63,13 @@ variables.
   placements and rewards.
 
 **Implemented, not yet checked with the real client:**
+- Crate Co's snowball targets at Mt Blizzard (Island Targets) and the
+  scheduled world objects, both from Disney's own server data. Games start
+  on the clock tower's 5-minute schedule (staff can start one with
+  `:crateco`), the server decides hits from each throw, and the final win
+  pays everyone in the reward zone who hit and keeps the room's win streak.
+  The hit check is deliberately lenient and logs every throw (`[TARGETS]`)
+  until a live test tunes it.
 - Fish Bucket ("Ink or Swim"), the last party game: 2 to 4 players, a
   server-owned deck and turns. How the retail client's Fish and Start
   buttons reach a server is unconfirmed, so idle turns are dealt a card and
