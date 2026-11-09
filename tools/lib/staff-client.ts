@@ -7,7 +7,7 @@ import { Database } from "bun:sqlite";
 import { startWebApi, type WebApi } from "./harness.ts";
 import { createPlayer } from "./mix-client.ts";
 import {
-  SFSObjectWriter, encodePacket, tryReadHeader, decodeSFSObject, SFSDataType, type SFSObjectData,
+  SFSObjectWriter, encodePacket, tryReadHeader, decodeSFSObject, SFSDataType, type SFSObjectData, type SFSValue,
 } from "../../smartfox-server/src/sfs-wire.ts";
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -75,6 +75,8 @@ export class Client {
   ext: { cmd: string; p: SFSObjectData }[] = [];
   /** MMO item packets: proximity updates (a=30) and item variable changes (a=1007). */
   mmo: { a: number; p: SFSObjectData }[] = [];
+  /** User variable updates (0/12) as received: u and the raw vl entries [name, type, value]. */
+  userVars: { u: number; vl: SFSValue[][] }[] = [];
 
   constructor(public servers: Servers, public swid: string, public name: string, public room = "Town") {}
 
@@ -148,6 +150,7 @@ export class Client {
       if (c === 0 && a === 1 && typeof p.id?.value === "number") this.myId = p.id.value as number;
       if (c === 0 && a === 1005) this.kickReason = p.dr?.value as number;
       if (c === 0 && (a === 30 || a === 1007)) this.mmo.push({ a: a as number, p });
+      if (c === 0 && a === 12 && p.vl) this.userVars.push({ u: p.u?.value as number, vl: (p.vl.value as SFSValue[]).map((e) => e.value as SFSValue[]) });
       if (c !== 1 || a !== 13) continue;
       const cmd = p.c?.value as string;
       const inner = (p.p?.type === SFSDataType.SFS_OBJECT ? p.p.value : {}) as SFSObjectData;
@@ -166,13 +169,17 @@ export class Client {
     this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", [0, 0, 0]).putByte("a", 2)
       .putUtfString("o", JSON.stringify({ type: 1, id: String(itemId), tag: "" })));
   }
+  /** A plain move (l.a Move) to a position. */
+  move(position: [number, number, number]) {
+    this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", position).putByte("a", 0).putFloatArray("d", [0, 0, 0]));
+  }
   /** A party-game pgame.message; the client sends id and type as LONG. */
   pgame(sessionId: number, type: number, body: string) {
     this.ext13("pgame.message", new SFSObjectWriter().putLong("id", BigInt(sessionId)).putLong("type", BigInt(type)).putUtfString("message", body));
   }
 
   /** Clears what has been received so far. */
-  reset() { this.bubbles = []; this.errors = []; this.roomChats = []; this.ext = []; this.mmo = []; }
+  reset() { this.bubbles = []; this.errors = []; this.roomChats = []; this.ext = []; this.mmo = []; this.userVars = []; }
   disconnect() { this.sock.end(); }
 }
 
