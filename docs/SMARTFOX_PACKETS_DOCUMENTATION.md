@@ -323,8 +323,10 @@ claims them (`ClaimDelayedReward`), which echoes the reward to
 a shareable tray: `con` {type `consum`, name} plus `con_prop`
 `{"actionCount": open slots}` (`TotalItemQuantity`), read by the client's
 `InvitationalItemExperience`. Another player accepts by interacting with
-the holder (`l.a` Interact on the player). When the last slot fills, the
-invitation is removed (`con` + `con_prop` NULL) and the game starts about a
+the holder (`l.a` Interact on the player). When the last slot fills (or, for
+a `LobbyType` STRICT_USER_START template such as Fish Bucket, when the owner
+presses Start with enough guests: the Snowball button, `l.a` action 4
+LaunchThrow), the invitation is removed (`con` + `con_prop` NULL) and the game starts about a
 second later. The gap matters: the SFS client applies user variables on
 arrival but dispatches their change events once per frame, so a game `con`
 landing in the same frame as the removal makes the removal's handler throw
@@ -360,7 +362,7 @@ at random and sends each player only their own `SetRole`.
 |---|---|---|
 | 0 SetRole | OUT | `{"RoleId": 0 Hider / 1 Finder}` (ints), to that player only. |
 | 1 SetGameState | OUT | `{"GameStateId": 1 Hiding / 2 Finding}` (0 AwaitingRoles is the client's own start state). Hiding follows `IntroTimeInSeconds`; Finding follows `HideTimeInSeconds` + `HideBufferTimeInSeconds`; the game ends `FindTimeInSeconds` + `FindBufferTimeInSeconds` later. |
-| 2 AddItem | OUT | `{"ItemId": n, "Pos": {"x","y","z"}}`. The client never sends this: the Hider's action button is `l.a` action 7 (`Action1`; 6 is `SlideTrick`), and the marble goes where the Hider stands. At most `MaxHiddenItems`, at least 1 m apart, within 3 m of the Hider's previous `l.a` position, only while Hiding (up to `HideTimeInSeconds` + `HideBufferTimeInSeconds`). A player whose reported position ever jumped more than 20 m between two `l.a` packets can't drop or pick up. |
+| 2 AddItem | OUT | `{"ItemId": n, "Pos": {"x","y","z"}}`. The client never sends this: the Hider's action button is `l.a` action 8 (`Action2`; 7 `Action1` is also accepted, 6 is `SlideTrick`), and the marble goes where the Hider stands. At most `MaxHiddenItems`, at least 1 m apart, within 3 m of the Hider's previous `l.a` position, only while Hiding (up to `HideTimeInSeconds` + `HideBufferTimeInSeconds`). A player whose reported position ever jumped more than 20 m between two `l.a` packets can't drop or pick up. |
 | 3 RemoveItem | IN/OUT | `{"ItemId": n}`. Accepted from the Finder only while Finding, for a live marble, when their last `l.a` position is within 6 m of it; then echoed to both. |
 
 The Hider holds `ScavengerHuntHiderServerAdded` (`con` {type `pgame`}) from the
@@ -370,6 +372,32 @@ change). The Finder wins by finding every marble (the result follows 1 s after
 the last find); otherwise the Hider wins, and a Hider who hid nothing loses.
 If a player quits or leaves, the other wins. Each decision is logged as
 `[SCAVENGER] game <id> ...` with distances.
+
+#### Fish Bucket (template 1, "Ink or Swim")
+
+2 to 4 players from a `FishBucketGroup` invitation (3 guest slots), started by
+the owner's Start button (or when every slot is filled). The server owns the
+shuffled deck (`CardDecks`, one deck matching the player count), turns and
+scores. The client enters its own AwaitingPositions state on `pgame.start.v2`,
+so the server never sends state 0.
+
+| Type | Dir | `message` |
+|---|---|---|
+| 4 SetGameStartPositions | IN/OUT | The owner's client sends `{"OwnerPosition","PlayerPositions"[players-1],"GamePositions"[>=1]}` (Vector3 `{"x","y","z"}`); the server checks the sender and shape, then relays it rebuilt from the validated numbers with `"IntData":[deck size]`. No valid positions within 10 s ends the game with no results. |
+| 1 SetGameState | OUT | `{"GameStateId": 1 Intro / 2 Game / 3 Finished}`. Intro follows the relay; Game follows `IntroTimeInSeconds`; Finished follows the last card's delay. |
+| 6 PlayerTurnStart | OUT | `{"PlayerId": <long>}`. |
+| 5 ShowTurnOutput | OUT | `{"PlayerId": <long>, "ScoreDelta": n}`, one per accepted draw (positive = fish, negative = squid). The client clamps a bucket at 0 and so does the server. |
+| 7 PlayerLeftGame | OUT | `{"PlayerId": <long>}` when a player quits or disconnects. |
+
+The retail client never sends a draw: Fish and Pass are `l.a` action bytes
+(first guess from the prefabs: Fish = 4 LaunchThrow or 8 Action2, Pass = 7
+Action1, Start = 4; every other non-Move byte is logged as `[FISH] ... action
+byte=N`). A fish card lets the same player draw again or pass (after
+`NextTurnDelayFishInSeconds`); a squid card ends the turn (after
+`NextTurnDelaySquidInSeconds`); an idle turn passes after `TurnTimeInSeconds`
++ 2 s. The game ends when the deck is spent; placements are dense ranks by
+fish (ties share). A quitter is listed last and unpaid; a lone remaining
+player wins at once.
 
 #### Scheduled lobbies (Dance Battle, tube races)
 

@@ -73,8 +73,6 @@ variables.
 - A few daily challenges whose scene objects aren't in the game data
   (some event and zone-less ones), and the ones based on catalog
   submissions, consumable purchases and custom clothing.
-- Party games: Fish Bucket (Dance Battle, Find Four, Scavenger Hunt and the
-  tube races work).
 - Island targets (`target.hit`), such as the jackhammer-breakable rocks.
 
 ## License
