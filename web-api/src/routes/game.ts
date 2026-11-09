@@ -72,17 +72,28 @@ const POPULATION_THRESHOLDS = {
 /**
  * Build content identifier string
  */
-export function buildContentIdentifier() {
-    const { clientVersion, contentVersion, subContentVersion, abTestGroup } = config.content;
+export function buildContentIdentifier(clientVersion = config.content.clientVersion) {
+    const { contentVersion, subContentVersion, abTestGroup } = config.content;
     return `${clientVersion};${contentVersion};${subContentVersion};${abTestGroup}`;
+}
+
+/**
+ * The caller's client version, from the X-CP-Client-Version header every
+ * CP API request carries. It goes into the signed room name, and the game
+ * server keys rooms by that name, so different client versions never share
+ * a room. Anything but 1-4 dot-separated numbers gets the default.
+ */
+export function clientVersionOf(req) {
+    const v = req.headers?.['x-cp-client-version'];
+    return typeof v === 'string' && /^\d{1,6}(\.\d{1,6}){0,3}$/.test(v) ? v : config.content.clientVersion;
 }
 
 /**
  * Build room identifier string
  * Format: world:language:roomName:instanceId:contentIdentifier
  */
-function buildRoomIdentifier(world, language, roomName, instanceId = '') {
-    return `${world}:${language}:${roomName}:${instanceId}:${buildContentIdentifier()}`;
+function buildRoomIdentifier(world, language, roomName, instanceId = '', clientVersion = undefined) {
+    return `${world}:${language}:${roomName}:${instanceId}:${buildContentIdentifier(clientVersion)}`;
 }
 
 /**
@@ -280,10 +291,8 @@ router.get('/game/v1/rooms', (req, res) => {
     const worldFilter = worlds ? worlds.split(',').map(w => w.trim()) : AVAILABLE_WORLDS;
     const roomFilter = rooms ? rooms.split(',').map(r => r.trim()) : AVAILABLE_ROOMS;
     const resultLimit = limit ? parseInt(limit) : 0;
-    
-    // Get active session counts by room
-    const activeRooms = db.getActiveSessionsByRoom();
-    
+    const contentIdentifier = buildContentIdentifier(clientVersionOf(req));
+
     // Build RoomIdentifier list
     const roomIdentifiers = [];
     const languageInt = getLanguageInt(language || 'en');
@@ -302,7 +311,7 @@ router.get('/game/v1/rooms', (req, res) => {
                     name: room,
                     instanceId: ''
                 },
-                contentIdentifier: buildContentIdentifier()
+                contentIdentifier
             });
         }
         
@@ -332,19 +341,20 @@ router.post('/game/v1/worlds/:world/language/:language/rooms/:room/players', (re
     }
     
     const sessionId = generateSessionId();
-    
+    const clientVersion = clientVersionOf(req);
+
     // Get display name from identity
     const playerIdentity = db.getPlayerBySwid(swid);
     const displayName = playerIdentity?.displayName || username;
-    
-    console.log(`[JOIN ROOM] ${displayName} (swid=${swid}) joining ${room} in ${world}`);
-    
+
+    console.log(`[JOIN ROOM] ${displayName} (swid=${swid}) joining ${room} in ${world} (client ${clientVersion})`);
+
     // Save session for SFS2X file-based integration
     saveSessionForUser(username, sessionId, room);
-    
+
     // Register session in database for player lookups
     console.log(`[JOIN ROOM] Registering session for SWID=${swid}, sessionId=${sessionId}, room=${room}`);
-    db.registerPlayerSession(swid, sessionId, room, world);
+    db.registerPlayerSession(swid, sessionId, room, world, '', clientVersion);
     
     // Load player data from database
     const playerProgress = db.getFullPlayerData(username);
@@ -356,7 +366,7 @@ router.post('/game/v1/worlds/:world/language/:language/rooms/:room/players', (re
     }
 
     // Build room identifier
-    const roomIdentifier = buildRoomIdentifier(world, language, room);
+    const roomIdentifier = buildRoomIdentifier(world, language, room, '', clientVersion);
 
     // Build join room response
     const joinRoomData = buildJoinRoomData(
@@ -421,13 +431,14 @@ router.post('/game/v1/igloos/language/:language/players', (req, res) => {
     saveSessionForUser(username, sessionId, iglooZoneName);
     
     // Register session in database
-    db.registerPlayerSession(swid, sessionId, iglooZoneName, 'Igloo', iglooOwnerId);
-    
+    const clientVersion = clientVersionOf(req);
+    db.registerPlayerSession(swid, sessionId, iglooZoneName, 'Igloo', iglooOwnerId, clientVersion);
+
     // Load player data
     const playerProgress = db.getFullPlayerData(username);
 
     // Build room identifier for igloo
-    const roomIdentifier = buildRoomIdentifier('Igloo', language, iglooZoneName, iglooOwnerId);
+    const roomIdentifier = buildRoomIdentifier('Igloo', language, iglooZoneName, iglooOwnerId, clientVersion);
 
     // Determine if this is the player's own igloo
     const isOwnIgloo = (iglooOwnerId === swid);
@@ -536,9 +547,11 @@ router.get('/game/v1/roomPopulation/:world', (req, res) => {
     
     console.log(`[ROOM POPULATION] Querying populations for world=${world}, language=${language}`);
     
-    // Get active session counts
-    const activeRooms = db.getActiveSessionsByRoom();
-    
+    // Only players on the caller's client version share its rooms.
+    const clientVersion = clientVersionOf(req);
+    const activeRooms = db.getActiveSessionsByRoom(clientVersion);
+    const contentIdentifier = buildContentIdentifier(clientVersion);
+
     // Build room population list
     const roomPopulations = AVAILABLE_ROOMS.map(roomName => {
         const count = activeRooms[roomName] || 0;
@@ -552,7 +565,7 @@ router.get('/game/v1/roomPopulation/:world', (req, res) => {
                     name: roomName,
                     instanceId: ''
                 },
-                contentIdentifier: buildContentIdentifier()
+                contentIdentifier
             },
             populationScaled: getPopulationScale(count)
         };
@@ -578,8 +591,8 @@ router.get('/game/v1/world/roomPopulation/:room', (req, res) => {
     
     console.log(`[WORLD POPULATION] Querying population across worlds for room=${room}, language=${language}`);
     
-    // Get population for this room
-    const activeRooms = db.getActiveSessionsByRoom();
+    // Get population for this room, among the caller's client version
+    const activeRooms = db.getActiveSessionsByRoom(clientVersionOf(req));
     const totalCount = activeRooms[room] || 0;
     
     // Distribute across worlds (simplified approach - equal distribution)

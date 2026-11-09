@@ -15,6 +15,7 @@ for t in tools/*-test.ts; do bun "$t" || break; done
 | `mix-friends-test.ts` | Mix friend invites, accept, remove, trust and cancel. Every notification follows the client's strict "latest + 1" sequence rule. |
 | `webapi-fixes-test.ts` | `X-HTTP-Method-Override` routing, the invitations table migration, and online/offline session handling. |
 | `tube-equip-test.ts` | The equipped tube is stored and comes back as `selectedTubeId` on every room join; unknown tube ids are refused. |
+| `room-version-test.ts` | Rooms are split by the X-CP-Client-Version header: signed room names, igloos, room list, populations and player cards carry the caller's version (malformed or missing gives the default), and players of different versions never share a game-server room. |
 | `mix-session-test.ts` | Mix login, the RSA→AES session, encrypted `/state`, and an invite delivered through a poll the way the SDK polls. |
 | `mix-auth-test.ts` | Mix requests act only as the token's user: bogus tokens, forged `UserId` and foreign sessions get the SDK's 401 statuses. |
 | `mix-security-test.ts` | Only the invitee can accept a friendship, with the invitation's trust; a rename can't redirect an invitation; display-name rules; a ban blocks CPI calls made with an existing token. |

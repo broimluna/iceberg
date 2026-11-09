@@ -50,9 +50,15 @@ export class GameClient {
   closed = false;
   ext: { cmd: string; p: SFSObjectData }[] = [];
   updates: { u: number; vars: Record<string, unknown>; at: number }[] = [];
+  /** Sent as X-CP-Client-Version on web API calls when set, as the real client does. */
+  clientVersion?: string;
   constructor(public api: WebApi, public port: number, public swid: string, public name: string, public room = "Town") {}
 
-  auth() { return { Authorization: "Basic " + btoa(`${this.swid}:x`), "Content-Type": "application/json" }; }
+  auth(): Record<string, string> {
+    const h: Record<string, string> = { Authorization: "Basic " + btoa(`${this.swid}:x`), "Content-Type": "application/json" };
+    if (this.clientVersion) h["X-CP-Client-Version"] = this.clientVersion;
+    return h;
+  }
 
   async connect() {
     await createPlayer(this.api.base, this.api.dbPath, this.swid, this.name);

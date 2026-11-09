@@ -46,6 +46,13 @@ on first run.
   localhost).
 - `src/smartfoxNotifier.ts` pushes player-data changes to the game
   server's notify port (9339).
+- Rooms are split by client version. The `X-CP-Client-Version` header
+  (sent with every CP API request) goes into the content identifier of
+  the signed room name, and the game server keys rooms by that name, so
+  clients of different versions never share a room, igloo, lobby or party
+  game. Room lists and populations are per version; a friend on another
+  version shows as unreachable. A missing or malformed header gets
+  `content.clientVersion` from `src/config.ts` (1.13.0).
 
 Response signatures (`SignedResponse<T>`) are placeholders. The client
 never verifies them. Anti-tamper comes from the server checking requests

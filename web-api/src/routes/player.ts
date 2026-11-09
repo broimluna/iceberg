@@ -275,7 +275,9 @@ function buildOtherPlayerData(username, swid, displayName = null) {
                 name: activeSession.room_name,
                 instanceId: activeSession.instance_id || ""
             },
-            contentIdentifier: buildContentIdentifier(),
+            // The player's own version: a viewer on another version sees
+            // "unreachable", since rooms are split by version.
+            contentIdentifier: buildContentIdentifier(activeSession.client_version || undefined),
             room: activeSession.room_name
         };
         console.log(`[PLAYER] Player ${swid} is ONLINE in room ${activeSession.room_name}`);

@@ -9,6 +9,7 @@ import { normalizeName } from "./utils/names.ts";
 import { Database } from "bun:sqlite";
 import path from "path";
 import { parseJson, stringifyJson } from "./lib/bigJson.ts";
+import config from "./config.ts";
 
 // Database file path. ICEBERG_DB_PATH lets tools (tools/mod.ts --db) open
 // another database through this module.
@@ -415,6 +416,8 @@ function initializeDatabase() {
     const sessionCols = db.prepare("SELECT name FROM pragma_table_info('player_sessions')").all().map(c => c.name);
     if (!sessionCols.includes('world')) db.exec("ALTER TABLE player_sessions ADD COLUMN world TEXT");
     if (!sessionCols.includes('instance_id')) db.exec("ALTER TABLE player_sessions ADD COLUMN instance_id TEXT DEFAULT ''");
+    // Client version of the session (rooms are split by it).
+    if (!sessionCols.includes('client_version')) db.exec("ALTER TABLE player_sessions ADD COLUMN client_version TEXT");
     // Staff role for the game server's chat commands (utils/staffRoles.ts).
     const playerCols = db.prepare("SELECT name FROM pragma_table_info('players')").all().map(c => c.name);
     if (!playerCols.includes('role')) db.exec("ALTER TABLE players ADD COLUMN role TEXT DEFAULT 'player'");
@@ -998,7 +1001,7 @@ function getPlayerPassword(swid) {
 // only a backstop for a game server that died without reporting.
 const SESSION_ONLINE_WINDOW = '-12 hours';
 
-function registerPlayerSession(swid, sessionId, roomName, world = null, instanceId = '') {
+function registerPlayerSession(swid, sessionId, roomName, world = null, instanceId = '', clientVersion = null) {
     const player = getPlayerBySwid(swid);
     if (!player) {
         console.log(`[DB] registerPlayerSession: No player found for SWID ${swid}`);
@@ -1007,9 +1010,9 @@ function registerPlayerSession(swid, sessionId, roomName, world = null, instance
     
     console.log(`[DB] registerPlayerSession: Registering session ${sessionId} for ${swid} (${player.username}) in room ${roomName}`);
     db.prepare(`
-        INSERT OR REPLACE INTO player_sessions (session_id, swid, username, room_name, world, instance_id, last_activity)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(sessionId, swid, player.username, roomName, world, instanceId || '');
+        INSERT OR REPLACE INTO player_sessions (session_id, swid, username, room_name, world, instance_id, client_version, last_activity)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(sessionId, swid, player.username, roomName, world, instanceId || '', clientVersion);
     console.log(`[DB] registerPlayerSession: Session registered successfully`);
 }
 
@@ -1137,13 +1140,20 @@ function getRoomPopulationAcrossWorlds(roomName, worldNames) {
  * Get all active sessions count by room
  * @returns {object} Map of room name to player count
  */
-function getActiveSessionsByRoom() {
-    
-    const rows = db.prepare(`
-        SELECT room_name, COUNT(*) as count FROM player_sessions 
-        WHERE last_activity > datetime('now', ?)
-        GROUP BY room_name
-    `).all(SESSION_ONLINE_WINDOW);
+function getActiveSessionsByRoom(clientVersion = null) {
+    // With a client version, only sessions of that version count (rooms are
+    // split by version; sessions from before the split count as the default).
+    const rows = clientVersion === null
+        ? db.prepare(`
+            SELECT room_name, COUNT(*) as count FROM player_sessions
+            WHERE last_activity > datetime('now', ?)
+            GROUP BY room_name
+        `).all(SESSION_ONLINE_WINDOW)
+        : db.prepare(`
+            SELECT room_name, COUNT(*) as count FROM player_sessions
+            WHERE last_activity > datetime('now', ?) AND COALESCE(client_version, ?) = ?
+            GROUP BY room_name
+        `).all(SESSION_ONLINE_WINDOW, config.content.clientVersion, clientVersion);
     
     const result = {};
     rows.forEach(row => {
