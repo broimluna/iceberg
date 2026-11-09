@@ -97,7 +97,8 @@ export function openLobby(roomName: string, templateId: number, ttlSeconds?: num
     creator: { type: "int", value: 0 },
     int_a: { type: "int", value: templateId },
     statetimestamp: { type: "string", value: String(Math.floor(Date.now() / 1000)) },
-    ttl: { type: "double", value: ttl },
+    // An int: the client reads it with IntValue, which throws on a double.
+    ttl: { type: "int", value: Math.max(1, Math.round(ttl)) },
     score: { type: "string", value: rosterJson([]) },
   });
   const lobby: Lobby = { roomName, def, item, members: [], timer: setTimeout(() => finish(lobby), ttl * 1000) };

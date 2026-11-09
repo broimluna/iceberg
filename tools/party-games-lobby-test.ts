@@ -86,8 +86,13 @@ try {
   const add = p1!.mmo.find((m) => m.a === 30 && m.p.q);
   const t = add ? decodeItemTuple((add.p.q!.value as SFSValue[])[0]!) : undefined;
   check(!!t && t.vars.category === 6 && t.vars.int_a === 3 && t.vars.creator === 0 && t.position.join() === "16,0.5,-10"
-    && Math.abs((t.vars.ttl as number) - 1.2) < 0.01 && Math.abs(Number(t.vars.statetimestamp) - Date.now() / 1000) < 3 && t.vars.score === '{"Players":[]}',
+    && t.vars.ttl === 1 && Math.abs(Number(t.vars.statetimestamp) - Date.now() / 1000) < 3 && t.vars.score === '{"Players":[]}',
     `the lobby item reaches the room with template, ttl, start time and an empty roster (${JSON.stringify(t)})`);
+  // The client reads ttl with IntValue, a cast that throws on a double: the
+  // item is never built and no lobby shows. It must be an int, like category.
+  const rawVars = add ? (((add.p.q!.value as SFSValue[])[0]!.value as SFSValue[])[1]!.value as SFSValue[]).map((v) => v.value as SFSValue[]) : [];
+  const typeOf = (name: string) => JSON.stringify(rawVars.find((e) => e[0]!.value === name)?.[1]);
+  check(!!add && typeOf("ttl") === typeOf("category"), `the lobby ttl is sent as an int (ttl ${typeOf("ttl")}, category ${typeOf("category")})`);
   check(far.mmo.length === 0, "a player in another room doesn't see the lobby");
 
   interact(p1!, item.itemId); interact(p2!, item.itemId); interact(p3!, item.itemId); interact(p4!, item.itemId);
