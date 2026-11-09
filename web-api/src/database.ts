@@ -418,6 +418,8 @@ function initializeDatabase() {
     // Staff role for the game server's chat commands (utils/staffRoles.ts).
     const playerCols = db.prepare("SELECT name FROM pragma_table_info('players')").all().map(c => c.name);
     if (!playerCols.includes('role')) db.exec("ALTER TABLE players ADD COLUMN role TEXT DEFAULT 'player'");
+    // Equipped snow tube, handed back as JoinRoomData.selectedTubeId.
+    if (!playerCols.includes('equipped_tube')) db.exec("ALTER TABLE players ADD COLUMN equipped_tube INTEGER DEFAULT 0");
 
     // Referrals table - tracks who referred whom and pending rewards
     db.exec(`
@@ -1320,6 +1322,16 @@ function addSizzleClip(username, sizzleClipId) {
 function addTube(username, tubeId) {
     getOrCreatePlayer(username);
     db.prepare('INSERT OR IGNORE INTO owned_tubes (username, tube_id) VALUES (?, ?)').run(username, tubeId);
+}
+
+function setEquippedTube(username, tubeId) {
+    getOrCreatePlayer(username);
+    db.prepare('UPDATE players SET equipped_tube = ? WHERE username = ?').run(tubeId, username);
+}
+
+function getEquippedTube(username) {
+    const row = db.prepare('SELECT equipped_tube FROM players WHERE username = ?').get(username);
+    return row?.equipped_tube ?? 0;
 }
 
 function addCollectibleCurrency(username, currencyType, amount) {
@@ -2803,6 +2815,8 @@ export {
     addFabric,
     addSizzleClip,
     addTube,
+    setEquippedTube,
+    getEquippedTube,
     addCollectibleCurrency,
     
     // Quests

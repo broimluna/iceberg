@@ -222,7 +222,8 @@ function buildJoinRoomData(swid, username, displayName, sessionId, roomIdentifie
             recurDate: 0,
             expireDate: Date.now() + 1000000000
         },
-        selectedTubeId: extraOptions.selectedTubeId || 0,
+        // The client re-reads its equipped tube from here on every join.
+        selectedTubeId: db.getEquippedTube(username),
         roomOwnerName: extraOptions.roomOwnerName || '',
         roomOwner: extraOptions.roomOwner || false,
         extraLayoutData: extraOptions.extraLayoutData || null
