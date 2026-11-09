@@ -421,6 +421,12 @@ const invitationGuests = new Map<number, RegisteredSession[]>();
 // controls stay locked to it).
 const INVITATION_HANDOFF_MS = 1000;
 
+// Holders whose filled invitation is waiting out INVITATION_HANDOFF_MS. The
+// server has already removed the item, but the holder's client still shows it
+// until the removal lands, so a cancel in that window arrives with nothing held
+// server-side; it must still stop the game.
+const handoffCancelled = new Map<number, boolean>();
+
 function useInvitation(ctx: HandlerContext, type: string, def: ConsumableDef): void {
   const template = templateForTrigger(type);
   if (template === undefined || !canStart(template)) {
@@ -467,7 +473,14 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
   // The invitation goes only once the start is certain.
   setHeldActionCount(holder, 0);
   removeHeldItem(holder);
+  handoffCancelled.set(holder.userId, false);
   setTimeout(() => {
+    const cancelled = handoffCancelled.get(holder.userId);
+    handoffCancelled.delete(holder.userId);
+    if (cancelled) {
+      log(`${holder.userName}'s ${name}: cancelled during the handoff, no game`);
+      return;
+    }
     if (!startPartyGame(template, players)) log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff)`);
   }, INVITATION_HANDOFF_MS);
   return true;
@@ -475,6 +488,7 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
 
 export function forgetInvitation(session: Session): void {
   invitationGuests.delete(session.userId);
+  if (handoffCancelled.has(session.userId)) handoffCancelled.set(session.userId, true);
 }
 
 function handlePlayerInteraction(ctx: HandlerContext, targetSessionId: string): void {
@@ -591,6 +605,7 @@ export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject
     onPartyGamePlayerQuit(session);
   }
   onLobbyPropPutAway(session, next?.name);
+  if (handoffCancelled.has(session.userId)) handoffCancelled.set(session.userId, true);
   const previous = session.equippedConsumable;
   // Replayed to late joiners, so an oversized name isn't kept.
   const name = fitsBytes(next?.name, MAX_NAME_BYTES) ? next?.name : undefined;

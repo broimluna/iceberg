@@ -122,6 +122,15 @@ try {
   await until(() => coins(O.username) === oQuit + 20, 2000);
   check(coins(O.username) === oQuit + 20 && coins(G.username) === gQuit, `stayer paid, quitter not (${oQuit}->${coins(O.username)}, ${gQuit}->${coins(G.username)})`);
 
+  // ---- cancelling the invitation just as the guest joins: no game ----
+  O.setCon("FindFourGroup"); await sleep(100); await O.use("FindFourGroup"); await sleep(150);
+  for (const c of all) c.clear();
+  G.interactWith(O.sid);
+  await sleep(300);
+  O.setCon(null);
+  await sleep(2000 * 0.5 + 1500);
+  check(all.every((c) => c.extOf("pgame.start.v2").length === 0), "owner cancelling during the handoff means no game starts");
+
   // ---- forfeit by disconnect ----
   O.setCon("FindFourGroup"); await sleep(100); await O.use("FindFourGroup"); await sleep(150);
   for (const c of all) c.clear();
