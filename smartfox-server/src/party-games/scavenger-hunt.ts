@@ -30,6 +30,8 @@ const FINDER_PROP = "ScavengerHuntFinderServerAdded";
 const PROP_SETTLE_SECONDS = 1;
 const FINISH_DELAY_SECONDS = 1;
 
+const MAX_SAMPLES = 50;
+
 export class ScavengerHunt extends PartyGameSession {
   // Index in `players` of the Hider; tests replace it.
   static pickHider: () => 0 | 1 = () => (Math.random() < 0.5 ? 0 : 1);
@@ -107,6 +109,10 @@ export class ScavengerHunt extends PartyGameSession {
     hist.push({ p: [position[0], position[1], position[2]], t: now });
     while (hist.length > 1 && now - hist[0]!.t > SPEED_SPAN_MS * 2) hist.shift();
     this.samples.set(player, hist);
+    // Clients send a position at most every 0.2 s; a flood inside the window is
+    // itself implausible, and capping it keeps the work per packet bounded.
+    const flooding = hist.length > MAX_SAMPLES;
+    if (flooding) hist.splice(0, hist.length - MAX_SAMPLES);
     // Same rule as the tube race: spans shorter than SPEED_SPAN_MS count as that
     // long, so bunched packets don't read as speed.
     let along = 0, maxSpeed = 0;
@@ -114,9 +120,10 @@ export class ScavengerHunt extends PartyGameSession {
       const a = hist[i]!.p, b = hist[i + 1]!.p;
       along += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
       maxSpeed = Math.max(maxSpeed, (along * 1000) / Math.max(now - hist[i]!.t, SPEED_SPAN_MS));
+      if (now - hist[i]!.t > SPEED_SPAN_MS) break;
     }
     const jump = before ? Math.hypot(position[0] - before[0], position[1] - before[1], position[2] - before[2]) : 0;
-    if ((jump > MAX_JUMP || maxSpeed > MAX_SPEED) && !this.jumped.has(player)) {
+    if ((flooding || jump > MAX_JUMP || maxSpeed > MAX_SPEED) && !this.jumped.has(player)) {
       this.jumped.add(player);
       this.log(`${player.entry.session.accountName} moved implausibly (${jump.toFixed(1)}m step, ${maxSpeed.toFixed(1)}m/s), disqualified from dropping/picking up`);
     }

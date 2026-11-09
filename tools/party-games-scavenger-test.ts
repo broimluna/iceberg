@@ -179,6 +179,19 @@ try {
     await waitFor(() => results(hider).length === 1);
   }
 
+  // ---- a packet flood is itself disqualifying ----
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    drop(hider, [0, 0, 0]);
+    await waitFor(() => states(finder).includes(2));
+    for (let i = 0; i < 80; i++) onPartyGamePlayerMoved(finder.session, [0, 0, 0]);
+    remove(finder, 1);
+    check(items(finder, 3).length === 0, "a Finder flooding position packets can't pick up");
+    onPartyGamePlayerLeft(hider.session);
+  }
+
   // ---- time runs out with a marble left: the Hider wins ----
   {
     const { hider, finder } = await hiding();
