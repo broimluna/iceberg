@@ -31,7 +31,7 @@ const items = (p: FakePlayer, type: number) => p.messages().filter((m) => m.type
 const holds = (p: FakePlayer, prop: string) => p.vars.some((v) => v.vars.con === prop);
 const results = (p: FakePlayer) => p.extOf("pgame.end").map((e) => e.results!.value as string);
 const resultsOf = (pairs: [FakePlayer, number][]) => `[${pairs.map(([p, pl]) => `{"PlayerSessionId":${p.sid},"Placement":${pl}}`).join(",")}]`;
-const drop = (p: FakePlayer, pos: [number, number, number], action = 6) => { onPartyGameAction(p.session, action, pos); onPartyGamePlayerMoved(p.session, pos); };
+const drop = (p: FakePlayer, pos: [number, number, number], action = 7) => { onPartyGameAction(p.session, action, pos); onPartyGamePlayerMoved(p.session, pos); };
 const remove = (p: FakePlayer, itemId: unknown) => {
   const id = sessionOf(p.session)!.id;
   const w = new SFSObjectWriter().putLong("id", BigInt(id)).putLong("type", 3n).putUtfString("message", JSON.stringify({ ItemId: itemId }));
@@ -63,10 +63,11 @@ try {
     check(states(hider).join() === "1" && states(finder).join() === "1", "Hiding state to both after the intro");
 
     // ---- drops ----
-    onPartyGameAction(finder.session, 6, [0, 0, 0]);
+    onPartyGameAction(finder.session, 7, [0, 0, 0]);
     check(items(hider, 2).length === 0, "the Finder's Action1 drops nothing");
     drop(hider, [0, 0, 0], 0);
-    check(items(hider, 2).length === 0, "a non-Action1 action drops nothing");
+    drop(hider, [0, 0, 0], 6);
+    check(items(hider, 2).length === 0, "a non-Action1 action (Move, SlideTrick) drops nothing");
     drop(hider, [1, 0, 2]);
     check(JSON.stringify(items(hider, 2)) === '[{"ItemId":1,"Pos":{"x":1,"y":0,"z":2}}]' && JSON.stringify(items(finder, 2)) === JSON.stringify(items(hider, 2)), `first drop announced to both: ${JSON.stringify(items(finder, 2))}`);
     drop(hider, [1.5, 0, 2]);
@@ -81,15 +82,18 @@ try {
 
     // ---- finding ----
     check(await waitFor(() => holds(finder, FINDER_PROP)), "the Finder gets the finder prop before Finding");
+    onPartyGamePlayerMoved(hider.session, [3, 0, 2]);
+    drop(hider, [4, 0, 2]);
+    check(items(hider, 2).length === 3 && !states(finder).includes(2), "a drop in the gap before Finding is ignored");
     check(!states(finder).includes(2), "the prop arrives before the Finding state");
     check(await waitFor(() => states(finder).includes(2)), "Finding state after the hide time");
     drop(hider, [7, 0, 2]);
     check(items(hider, 2).length === 3, "no drops once Finding");
     remove(finder, 1);
     check(items(finder, 3).length === 0, "pickup with no known Finder position is ignored");
-    onPartyGamePlayerMoved(finder.session, [40, 0, 2]);
+    onPartyGamePlayerMoved(finder.session, [8.5, 0, 2]);
     remove(finder, 1);
-    check(items(finder, 3).length === 0, "pickup from 39 m is ignored");
+    check(items(finder, 3).length === 0, "pickup from 7.5 m is ignored");
     onPartyGamePlayerMoved(finder.session, [2, 0, 2]);
     remove(hider, 1);
     check(items(finder, 3).length === 0, "the Hider can't pick up");
@@ -106,6 +110,48 @@ try {
     check(grants.find((g) => g.username === finder.session.accountName)?.reward.coins === 20 && grants.find((g) => g.username === hider.session.accountName)?.reward.coins === 10, "win 20 coins, lose 10");
     check(results(finder).length === 1 && sessionOf(hider.session) === undefined, "ended once, players free");
     check(!hider.session.heldObject && !finder.session.heldObject, "props cleared");
+  }
+
+  // ---- positions: seeded from the last known one; a jump disqualifies ----
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    hider.session.lastPosition = [100, 0, 0];
+    finder.session.lastPosition = [5, 0, 5];
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    onPartyGameAction(hider.session, 7, [0, 0, 0]);
+    check(items(hider, 2).length === 0, "a first drop far from the last known position is ignored");
+    onPartyGamePlayerMoved(hider.session, [0, 0, 0]);
+    onPartyGamePlayerMoved(hider.session, [0, 0, 30]);
+    onPartyGameAction(hider.session, 7, [0, 0, 30]);
+    check(items(hider, 2).length === 0, "a Hider whose position jumped 30 m can't drop");
+    await waitFor(() => states(finder).includes(2));
+    remove(finder, 1);
+    check(items(finder, 3).length === 0, "nothing to pick up (no marbles)");
+  }
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    finder.session.lastPosition = [5, 0, 5];
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    drop(hider, [5, 0, 6]);
+    await waitFor(() => states(finder).includes(2));
+    remove(finder, 1);
+    check(items(finder, 3).length === 1, "a Finder who hasn't moved is placed by their last known position");
+    await waitFor(() => results(hider).length === 1);
+  }
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    drop(hider, [0, 0, 0]);
+    await waitFor(() => states(finder).includes(2));
+    onPartyGamePlayerMoved(finder.session, [0, 0, 0]);
+    onPartyGamePlayerMoved(finder.session, [0, 0, 40]);
+    onPartyGamePlayerMoved(finder.session, [0, 0, 0]);
+    remove(finder, 1);
+    check(items(finder, 3).length === 0, "a Finder whose position jumped 40 m can't pick up");
+    onPartyGamePlayerLeft(hider.session);
   }
 
   // ---- time runs out with a marble left: the Hider wins ----

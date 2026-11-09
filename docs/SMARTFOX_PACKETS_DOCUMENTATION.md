@@ -360,7 +360,7 @@ at random and sends each player only their own `SetRole`.
 |---|---|---|
 | 0 SetRole | OUT | `{"RoleId": 0 Hider / 1 Finder}` (ints), to that player only. |
 | 1 SetGameState | OUT | `{"GameStateId": 1 Hiding / 2 Finding}` (0 AwaitingRoles is the client's own start state). Hiding follows `IntroTimeInSeconds`; Finding follows `HideTimeInSeconds` + `HideBufferTimeInSeconds`; the game ends `FindTimeInSeconds` + `FindBufferTimeInSeconds` later. |
-| 2 AddItem | OUT | `{"ItemId": n, "Pos": {"x","y","z"}}`. The client never sends this: the Hider's action button is `l.a` action 6 (`Action1`), and the marble goes where the Hider stands. At most `MaxHiddenItems`, at least 1 m apart, within 3 m of the Hider's previous `l.a` position, only while Hiding. |
+| 2 AddItem | OUT | `{"ItemId": n, "Pos": {"x","y","z"}}`. The client never sends this: the Hider's action button is `l.a` action 7 (`Action1`; 6 is `SlideTrick`), and the marble goes where the Hider stands. At most `MaxHiddenItems`, at least 1 m apart, within 3 m of the Hider's previous `l.a` position, only while Hiding (up to `HideTimeInSeconds` + `HideBufferTimeInSeconds`). A player whose reported position ever jumped more than 20 m between two `l.a` packets can't drop or pick up. |
 | 3 RemoveItem | IN/OUT | `{"ItemId": n}`. Accepted from the Finder only while Finding, for a live marble, when their last `l.a` position is within 6 m of it; then echoed to both. |
 
 The Hider holds `ScavengerHuntHiderServerAdded` (`con` {type `pgame`}) from the

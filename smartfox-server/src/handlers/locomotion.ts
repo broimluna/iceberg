@@ -37,8 +37,9 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   // Used by validate.state and zone.player_location.
   const previous = ctx.session.lastPosition;
   ctx.session.lastPosition = position;
-  // Tube races check finishes and score modifiers against the racer's path.
+  // Party games react to action bytes (the Hider's drop), before the move.
   onPartyGameAction(ctx.session, action, position as [number, number, number]);
+  // Tube races check finishes and score modifiers against the racer's path.
   onPartyGamePlayerMoved(ctx.session, position as [number, number, number]);
   const locomotionResponseP = new SFSObjectWriter()
     .putFloatArray("p", position)

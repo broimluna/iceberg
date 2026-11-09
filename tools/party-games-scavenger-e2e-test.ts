@@ -1,7 +1,7 @@
 // Scavenger Hunt end to end: a real web API and game server, two fake
 // clients. The owner holds out the ScavengerHuntGroup invitation, the guest
 // accepts, roles are random so each client works out its own, the Hider drops
-// marbles with an l.a Action1, the Finder picks them up with RemoveItem, and
+// marbles with an l.a Action1 (7), the Finder picks them up with RemoveItem, and
 // the web API's coins change by the placement rewards.
 import { Database } from "bun:sqlite";
 import { startWebApi, makeChecker } from "./lib/harness.ts";
@@ -63,13 +63,13 @@ try {
 
   // ---- hiding ----
   check(await until(() => O.msgs(1).some((m) => m.GameStateId === 1) && G.msgs(1).some((m) => m.GameStateId === 1)), "Hiding state to both");
-  F.act(6, [0, 0, 0]);
+  F.act(7, [10, 0, 12]);
   H.act(0, [10, 0, 10]);
-  H.act(6, [10, 0, 10]);
+  H.act(7, [10, 0, 10]);
   check(await until(() => O.msgs(2).length === 1 && G.msgs(2).length === 1), "the Hider's Action1 announces a marble to both");
   const add = O.extOf("pgame.message").find((p) => p.type!.value === 2)!;
   check(add.message!.value === '{"ItemId":1,"Pos":{"x":10,"y":0,"z":10}}', `AddItem wire: ${add.message!.value}`);
-  H.act(0, [12, 0, 10]); H.act(6, [12, 0, 10]);
+  H.act(0, [12, 0, 10]); H.act(7, [12, 0, 10]);
   await until(() => O.msgs(2).length === 2);
   check(O.msgs(2).length === 2 && F.msgs(2).length === 2, "a second marble");
   // The Finder can't hide, and can't pick up before Finding.
@@ -80,7 +80,7 @@ try {
   // ---- finding ----
   check(await until(() => F.updates.some((u) => u.u === F.myId && u.vars.con === "pgame:ScavengerHuntFinderServerAdded")), "the Finder gets the finder prop");
   check(await until(() => O.msgs(1).some((m) => m.GameStateId === 2)), "Finding state");
-  F.act(0, [60, 0, 60]);
+  F.act(0, [18, 0, 10]);
   F.pgame(id, 3, '{"ItemId":1}');
   await sleep(100);
   check(O.msgs(3).length === 0, "a far Finder's pickup is refused");

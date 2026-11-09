@@ -8,7 +8,7 @@
 //   2 AddItem      server  {"ItemId":n,"Pos":{x,y,z}}
 //   3 RemoveItem   client {"ItemId":n}, echoed to both when accepted
 // The client never sends AddItem: the Hider's action button is
-// LocomotionAction.Action1 (l.a action byte 6), and the marble goes where
+// LocomotionAction.Action1 (l.a action byte 7), and the marble goes where
 // the Hider stands. The Hider's prop (marble bag, then clock) is held from
 // the start; the Finder's (metal detector) is set just before Finding, a
 // moment ahead of the state change because the client dispatches user
@@ -16,13 +16,15 @@
 import type { RegisteredSession } from "../session-registry.ts";
 import { host, PartyGameSession, type PartyGamePlayer, type PartyGameSlot } from "./session.ts";
 import type { PartyGameDef } from "./definitions.ts";
-import type { Vec3 } from "./tube-race-rules.ts";
+import { MAX_JUMP, type Vec3 } from "./tube-race-rules.ts";
 import { decideWinner, parseItemId, validateDrop, validatePickup } from "./scavenger-hunt-rules.ts";
 
 const SET_ROLE = 0, SET_GAME_STATE = 1, ADD_ITEM = 2, REMOVE_ITEM = 3;
 const ROLE_HIDER = 0, ROLE_FINDER = 1;
 const STATE_HIDING = 1, STATE_FINDING = 2;
-const ACTION1 = 6;
+// Between Hiding and Finding (the Finder's prop settling): the client sees no state change.
+const STATE_SETTLING = 3;
+const ACTION1 = 7;
 const HIDER_PROP = "ScavengerHuntHiderServerAdded";
 const FINDER_PROP = "ScavengerHuntFinderServerAdded";
 const PROP_SETTLE_SECONDS = 1;
@@ -41,6 +43,10 @@ export class ScavengerHunt extends PartyGameSession {
   private hidden = 0;
   private found = 0;
   private readonly lastPos = new Map<PartyGamePlayer, Vec3>();
+  // Players whose reported position jumped further than any legitimate move
+  // (a client placing itself at a marble, or out of reach of one): they
+  // can't drop or pick up.
+  private readonly jumped = new Set<PartyGamePlayer>();
   // Set once the Finder has found every marble (during the finish delay).
   private decided: Map<RegisteredSession, number> | undefined;
 
@@ -66,6 +72,10 @@ export class ScavengerHunt extends PartyGameSession {
     const h = ScavengerHunt.pickHider();
     this.hider = this.players[h]!;
     this.finder = this.players[1 - h]!;
+    for (const p of this.players) {
+      const at = p.entry.session.lastPosition;
+      if (at?.length === 3) this.lastPos.set(p, [at[0]!, at[1]!, at[2]!]);
+    }
     this.sendMessageTo(this.hider, SET_ROLE, { RoleId: ROLE_HIDER });
     this.sendMessageTo(this.finder, SET_ROLE, { RoleId: ROLE_FINDER });
     host.setProp(this.hider.entry, HIDER_PROP);
@@ -78,6 +88,7 @@ export class ScavengerHunt extends PartyGameSession {
   }
 
   private startFinding(): void {
+    this.state = STATE_SETTLING;
     host.setProp(this.finder.entry, FINDER_PROP);
     this.timer(PROP_SETTLE_SECONDS, () => {
       this.state = STATE_FINDING;
@@ -88,6 +99,11 @@ export class ScavengerHunt extends PartyGameSession {
   }
 
   onPlayerMoved(player: PartyGamePlayer, position: Vec3): void {
+    const before = this.lastPos.get(player);
+    if (before && Math.hypot(position[0] - before[0], position[1] - before[1], position[2] - before[2]) > MAX_JUMP && !this.jumped.has(player)) {
+      this.jumped.add(player);
+      this.log(`${player.entry.session.accountName} jumped more than ${MAX_JUMP}m, disqualified from dropping/picking up`);
+    }
     this.lastPos.set(player, [position[0], position[1], position[2]]);
   }
 
@@ -95,6 +111,10 @@ export class ScavengerHunt extends PartyGameSession {
   // previous position.
   override onAction(player: PartyGamePlayer, action: number, position: Vec3): void {
     if (player !== this.hider || action !== ACTION1 || this.state !== STATE_HIDING) return;
+    if (this.jumped.has(player)) {
+      this.log("drop refused: jumped");
+      return;
+    }
     const max = this.seconds("MaxHiddenItems", 3);
     const verdict = validateDrop(position, this.lastPos.get(player), [...this.marbles.values()], max);
     if (verdict !== "ok") {
@@ -109,6 +129,7 @@ export class ScavengerHunt extends PartyGameSession {
 
   onMessage(player: PartyGamePlayer, type: number, message: unknown): void {
     if (type !== REMOVE_ITEM || player !== this.finder || this.state !== STATE_FINDING || this.decided) return;
+    if (this.jumped.has(player)) return;
     const id = parseItemId(message);
     const at = id === undefined ? undefined : this.marbles.get(id);
     if (id === undefined || !at) return;
@@ -150,7 +171,8 @@ export class ScavengerHunt extends PartyGameSession {
     this.endWith(placements, new Set([player.entry]));
   }
 
-  // The results list only players still here.
+  // The results list only players still here. (After the last find the
+  // decided result stands even if the Finder is the one leaving: they had won.)
   onPlayerLeft(player: PartyGamePlayer): void {
     if (this.decided) {
       this.endWith(new Map([...this.decided].filter(([entry]) => entry !== player.entry)));
