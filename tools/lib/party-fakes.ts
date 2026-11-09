@@ -10,7 +10,7 @@ export interface FakePlayer {
   session: Session;
   sid: string;
   ext: { cmd: string; p: SFSObjectData }[];
-  vars: { u: number; vars: Record<string, unknown> }[];
+  vars: { u: number; vars: Record<string, unknown>; types: Record<string, number> }[];
   // MMO item packets: proximity updates (a=30) and item variable changes (a=1007).
   mmo: { a: number; p: SFSObjectData }[];
   clear(): void;
@@ -20,6 +20,16 @@ export interface FakePlayer {
 }
 
 let nextSid = 1059482726353499000n;
+
+// Each variable's VariableType id as sent (e.g. SFS2X INT 2).
+export function decodeVarTypes(vl: SFSValue[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const v of vl) {
+    const e = v.value as SFSValue[];
+    out[e[0]!.value as string] = e[1]!.value as number;
+  }
+  return out;
+}
 
 export function decodeVars(vl: SFSValue[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -57,7 +67,7 @@ export function makePlayer(name: string, room: string): FakePlayer {
     const p = (env.p?.type === SFSDataType.SFS_OBJECT ? env.p.value : {}) as SFSObjectData;
     if (c === 1 && a === 13) fake.ext.push({ cmd: p.c?.value as string, p: (p.p?.value ?? {}) as SFSObjectData });
     else if (c === 0 && (a === 30 || a === 1007)) fake.mmo.push({ a, p });
-    else if (c === 0 && a === 12) fake.vars.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]) });
+    else if (c === 0 && a === 12) fake.vars.push({ u: p.u!.value as number, vars: decodeVars(p.vl!.value as SFSValue[]), types: decodeVarTypes(p.vl!.value as SFSValue[]) });
   };
   fake.entry = { session, peer: name, send, close() {} };
   register(fake.entry);

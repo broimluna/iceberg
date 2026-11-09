@@ -222,7 +222,7 @@ export function onPartyGamePlayerLeft(s: Session): void {
 
 // "loc": PlayerStateService's Domain.LocomotionState byte (2 = GenericState1,
 // the locked party-game pose).
-function setPartyGameLocomotion(entry: RegisteredSession, state: number): void {
+export function setPartyGameLocomotion(entry: RegisteredSession, state: number): void {
   const s = entry.session;
   s.locomotionState = state;
   const v = new SFSArrayWriter().putUtfString("loc").putVariableType("int").putInt(state).putBool(false);

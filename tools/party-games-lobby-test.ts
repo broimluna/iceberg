@@ -13,8 +13,9 @@ const quiet = console.log;
 console.log = (...a: unknown[]) => { if (!(typeof a[0] === "string" && a[0].startsWith("["))) quiet(...a); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const { nextLobbyWindow, assignSlot, openLobby, handleLobbyInteraction, onLobbyPlayerLeft, releaseRoomLobbiesIfEmpty, onThrowAction } = await import("../smartfox-server/src/party-games/lobby.ts");
-const { registerGameType, sessionOf, endSession } = await import("../smartfox-server/src/party-games/manager.ts");
+const { nextLobbyWindow, assignSlot, openLobby, handleLobbyInteraction, onLobbyPlayerLeft, onLobbyPropPutAway, releaseRoomLobbiesIfEmpty, onThrowAction, zoneOf } = await import("../smartfox-server/src/party-games/lobby.ts");
+const { registerGameType, sessionOf, endSession, startPartyGame } = await import("../smartfox-server/src/party-games/manager.ts");
+const { getPartyGame, scheduledGames } = await import("../smartfox-server/src/party-games/definitions.ts");
 const { PartyGameSession } = await import("../smartfox-server/src/party-games/session.ts");
 const { roomItemsIn } = await import("../smartfox-server/src/party-games/room-items.ts");
 const { handleClientConChanged } = await import("../smartfox-server/src/handlers/consumables.ts");
@@ -100,6 +101,7 @@ try {
   const r4 = rosterOf(p1!);
   check(r4.map((p) => `${p.TeamId}/${p.RoleId}`).join() === "0/0,1/0,0/1,1/1" && r4[0]!.UserSessionId === p1!.sid as any, `four joiners are split 2/2 in order (${JSON.stringify(r4)})`);
   check([p1, p2, p3, p4].every((p) => heldOf(p!) === "pgame:DanceBattleLobbyServerAdded"), "each joiner holds the lobby prop");
+  check([p1, p2, p3, p4].every((p) => !p!.vars.some((x) => "loc" in x.vars)), "Dance Battle (LobbyLocomotionState 0) sends no loc on join");
   const n = p1!.mmo.length; interact(p1!, item.itemId);
   check(p1!.mmo.length === n, "joining twice changes nothing");
   handleLobbyInteraction(ctxOf(p5!), 3, JSON.stringify({ type: 1, id: String(item.itemId) }));
@@ -191,6 +193,61 @@ try {
   check(roomItemsIn(ROOM).length === 0, "an emptied room's lobby is removed");
   await sleep(1500);
   check(roomItemsIn(ROOM).length === 0, "and its timer doesn't bring anything back");
+
+  // ---- two lobbies in one room: the red (4) and blue (5) tube races ----
+  {
+    const MB = "Alpine:en_US:MtBlizzard::1.15.1;offline;2026-11-08;NONE";
+    const SUMMIT = "Alpine:en_US:MtBlizzardSummit::1.15.1;offline;2026-11-08;NONE";
+    registerGameType(4, (id, def, players, slots) => new Stub(id, def, players, slots));
+    registerGameType(5, (id, def, players, slots) => new Stub(id, def, players, slots));
+    const [r1, r2, r3] = ["r1", "r2", "r3"].map((n) => makePlayer(n, MB)) as FakePlayer[];
+    check(openLobby(MB, 4) && openLobby(MB, 5), "red and blue lobbies open together in one room");
+    const items = roomItemsIn(MB);
+    const loc = (t: number) => { const l = getPartyGame(t)!.lobbyData.LobbyLocation as { x: number; y: number; z: number }; return [l.x, l.y, l.z].join(); };
+    const redItem = items.find((i) => i.vars.get("int_a")?.value === 4)!;
+    const blueItem = items.find((i) => i.vars.get("int_a")?.value === 5)!;
+    check(items.length === 2 && !!redItem && !!blueItem && redItem.position.join() === loc(4) && blueItem.position.join() === loc(5),
+      "each lobby item sits at its template's lobby location");
+    const rosterOfItem = (p: FakePlayer, itemId: number) => {
+      const ups = p.mmo.filter((m) => m.a === 1007 && m.p.v && m.p.i?.value === itemId);
+      const v = ups.length ? decodeItemVars(ups.at(-1)!.p.v!.value as SFSValue[]) : {};
+      return typeof v.score === "string" ? (JSON.parse((v.score as string).replace(/"UserSessionId":(\d+)/g, '"UserSessionId":"$1"')).Players as { UserSessionId: string }[]) : [];
+    };
+    const locOf = (p: FakePlayer) => p.vars.filter((x) => x.u === p.session.userId && "loc" in x.vars).at(-1);
+    interact(r1!, blueItem.itemId);
+    check(rosterOfItem(r1!, blueItem.itemId).some((r) => r.UserSessionId === r1!.sid) && rosterOfItem(r1!, redItem.itemId).length === 0,
+      "an interact joins the lobby of the item it names");
+    const INT = 2; // SFS2X VariableType INT
+    check(locOf(r1!)?.vars.loc === 1 && locOf(r1!)?.types.loc === INT, `a tube lobby joiner gets loc Slide (1) as an int (${JSON.stringify(locOf(r1!))})`);
+    const before = r1!.vars.length;
+    interact(r1!, redItem.itemId);
+    check(rosterOfItem(r1!, redItem.itemId).length === 0 && r1!.vars.length === before, "a player in one lobby can't join the other");
+    interact(r2!, blueItem.itemId + 1000);
+    check(rosterOfItem(r2!, blueItem.itemId).length === 1 && rosterOfItem(r2!, redItem.itemId).length === 0, "an unknown item id joins nothing");
+    interact(r2!, redItem.itemId);
+    r2!.session.heldObject = "TubeRaceLobbyServerAdded";
+    r2!.clear();
+    onLobbyPropPutAway(r2!.session, undefined);
+    check(rosterOfItem(r1!, redItem.itemId).length === 0 && rosterOfItem(r1!, blueItem.itemId).length === 1, "putting the prop away leaves only that lobby");
+    check(locOf(r2!)?.vars.loc === 0, `leaving a tube lobby resets loc to 0 (${JSON.stringify(locOf(r2!))})`);
+
+    // A running red race blocks the next red lobby only.
+    const MB2 = "Alpine:en_US:MtBlizzard::1.15.1;offline;2026-11-08;OTHER";
+    const r4 = makePlayer("r4", MB2);
+    const race = startPartyGame(4, [r4.entry]);
+    check(!!race && !openLobby(MB2, 4) && openLobby(MB2, 5), "a running red race refuses a red lobby but not a blue one");
+    endSession(race!, new Map());
+    unregister(r4.session);
+    releaseRoomLobbiesIfEmpty(MB2);
+
+    check(zoneOf(MB) === "MtBlizzard" && zoneOf(SUMMIT) === "MtBlizzardSummit" && zoneOf("nonsense") === "", "zoneOf is the room name's third field");
+    check(scheduledGames().filter((g) => g.launcher!.scheduledZone === zoneOf(SUMMIT)).length === 0
+      && scheduledGames().filter((g) => g.launcher!.scheduledZone === zoneOf(MB)).length === 2, "MtBlizzard schedules the two races; MtBlizzardSummit nothing");
+
+    for (const p of [r1, r2, r3]) unregister(p!.session);
+    releaseRoomLobbiesIfEmpty(MB);
+    check(roomItemsIn(MB).length === 0, "an emptied room drops all its lobbies");
+  }
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);
 }
