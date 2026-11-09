@@ -51,7 +51,9 @@ check(throwGuard(10_000, p, v, p, 9_700) === "rate", "a throw 300 ms after a cou
 check(throwGuard(10_000, p, [0, 0, 25], p, undefined) === "speed", "|v| 25 is too fast");
 check(throwGuard(10_000, p, v, [p[0] + 4, p[1], p[2]], undefined) === "drift", "4 m from the previous position is a drift");
 check(throwGuard(10_000, p, v, p, 9_000) === undefined, "a normal throw passes");
-check(throwGuard(10_000, p, v, undefined, undefined) === undefined, "no previous position skips the drift check");
+check(throwGuard(10_000, p, v, undefined, undefined) === "nopos", "no previous position fails closed");
+check(throwGuard(10_000, [NaN, 0, 0], v, p, undefined) === "invalid" && throwGuard(10_000, p, [0, Infinity, 0], p, undefined) === "invalid", "non-finite p or v is invalid");
+check(throwGuard(10_000, p, v, p, 9_990, 5) === undefined && throwGuard(10_000, p, v, p, 9_997, 5) === "rate", "the rate gap can be scaled");
 
 // ---- trajectory ----
 check(len(v) < 20, `the aimed throw is a real throw speed (${len(v).toFixed(2)})`);

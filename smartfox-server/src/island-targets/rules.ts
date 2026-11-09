@@ -48,11 +48,18 @@ export function nextGameStartMs(nowMs: number, everyMinutes: number): number {
 }
 
 // Why a throw can't count, or undefined. previousPos is the player's last
-// position before this packet; lastCountedThrowMs their last counted throw.
-export function throwGuard(nowMs: number, p: Vec3, v: Vec3, previousPos: readonly number[] | undefined, lastCountedThrowMs: number | undefined): string | undefined {
-  if (lastCountedThrowMs !== undefined && nowMs - lastCountedThrowMs < MIN_THROW_GAP_MS) return "rate";
-  if (Math.hypot(...v) > MAX_THROW_SPEED) return "speed";
-  if (previousPos && Math.hypot(p[0] - previousPos[0]!, p[1] - previousPos[1]!, p[2] - previousPos[2]!) > MAX_THROW_DRIFT) return "drift";
+// position before this packet (none yet fails closed: a first packet could
+// otherwise throw from anywhere); lastCountedThrowMs their last counted
+// throw; minGapMs the spam gap (scaled in tests).
+export function throwGuard(
+  nowMs: number, p: readonly number[], v: readonly number[], previousPos: readonly number[] | undefined,
+  lastCountedThrowMs: number | undefined, minGapMs = MIN_THROW_GAP_MS,
+): string | undefined {
+  if (p.length !== 3 || v.length !== 3 || ![...p, ...v].every(Number.isFinite)) return "invalid";
+  if (lastCountedThrowMs !== undefined && nowMs - lastCountedThrowMs < minGapMs) return "rate";
+  if (Math.hypot(v[0]!, v[1]!, v[2]!) > MAX_THROW_SPEED) return "speed";
+  if (!previousPos || previousPos.length !== 3 || !previousPos.every(Number.isFinite)) return "nopos";
+  if (Math.hypot(p[0]! - previousPos[0]!, p[1]! - previousPos[1]!, p[2]! - previousPos[2]!) > MAX_THROW_DRIFT) return "drift";
   return undefined;
 }
 
