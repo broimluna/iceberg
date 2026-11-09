@@ -76,6 +76,18 @@ try {
   check(JSON.stringify(await online()) === "[]", "offline after session-ended");
   const bad = await fetch(`${BASE}/api/internal/session-ended`, { method: "POST", headers: api.internalHeaders(), body: "{}" });
   check(bad.status === 400, "session-ended without sessionId -> 400");
+
+  // ---- POST /player/v1/id (friend list lookups): a JSON array of swids ----
+  const byIds = (body: string) => fetch(`${BASE}/player/v1/id`, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body });
+  const ok = await byIds(JSON.stringify(["{TESTSWID-1}", "{NOPE}"]));
+  const okBody = (await ok.json()) as any[];
+  check(ok.ok && okBody.length === 2, `two swids -> two players (${ok.status}, ${okBody.length})`);
+  const notArray = await byIds("{}");
+  check(notArray.status === 400, `a non-array body -> 400, not a crash (${notArray.status})`);
+  const tooMany = await byIds(JSON.stringify(Array.from({ length: 501 }, (_, i) => `{X-${i}}`)));
+  check(tooMany.status === 400, `over 500 swids -> 400 (${tooMany.status})`);
+  const mixed = await byIds(JSON.stringify(["{TESTSWID-1}", 5, null]));
+  check(mixed.ok && ((await mixed.json()) as any[]).length === 1, "non-string entries are skipped");
 } finally {
   server.kill();
 }

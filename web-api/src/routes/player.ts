@@ -29,6 +29,7 @@ import config from "../config.ts";
 import { signedResponse, QuestStatus } from "../utils/response.ts";
 import * as smartfox from "../smartfoxNotifier.ts";
 import { buildContentIdentifier } from "./game.ts";
+import { logSafe } from "../utils/logSafe.ts";
 
 // =============================================================================
 // Helper Functions
@@ -659,10 +660,18 @@ router.get('/player/v1/id/:swid', (req, res) => {
  * Request body: string[] (array of SWIDs)
  * Response: OtherPlayerData[]
  */
+// Each swid is a few lookups; the client asks for friend lists and the like.
+const MAX_SWIDS_PER_LOOKUP = 500;
+
 router.post('/player/v1/id', (req, res) => {
-    const swids = req.body || [];
+    const body = req.body;
+    if (!Array.isArray(body) || body.length > MAX_SWIDS_PER_LOOKUP) {
+        console.log(`[PLAYER] Get players by SWIDs: refused a ${Array.isArray(body) ? `${body.length}-entry list` : `non-list body (${logSafe(JSON.stringify(body ?? null), 100)}, content-type=${logSafe(String(req.headers['content-type'] ?? '(none)'))}, length=${logSafe(String(req.headers['content-length'] ?? '?'))})`}`);
+        return res.status(400).json({ error: `Expected a list of at most ${MAX_SWIDS_PER_LOOKUP} swids` });
+    }
+    const swids = body.filter((s) => typeof s === 'string');
     console.log(`[PLAYER] Get players by SWIDs: ${swids.length} requested`);
-    
+
     const players = swids.map(swid => {
         const playerInfo = db.getPlayerBySwid(swid);
         if (playerInfo) {
