@@ -66,6 +66,39 @@ try {
   await sleep(2000);
   check(noGame(), "cancelling during the handoff means no game");
 
+  // ---- a guest who leaves during the 1 s handoff ----
+  {
+    for (const c of all) c.clear();
+    await hold();
+    const Y = new Client("{FB-Y}", "guesty"), Z = new Client("{FB-Z}", "guestz");
+    await Y.connect(); await Z.connect(); await sleep(150);
+    Y.interactWith(O.sid); await sleep(300);
+    Z.interactWith(O.sid); await sleep(300);
+    O.action(START);
+    await sleep(300);
+    Y.sock.destroy();
+    check(await until(() => O.started().length > 0, 4000), "a guest leaving in the handoff: the game starts with who is left");
+    check(O.started()[0]?.players?.value === `{"Players":[{"TeamId":0,"UserSessionId":${O.sid},"RoleId":0},{"TeamId":0,"UserSessionId":${Z.sid},"RoleId":0}]}`, `without the departed guest: ${O.started()[0]?.players?.value}`);
+    Z.setCon(null);
+    await until(() => O.extOf("pgame.end").length === 1);
+    await sleep(300);
+
+    // The only guest leaves: nothing to start, so the owner gets the invitation back.
+    for (const c of all) c.clear();
+    await hold();
+    const W = new Client("{FB-W}", "guestw");
+    await W.connect(); await sleep(150);
+    W.interactWith(O.sid); await sleep(300);
+    O.action(START);
+    await sleep(300);
+    W.sock.destroy();
+    await sleep(1800);
+    check(noGame(), "the only guest left in the handoff: no game");
+    const last = O.varsOf(O.myId).filter((v) => v.con !== undefined).at(-1);
+    check(last?.con === "consum:FishBucketGroup" && O.varsOf(O.myId).at(-1)?.con_prop === '{"actionCount":3}', `the invitation is back with 3 slots: ${JSON.stringify(O.varsOf(O.myId).slice(-3))}`);
+    O.setCon(null); await sleep(200);
+  }
+
   // ---- a guest who left before Start is dropped ----
   await hold();
   A.interactWith(O.sid); await sleep(300);

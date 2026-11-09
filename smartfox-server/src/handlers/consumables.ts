@@ -1,7 +1,7 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type OutgoingPacket, type SFSObjectData } from "../sfs-wire.ts";
 import { getUtfString, fitsBytes, MAX_NAME_BYTES } from "../wire-helpers.ts";
 import { signConsumable, checkConsumable, claimConsumable, claimsFrom } from "../consumable-signature.ts";
-import { getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
+import { getAll, getByRoom, getByRoomExcluding, type RegisteredSession } from "../session-registry.ts";
 import type { Session } from "../session.ts";
 import { allocateItemId } from "../world-objects.ts";
 import { CONSUMABLES, type ConsumableDef } from "../consumable-catalog.ts";
@@ -514,7 +514,17 @@ function startInvitation(holderEntry: RegisteredSession, name: string, template:
       log(`${holder.userName}'s ${name}: cancelled during the handoff, no game`);
       return;
     }
-    if (!startPartyGame(template, players)) log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff)`);
+    // A guest who left (or joined another game) during the handoff is dropped; the rest play on.
+    const connected = new Set(getAll().map((e) => e.session));
+    const here = players.filter((p) => connected.has(p.session) && !sessionOf(p.session));
+    if (here.includes(holderEntry) && startPartyGame(template, here)) return;
+    // Nothing to start: the holder gets the invitation back, with the guests who are still here.
+    log(`${holder.userName}'s ${name}: game didn't start (a player left during the handoff), invitation restored`);
+    if (!connected.has(holder) || holder.equippedConsumable || holder.heldObject || sessionOf(holder)) return;
+    const guests = here.filter((p) => p !== holderEntry);
+    invitationGuests.set(holder.userId, guests);
+    setHeldItem(holder, name, (CONSUMABLES[name]?.totalItemQuantity ?? 1) - guests.length);
+    armAutoStart(holderEntry, name, template);
   }, INVITATION_HANDOFF_MS);
 }
 
