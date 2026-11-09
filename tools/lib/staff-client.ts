@@ -165,8 +165,9 @@ export class Client {
   }
 
   /** Interacts with a server MMO item (a party-game lobby), as the client does. */
-  interactItem(itemId: number) {
-    this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", [0, 0, 0]).putByte("a", 2)
+  /** An Interact on a server item; the client sends its current position with it. */
+  interactItem(itemId: number, position: [number, number, number] = [0, 0, 0]) {
+    this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", position).putByte("a", 2)
       .putUtfString("o", JSON.stringify({ type: 1, id: String(itemId), tag: "" })));
   }
   /** A plain move (l.a Move) to a position. */

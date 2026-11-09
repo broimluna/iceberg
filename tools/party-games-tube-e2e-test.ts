@@ -64,7 +64,9 @@ try {
   check(items.every((i) => ["ttl", "int_a", "category", "creator"].every((k) => i.types[k] === INT)), `lobby ttl/int_a/category/creator are ints on the wire (${JSON.stringify(items.map((i) => i.types))})`);
 
   // ---- two racers join red ----
-  for (const c of R) { c.interactItem(redItem.id); await sleep(60); }
+  // Racers walk up to the lobby first, as players do: the race path starts there.
+  const L = getPartyGame(4)!.lobbyData.LobbyLocation as { x: number; y: number; z: number };
+  for (const c of R) { c.move([L.x, L.y, L.z]); c.interactItem(redItem.id, [L.x, L.y, L.z]); await sleep(60); }
   check(await until(() => R.every((c) => locOf(c)?.[2]?.value === 1), 3000) && R.every((c) => locOf(c)![1]!.value === INT), "joiners get loc Slide (1) as an int");
 
   // ---- the race ----
@@ -74,12 +76,17 @@ try {
   check(start.template!.value === 4, `the red template starts (${start.template!.value})`);
   check(await until(() => R.every((c) => c.ext.some((e) => e.cmd === "pgame.message" && e.p.type!.value === 10))), "both racers get the layout message");
   check(await until(() => R.every((c) => locOf(c)?.[2]?.value === 7), 2000), "racers get loc Racing (7)");
-  await sleep(150);
-  R[0]!.move([END[0], END[1] + 5, END[2]]); R[0]!.move(END);
+  // Ride from the lobby to the finish in <= 5 m steps 60 ms apart (1.2 race
+  // seconds each at this time scale): a single jump would be judged a teleport.
+  const ride = async (c: Client) => {
+    const from = [L.x, L.y, L.z], steps = Math.ceil(Math.hypot(END[0] - L.x, END[1] - L.y, END[2] - L.z) / 5);
+    for (let i = 1; i <= steps; i++) { await sleep(60); c.move(from.map((v, k) => v + ((END[k]! - v) * i) / steps) as [number, number, number]); }
+  };
+  await ride(R[0]!);
   await sleep(50);
   R[0]!.pgame(sessionId, 12, "{}");
   await sleep(150);
-  R[1]!.move(END);
+  await ride(R[1]!);
   await sleep(50);
   R[1]!.pgame(sessionId, 12, "{}");
   const resultsOf = (c: Client) => c.ext.filter((e) => e.cmd === "pgame.message" && e.p.type!.value === 13).map((e) => parseIds(e.p.message!.value as string));
@@ -96,6 +103,7 @@ try {
   await sleep(400);
   const after = R.map((c) => coins(servers.api.dbPath, c.username) ?? -1);
   check(after[0]! - before[0]! === 15 && after[1]! - before[1]! === 10, `coins moved by the placement rewards (${before} -> ${after})`);
+  check(/\[TUBE\] race \d+ template 4 \S+ finished .*valid=true reason=ok/.test(servers.sfsLog()), "the game server logs each finish with its verdict");
   check(!mod.ext.some((e) => e.cmd === "pgame.end"), "the moderator watching gets no pgame.end");
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);

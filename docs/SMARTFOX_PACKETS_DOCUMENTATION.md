@@ -380,16 +380,23 @@ off and the game starts about a second later.
 `loc` is 7 (Racing) during the race and 0 after. The server times each
 racer from the start; a finish under `MinimumCompletionTimeInSeconds`, over
 `MaximumCompletionTimeInSeconds` or more than `MaxValidationRadius` from
-`RaceEndPosition` (last reported position) scores `DefaultPoints`. A claimed
+`RaceEndPosition` (last reported position) scores `DefaultPoints`, and so
+does a path that teleports: the path starts at the lobby's `LobbyLocation`,
+and a jump of more than 20 m between two positions, or any stretch of at
+least 1 s averaging more than 30 m/s (the tube tops out at 12 m/s), is
+invalid. Every finish is logged (`[TUBE] ... valid= reason= maxJump=
+maxSpeed=`). A claimed
 modifier counts only if it is in the active layout and the racer's reported
 path passed within 3 m of it (positions in
 `smartfox-server/data/tube-races.json`). Score =
 `StartingPoints - ms * PointsDeductedPerSecond / 1000 + modifiers`. The race
 ends when everyone has a result, or at the maximum time plus 5 s, when the
 unfinished get a `DefaultPoints` result; `pgame.end` follows
-`ShowRewardsDelayInSeconds` later. Placement by score, then time, capped at
-4; a lone racer gets `SinglePlayerPlacement`. Invalid and unfinished racers
-are placed but not paid.
+`ShowRewardsDelayInSeconds` later. Valid racers are placed first, by score
+then time, then invalid and unfinished ones by time, capped at 4. A lone
+racer, or the only valid racer, gets `SinglePlayerPlacement` (the others
+come after), so an idle second account doesn't turn a solo run into a win.
+Invalid and unfinished racers are placed but not paid.
 
 ---
 

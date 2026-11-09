@@ -60,9 +60,69 @@ export function raceScore(elapsedMs: number, modifierSum: number, data: TubeRace
   return data.StartingPoints - Math.floor((elapsedMs * data.PointsDeductedPerSecond) / 1000) + modifierSum;
 }
 
-// Highest score first, then fastest; one racer gets SinglePlayerPlacement.
-export function placeRacers<T>(rows: { key: T; score: number; elapsedMs: number }[], singlePlayerPlacement: number): Map<T, number> {
-  if (rows.length === 1) return new Map([[rows[0]!.key, singlePlayerPlacement]]);
-  const sorted = [...rows].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
-  return new Map(sorted.map((r, i) => [r.key, Math.min(i, LAST_PLACEMENT)]));
+// Path plausibility. The tube's MaxSpeed is 12 m/s (RaceControllerData) and
+// Mt Blizzard's launch pads push to ~29 m/s for a moment; clients send a
+// position at most every 0.2 s. A sample more than MAX_JUMP from the one before,
+// or any span of samples averaging more than MAX_SPEED (spans shorter than
+// SPEED_SPAN_MS count as that long, so bunched packets don't read as speed), is
+// a teleport.
+export const MAX_JUMP = 20;
+export const MAX_SPEED = 30;
+const SPEED_SPAN_MS = 1000;
+
+export interface PathStats {
+  maxJump: number;
+  maxSpeed: number;
+}
+
+// times[i] is the race-clock ms of path[i].
+export function pathStats(path: Vec3[], times: number[]): PathStats {
+  let maxJump = 0, maxSpeed = 0;
+  const along = [0];
+  for (let j = 1; j < path.length; j++) {
+    const d = dist(path[j - 1]!, path[j]!);
+    maxJump = Math.max(maxJump, d);
+    along.push(along[j - 1]! + d);
+    for (let i = j - 1; i >= 0; i--) {
+      const span = times[j]! - times[i]!;
+      maxSpeed = Math.max(maxSpeed, ((along[j]! - along[i]!) * 1000) / Math.max(span, SPEED_SPAN_MS));
+      if (span > SPEED_SPAN_MS) break;
+    }
+  }
+  return { maxJump, maxSpeed };
+}
+
+export interface FinishJudgement extends PathStats {
+  valid: boolean;
+  reason: string;
+}
+
+// The whole finish check: race time, path cap, teleports, end position.
+export function judgeFinish(elapsedMs: number, path: Vec3[], times: number[], overflow: boolean, data: TubeRaceData): FinishJudgement {
+  const stats = pathStats(path, times);
+  const fail = (reason: string) => ({ ...stats, valid: false, reason });
+  if (elapsedMs < data.MinimumCompletionTimeInSeconds * 1000 || elapsedMs > data.MaximumCompletionTimeInSeconds * 1000) return fail("time");
+  if (overflow) return fail("path overflow");
+  if (stats.maxJump > MAX_JUMP) return fail(`jump ${stats.maxJump.toFixed(1)} m`);
+  if (stats.maxSpeed > MAX_SPEED) return fail(`speed ${stats.maxSpeed.toFixed(1)} m/s`);
+  if (!isValidFinish(elapsedMs, path.at(-1), data)) return fail("position");
+  return { ...stats, valid: true, reason: "ok" };
+}
+
+// Valid racers first (highest score, then fastest), then invalid ones (fastest
+// first): a slow valid run can score below DefaultPoints. With exactly one
+// valid racer, they get SinglePlayerPlacement and the others come after, so
+// bringing an idle second account doesn't turn a solo run into a win.
+export function placeRacers<T>(rows: { key: T; score: number; elapsedMs: number; valid: boolean }[], singlePlayerPlacement: number): Map<T, number> {
+  const valid = rows.filter((r) => r.valid).sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
+  const invalid = rows.filter((r) => !r.valid).sort((a, b) => a.elapsedMs - b.elapsedMs);
+  const out = new Map<T, number>();
+  if (rows.length === 1 || valid.length === 1) {
+    const [solo, ...rest] = [...valid, ...invalid];
+    out.set(solo!.key, singlePlayerPlacement);
+    rest.forEach((r, i) => out.set(r.key, Math.min(singlePlayerPlacement + 1 + i, LAST_PLACEMENT)));
+    return out;
+  }
+  [...valid, ...invalid].forEach((r, i) => out.set(r.key, Math.min(i, LAST_PLACEMENT)));
+  return out;
 }

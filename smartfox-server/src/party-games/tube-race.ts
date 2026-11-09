@@ -8,7 +8,9 @@
 //   13 TubeRacePlayerResult       server {PlayerId, CompletionTimeInMilliseconds, ScoreModifier, OverallScore}
 // A racer's own result opens their end popup ("calculating" until pgame.end);
 // other results add rows. Time comes from the server clock; a finish too fast,
-// too slow or away from RaceEndPosition scores DefaultPoints, and a claimed
+// too slow, away from RaceEndPosition or along a path that teleports (a jump
+// or a burst of speed, see tube-race-rules.ts; the path starts at the lobby)
+// scores DefaultPoints, and a claimed
 // modifier counts only if the racer's reported path went past it. Racers who
 // haven't finished by MaximumCompletionTimeInSeconds (plus slack) get a
 // DefaultPoints result so their popup opens. Invalid and unfinished racers are
@@ -20,7 +22,7 @@ import { getByRoom } from "../session-registry.ts";
 import type { RegisteredSession } from "../session-registry.ts";
 import { tubeRaceLayouts, type PartyGameDef, type TubeRaceModifier } from "./definitions.ts";
 import { host, PartyGameSession, TIME_SCALE, type PartyGamePlayer, type PartyGameSlot } from "./session.ts";
-import { isValidFinish, modifierTotal, placeRacers, raceScore, type TubeRaceData, type Vec3 } from "./tube-race-rules.ts";
+import { judgeFinish, modifierTotal, placeRacers, raceScore, type TubeRaceData, type Vec3 } from "./tube-race-rules.ts";
 
 const SET_LAYOUT = 10;
 const COLLECT_MODIFIER = 11;
@@ -42,7 +44,9 @@ interface Result {
 
 interface Racer {
   path: Vec3[];
-  last?: Vec3;
+  // Race-clock ms of each path point.
+  times: number[];
+  overflow: boolean;
   claims: number[];
   result?: Result;
 }
@@ -60,10 +64,14 @@ export class TubeRace extends PartyGameSession {
   }
 
   onStart(): void {
+    // Every racer starts at the lobby: a position sent before the start (say,
+    // already at the finish) is a jump away from it.
+    const l = (this.def.lobbyData as { LobbyLocation?: { x: number; y: number; z: number } }).LobbyLocation;
+    const lobby: Vec3 | undefined = l ? [l.x, l.y, l.z] : undefined;
     for (const p of this.players) {
       const pos = p.entry.session.lastPosition;
-      const start = pos?.length === 3 ? (pos.slice() as Vec3) : undefined;
-      this.racers.set(p, { path: start ? [start] : [], last: start, claims: [] });
+      const path = [lobby, pos?.length === 3 ? (pos.slice() as Vec3) : undefined].filter((v): v is Vec3 => !!v);
+      this.racers.set(p, { path, times: path.map(() => 0), overflow: false, claims: [] });
       host.setLocomotion(p.entry, LOCOMOTION_RACING);
     }
     const layouts = [...tubeRaceLayouts(this.def.id)];
@@ -77,8 +85,15 @@ export class TubeRace extends PartyGameSession {
   onPlayerMoved(player: PartyGamePlayer, position: Vec3): void {
     const racer = this.racers.get(player);
     if (!racer || racer.result) return;
-    racer.last = [position[0], position[1], position[2]];
-    if (racer.path.length < MAX_PATH_POINTS) racer.path.push(racer.last);
+    // A client never sends this many in a race; past the cap the path can't be checked.
+    if (racer.path.length >= MAX_PATH_POINTS) { racer.overflow = true; return; }
+    racer.path.push([position[0], position[1], position[2]]);
+    racer.times.push(this.clockMs());
+  }
+
+  // Race time in game ms (scaled back from PARTY_GAME_TIME_SCALE).
+  private clockMs(): number {
+    return Math.round((Date.now() - this.startMs) / TIME_SCALE);
   }
 
   onMessage(player: PartyGamePlayer, type: number, message: unknown): void {
@@ -88,10 +103,12 @@ export class TubeRace extends PartyGameSession {
       const id = message !== null && typeof message === "object" ? (message as { ModifierId?: unknown }).ModifierId : undefined;
       if (typeof id === "number" && Number.isInteger(id) && this.layout.some((m) => m.id === id) && !racer.claims.includes(id)) racer.claims.push(id);
     } else if (type === PLAYER_FINISHED) {
-      const elapsedMs = Math.round((Date.now() - this.startMs) / TIME_SCALE);
-      const valid = isValidFinish(elapsedMs, racer.last, this.data);
-      const modifier = valid ? modifierTotal(racer.claims, this.layout, racer.path) : 0;
-      this.publish(player, { elapsedMs, valid, score: valid ? raceScore(elapsedMs, modifier, this.data) : this.data.DefaultPoints }, modifier);
+      const elapsedMs = this.clockMs();
+      const j = judgeFinish(elapsedMs, racer.path, racer.times, racer.overflow, this.data);
+      const modifier = j.valid ? modifierTotal(racer.claims, this.layout, racer.path) : 0;
+      const score = j.valid ? raceScore(elapsedMs, modifier, this.data) : this.data.DefaultPoints;
+      console.log(`[TUBE] race ${this.id} template ${this.def.id} ${player.entry.session.accountName} finished elapsed=${elapsedMs}ms valid=${j.valid} reason=${j.reason} score=${score} modifier=${modifier} claims=${racer.claims.length} points=${racer.path.length} maxJump=${j.maxJump.toFixed(1)}m maxSpeed=${j.maxSpeed.toFixed(1)}m/s`);
+      this.publish(player, { elapsedMs, valid: j.valid, score }, modifier);
       this.endIfAllFinished();
     }
   }
@@ -114,7 +131,9 @@ export class TubeRace extends PartyGameSession {
   private timeUp(): void {
     const capMs = this.data.MaximumCompletionTimeInSeconds * 1000;
     for (const p of this.here()) {
-      if (!this.racers.get(p)?.result) this.publish(p, { elapsedMs: capMs, score: this.data.DefaultPoints, valid: false }, 0);
+      if (this.racers.get(p)?.result) continue;
+      console.log(`[TUBE] race ${this.id} template ${this.def.id} ${p.entry.session.accountName} did not finish (time cap) score=${this.data.DefaultPoints}`);
+      this.publish(p, { elapsedMs: capMs, score: this.data.DefaultPoints, valid: false }, 0);
     }
     this.scheduleEnd();
   }
@@ -128,7 +147,7 @@ export class TubeRace extends PartyGameSession {
   private finish(): void {
     const rows = this.here().flatMap((p) => {
       const r = this.racers.get(p)?.result;
-      return r ? [{ key: p.entry, score: r.score, elapsedMs: r.elapsedMs }] : [];
+      return r ? [{ key: p.entry, score: r.score, elapsedMs: r.elapsedMs, valid: r.valid }] : [];
     });
     const unpaid = new Set(this.here().filter((p) => !this.racers.get(p)?.result?.valid).map((p) => p.entry));
     this.endWith(placeRacers(rows, this.data.SinglePlayerPlacement), unpaid);
