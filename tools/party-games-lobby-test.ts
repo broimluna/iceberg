@@ -30,12 +30,22 @@ registerGameType(3, (id, def, players, slots) => new Stub(id, def, players, slot
 // ---- window maths ----
 const SIX = 6 * 60_000;
 const T = Math.ceil(Date.now() / SIX) * SIX;
-const inside = nextLobbyWindow(T - 30_000, 6, 60);
-check(inside.endsAtMs === T && inside.opensAtMs === T - 60_000, "inside a window: that window");
-const after = nextLobbyWindow(T + 1_000, 6, 60);
-check(after.endsAtMs === T + SIX && after.opensAtMs === T + SIX - 60_000, "just after a window: the next one");
-check(nextLobbyWindow(T - 120_000, 6, 60).opensAtMs === T - 60_000, "before a window: it opens 60 s before the boundary");
-check(after.endsAtMs % SIX === 0, "windows end on a multiple of 6 minutes");
+// Windows open on a multiple of 6 minutes and last the lobby length.
+const inside = nextLobbyWindow(T + 30_000, 6, 60);
+check(inside.opensAtMs === T && inside.endsAtMs === T + 60_000, "inside a window: that window");
+const after = nextLobbyWindow(T + 61_000, 6, 60);
+check(after.opensAtMs === T + SIX && after.endsAtMs === T + SIX + 60_000, "just after a window: the next one");
+check(nextLobbyWindow(T - 120_000, 6, 60).opensAtMs === T, "before a window: it opens on the boundary");
+check(nextLobbyWindow(T, 6, 60).opensAtMs === T, "on the boundary: that window");
+check(after.opensAtMs % SIX === 0, "windows open on a multiple of 6 minutes");
+// The client's pre-lobby countdown (DanceBattleVisualsController
+// startTimerForNextLobbyStart) runs to the next multiple of EveryXMinutes
+// strictly after the current minute, plus the lobby length: the game start.
+// From any idle moment, it must end when the server's lobby does.
+const clientCountdownEnd = (nowMs: number) => (Math.floor(nowMs / SIX) + 1) * SIX + 60_000;
+for (const t of [T - 200, T - 120_000, T + 60_500, T + 200_000]) {
+  check(nextLobbyWindow(t, 6, 60).endsAtMs === clientCountdownEnd(t), `client countdown matches the server window (t=T${t - T >= 0 ? "+" : ""}${t - T}ms)`);
+}
 
 // ---- slot assignment ----
 const taken: { teamId: number; roleId: number }[] = [];

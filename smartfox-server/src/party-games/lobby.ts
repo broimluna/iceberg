@@ -9,7 +9,7 @@
 // When time is up the item goes away and, with enough players on both teams,
 // the game starts with each player's team and role.
 //
-// Windows end on multiples of everyXMinutes since the epoch, so every Town
+// Windows open on multiples of everyXMinutes since the epoch, so every Town
 // instance opens its lobby together. State is per room and in memory; a room's
 // timers stop when its last player leaves.
 import { getByRoom, type RegisteredSession } from "../session-registry.ts";
@@ -51,12 +51,15 @@ const schedules = new Map<string, Timers>(); // by room
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] party-game lobby: ${msg}`);
 
-// The window containing nowMs, or else the next one. Windows end on multiples
-// of everyMinutes (ms since the epoch) and open lobbySeconds earlier.
+// The window containing nowMs, or else the next one. Windows open on multiples
+// of everyMinutes (ms since the epoch) and last lobbySeconds. The client's
+// pre-lobby countdown runs to the next multiple plus the lobby length (the
+// game start), so the lobby has to be open for the last lobbySeconds of it.
 export function nextLobbyWindow(nowMs: number, everyMinutes: number, lobbySeconds: number): { opensAtMs: number; endsAtMs: number } {
   const period = everyMinutes * 60_000;
-  const endsAtMs = (Math.floor(nowMs / period) + 1) * period;
-  return { opensAtMs: endsAtMs - lobbySeconds * 1000, endsAtMs };
+  let opensAtMs = Math.floor(nowMs / period) * period;
+  if (nowMs >= opensAtMs + lobbySeconds * 1000) opensAtMs += period;
+  return { opensAtMs, endsAtMs: opensAtMs + lobbySeconds * 1000 };
 }
 
 // Smaller team first (ties to team 0), lowest free role; undefined when full.
