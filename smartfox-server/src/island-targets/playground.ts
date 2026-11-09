@@ -25,6 +25,7 @@ import { addRoomItem, removeRoomItem, setRoomItemVar, type RoomItem } from "../p
 import { contentDateOf, playgrounds, type PlaygroundData, type SupersetData, type TargetData, type Vec3 } from "../world-data.ts";
 import { createPicker } from "../selection.ts";
 import type { Session } from "../session.ts";
+import { logSafe } from "../log-safe.ts";
 import {
   insideSphere, MIN_THROW_GAP_MS, nextGameStartMs, splitReward, targetHp, throwGuard, traceThrow,
 } from "./rules.ts";
@@ -80,6 +81,7 @@ interface Playground {
 
 const rooms = new Map<string, Playground[]>();
 
+// Player names and room names go through logSafe.
 function log(msg: string): void {
   console.log(`[${new Date().toISOString()}] [TARGETS] ${msg}`);
 }
@@ -90,7 +92,7 @@ function after(pg: Playground, ms: number, fn: () => void): NodeJS.Timeout {
     try {
       fn();
     } catch (err) {
-      log(`timer threw in ${pg.roomName}: ${(err as Error).stack ?? err}`);
+      log(`timer threw in ${logSafe(pg.roomName)}: ${(err as Error).stack ?? err}`);
     }
   }, ms);
   pg.timers.add(timer);
@@ -181,7 +183,7 @@ function startGame(pg: Playground): void {
   rollDay(pg);
   const superset = pg.data.supersets[pg.pick()]!;
   pg.game = { superset, phaseIndex: 0, serial: 0, targets: [], startsMs: 0, roundOver: false, hitsByUser: new Map() };
-  log(`game started in ${pg.roomName}: ${superset.path}`);
+  log(`game started in ${logSafe(pg.roomName)}: ${superset.path}`);
   startPhase(pg, pg.game);
 }
 
@@ -226,7 +228,7 @@ function timeOut(pg: Playground, game: Game): void {
   removeRound(game);
   pg.game = undefined;
   setStats(pg, 0, pg.best);
-  log(`game timed out in ${pg.roomName} at phase ${game.phaseIndex + 1}`);
+  log(`game timed out in ${logSafe(pg.roomName)} at phase ${game.phaseIndex + 1}`);
 }
 
 function applyHit(pg: Playground, game: Game, target: LiveTarget, userId: number): void {
@@ -270,7 +272,7 @@ function win(pg: Playground, game: Game): void {
     const payload = `{"goodUntil":0,"signature":"","swid":"","data":{"source":${REWARD_SOURCE_MINI_GAME},"sourceId":"${REWARD_SOURCE_ID}","rewards":{"${sid}":${JSON.stringify(reward)}}}}`;
     e.send(extensionPacket("reward.add_delayed", new SFSObjectWriter().putUtfString("reward", payload)));
   }
-  log(`game won in ${pg.roomName}: streak ${pg.current}, best ${pg.best}, paid ${eligible.map((e) => e.session.userName).join(", ") || "nobody"}`);
+  log(`game won in ${logSafe(pg.roomName)}: streak ${pg.current}, best ${pg.best}, paid ${eligible.map((e) => logSafe(e.session.userName)).join(", ") || "nobody"}`);
 }
 
 // ==================== Throws ====================
@@ -282,7 +284,7 @@ export function onIslandTargetThrow(s: Session, action: number, previous: number
   if (!pg || !game) return;
   const now = Date.now();
   const say = (nearest: string, dist: number, t: number, hit: boolean, reason: string) =>
-    log(`throw user=${s.userName} nearest=${nearest} dist=${dist.toFixed(2)} t=${t.toFixed(2)} hit=${hit ? "yes" : "no"} reason=${reason}`);
+    log(`throw user=${logSafe(s.userName)} nearest=${nearest} dist=${dist.toFixed(2)} t=${t.toFixed(2)} hit=${hit ? "yes" : "no"} reason=${reason}`);
 
   const guard = now < game.startsMs ? "early" : throwGuard(now, p, v, previous, pg.lastThrowMs.get(s.userId), MIN_THROW_GAP_MS * TIME_SCALE);
   const live = game.targets.filter((t) => t.hits < t.capacity);
