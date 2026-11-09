@@ -33,6 +33,7 @@ import { onPlayerLeft } from "./daily-tasks.ts";
 import { onPartyGamePlayerLeft } from "./party-games/manager.ts";
 import { forgetInvitation } from "./handlers/consumables.ts";
 import { releaseRoomIfEmpty } from "./world-objects.ts";
+import { onLobbyPlayerLeft, releaseRoomLobbiesIfEmpty } from "./party-games/lobby.ts";
 import { logSafe } from "./log-safe.ts";
 
 // Open connections per remote address, for MAX_CONNECTIONS_PER_IP.
@@ -336,6 +337,7 @@ const connectionHandler = (socket: net.Socket) => {
 
   socket.on("close", (hadError) => {
     unregister(session);
+    onLobbyPlayerLeft(session);
     onPartyGamePlayerLeft(session);
     forgetInvitation(session);
     onPlayerLeft(session);
@@ -344,6 +346,7 @@ const connectionHandler = (socket: net.Socket) => {
     broadcastUserLeftRoom(session.roomName, session);
     // Last one out stops the room's geyser/light timers.
     releaseRoomIfEmpty(session.roomName);
+    releaseRoomLobbiesIfEmpty(session.roomName);
     console.log(`[${new Date().toISOString()}] ${peer} closed (error=${hadError})`);
   });
 

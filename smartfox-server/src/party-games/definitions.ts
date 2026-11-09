@@ -48,3 +48,8 @@ export function templateForTrigger(propName: string): number | undefined {
 export function rewardFor(def: PartyGameDef, placement: number): PartyGameReward | undefined {
   return def.rewards.find((r) => r.placement === placement)?.reward;
 }
+
+// Games a zone schedule launches (launcher method 1: ZoneSchedule).
+export function scheduledGames(): PartyGameDef[] {
+  return [...games.values()].filter((g) => g.launcher?.method === 1 && g.launcher.everyXMinutes > 0 && !!g.launcher.scheduledZone);
+}

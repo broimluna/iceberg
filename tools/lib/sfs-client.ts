@@ -26,7 +26,7 @@ export async function startGameServer(api: WebApi, key: string, env: Record<stri
     cwd: `${import.meta.dir}/../../smartfox-server`,
     env: {
       ...process.env, SFS_TCP_PORT: String(port), SFS_NOTIFY_PORT: String(port + 100), WEBAPI_INTERNAL_URL: api.base,
-      JOIN_SIGNING_KEY: key, ...env,
+      JOIN_SIGNING_KEY: key, PARTY_GAME_SCHEDULE: "off", ...env,
     },
     stdout: "pipe", stderr: "pipe",
   });
