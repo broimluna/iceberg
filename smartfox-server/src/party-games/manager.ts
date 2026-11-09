@@ -18,6 +18,7 @@ import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
 import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
 import { DanceBattle } from "./dance-battle.ts";
+import { TubeRace } from "./tube-race.ts";
 
 export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) => PartyGameSession;
 
@@ -246,3 +247,5 @@ host.send = sendGameMessage;
 
 registerGameType(2, (id, def, players) => new FindFour(id, def, players));
 registerGameType(3, (id, def, players, slots) => new DanceBattle(id, def, players, slots));
+registerGameType(4, (id, def, players, slots) => new TubeRace(id, def, players, slots));
+registerGameType(5, (id, def, players, slots) => new TubeRace(id, def, players, slots));
