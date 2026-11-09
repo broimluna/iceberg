@@ -1,5 +1,5 @@
 // `bun run start:supervised`: runs the game server and starts it again
-// whenever it exits with RESTART_EXIT_CODE (an admin's :restart). Any other
+// whenever it exits with RESTART_EXIT_CODE (an admin's :admin-swre-restart). Any other
 // exit ends the supervisor with the same code.
 import { RESTART_EXIT_CODE } from "./config.ts";
 

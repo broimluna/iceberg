@@ -47,5 +47,5 @@ export const TRUST_PROXY = Number(process.env.SFS_TRUST_PROXY ?? 0);
 export const ALLOW_UNSIGNED_LOGIN = process.env.SFS_ALLOW_UNSIGNED_LOGIN === "1";
 
 // Exit code that asks the supervisor (supervisor.ts) to start the server
-// again after an admin's :restart. Without a supervisor the server stops.
+// again after an admin's :admin-swre-restart. Without a supervisor the server stops.
 export const RESTART_EXIT_CODE = 75;
