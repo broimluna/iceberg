@@ -15,7 +15,7 @@ import type { HandlerContext } from "../handlers/context.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
 import { withAccount } from "../account.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
-import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
+import { host, type PartyGamePlayer, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
 import { FishBucket } from "./fish-bucket.ts";
 import { DanceBattle } from "./dance-battle.ts";
@@ -106,7 +106,7 @@ export function setPartyGameProp(entry: RegisteredSession, name: string | undefi
 }
 
 function present(game: PartyGameSession): RegisteredSession[] {
-  return game.players.filter((p) => !p.left).map((p) => p.entry);
+  return game.players.filter((p) => !p.left && !p.released).map((p) => p.entry);
 }
 
 // `slots[i]` is players[i]'s team and role in the player list the client gets.
@@ -147,6 +147,19 @@ export function sendGameMessageTo(game: PartyGameSession, entry: RegisteredSessi
   entry.send(messagePacket(game, type, message));
 }
 
+// An empty-results pgame.end to one player: the client tears the session down
+// (controls back, HUD gone) and ignores everything after. The session stays
+// open for the rest.
+export function releasePlayer(game: PartyGameSession, player: PartyGamePlayer): void {
+  if (game.ended || player.left || player.released) return;
+  player.released = true;
+  player.entry.send(extensionPacket("pgame.end", new SFSObjectWriter().putInt("id", game.id).putUtfString("results", "[]")));
+  if (sessionByUser.get(player.entry.session.userId) === game) sessionByUser.delete(player.entry.session.userId);
+  const prop = game.gamePropFor(player);
+  if (prop && player.entry.session.heldObject === prop) setPartyGameProp(player.entry, undefined);
+  log(`${player.entry.session.userName} released from session ${game.id}`);
+}
+
 export function endSession(game: PartyGameSession, placements: Map<RegisteredSession, number>, unpaid?: Set<RegisteredSession>): void {
   if (game.ended) return;
   game.ended = true;
@@ -157,7 +170,7 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
   for (const p of here) p.send(end);
   for (const p of game.players) {
     const prop = game.gamePropFor(p);
-    if (prop && !p.left && p.entry.session.heldObject === prop) setPartyGameProp(p.entry, undefined);
+    if (prop && !p.left && !p.released && p.entry.session.heldObject === prop) setPartyGameProp(p.entry, undefined);
   }
 
   for (const [p, place] of placements) {
@@ -264,6 +277,7 @@ export function setPartyGameLocomotion(entry: RegisteredSession, state: number):
 }
 
 host.end = endSession;
+host.release = releasePlayer;
 host.setProp = setPartyGameProp;
 host.setLocomotion = setPartyGameLocomotion;
 host.guarded = guarded;

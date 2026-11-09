@@ -10,6 +10,7 @@ export const host = {
   guarded: (_game: PartyGameSession, fn: () => void): void => fn(),
   send: (_game: PartyGameSession, _type: number, _message: string): void => {},
   sendTo: (_game: PartyGameSession, _player: RegisteredSession, _type: number, _message: string): void => {},
+  release: (_game: PartyGameSession, _player: PartyGamePlayer): void => {},
   // The game prop a player holds ("con" {type: pgame}) and their locomotion
   // state ("loc"), broadcast to the room.
   setProp: (_entry: RegisteredSession, _name: string | undefined): void => {},
@@ -25,6 +26,8 @@ export const TIME_SCALE = (() => {
 export interface PartyGamePlayer {
   entry: RegisteredSession;
   left: boolean;
+  // Sent an empty pgame.end early (see release): out of the game but still listed in its results.
+  released?: boolean;
   // Team and slot in pgame.start.v2's player list (0/0 for single-team games).
   teamId: number;
   roleId: number;
@@ -68,6 +71,13 @@ export abstract class PartyGameSession {
   // pgame.message to one player.
   protected sendMessageTo(player: PartyGamePlayer, type: number, body: object | string): void {
     host.sendTo(this, player.entry, type, typeof body === "string" ? body : JSON.stringify(body));
+  }
+
+  // Frees one player's client while the game goes on: an empty-results pgame.end to
+  // them alone (the client's own teardown, which restores its controls). They stay
+  // listed in the final results but get nothing more from the game.
+  protected release(player: PartyGamePlayer): void {
+    host.release(this, player);
   }
 
   // `unpaid` players are listed in the results but get no reward.

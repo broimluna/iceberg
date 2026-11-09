@@ -221,6 +221,30 @@ try {
     check(results(b).length === 1 && results(b)[0] === resultsOf([[b, 0], [a, 1]]), `a lone stayer wins, the quitter still listed: ${results(b)[0]}`);
   }
 
+  {
+    // The client only restores a quitter's controls in destroy(), which runs on pgame.end; an
+    // empty-results end to just the quitter (the client's own scene-change teardown) frees them.
+    const [a, b, c] = await game(3, [1, 1, 1, 1, 1, 1]);
+    onPartyGamePlayerQuit(a.session);
+    check(results(a).join() === "[]" && results(b).length === 0 && results(c).length === 0, `only the quitter gets an empty pgame.end: a=${results(a)} b=${results(b)}`);
+    check(sessionOf(a.session) === undefined && sessionOf(b.session) !== undefined, "the quitter is freed, the others stay in");
+    const before = a.extOf("pgame.message").length;
+    act(b, FISH); await sleep(60);
+    check(a.extOf("pgame.message").length === before, "the released quitter gets no more game messages");
+    onPartyGamePlayerLeft(c.session);
+    check(results(b).length === 1 && results(a).length === 1, "the final end does not go to the released quitter again");
+    await sleep(20);
+    check(coins(a).length === 0, "the released quitter is unpaid");
+  }
+  {
+    // Before the cannon can exist (positions/intro) the client's destroy() would throw, so the quitter waits for the real end.
+    FishBucket.makeDeck = () => [1, 1];
+    const ps = Array.from({ length: 3 }, (_, i) => makePlayer(`fq${++n}_${i}`, ROOM));
+    startPartyGame(1, ps.map((p) => p.entry));
+    onPartyGamePlayerQuit(ps[1]!.session);
+    check(results(ps[1]!).length === 0 && sessionOf(ps[1]!.session) !== undefined, "a positions-phase quitter is not released early");
+  }
+
   // ---- logging ----
   {
     logLines.length = 0;

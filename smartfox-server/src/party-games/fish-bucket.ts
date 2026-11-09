@@ -228,6 +228,9 @@ export class FishBucket extends PartyGameSession {
       return;
     }
     if (this.phase === "turn" && this.players[this.cur] === player) this.nextTurn();
+    // The client restores a quitter's controls only in destroy(), which runs on pgame.end. Its
+    // destroy() throws before the cannon exists (positions, intro), so those wait for the real end.
+    if (this.phase === "turn" || this.phase === "delay") this.release(player);
   }
 
   onPlayerQuit(player: PartyGamePlayer): void {
