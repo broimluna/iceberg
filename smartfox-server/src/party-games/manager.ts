@@ -17,6 +17,7 @@ import { withAccount } from "../account.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
 import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
+import { FishBucket } from "./fish-bucket.ts";
 import { DanceBattle } from "./dance-battle.ts";
 import { TubeRace } from "./tube-race.ts";
 import { ScavengerHunt } from "./scavenger-hunt.ts";
@@ -270,6 +271,7 @@ host.send = sendGameMessage;
 host.sendTo = sendGameMessageTo;
 
 registerGameType(0, (id, def, players, slots) => new ScavengerHunt(id, def, players, slots));
+registerGameType(1, (id, def, players) => new FishBucket(id, def, players));
 registerGameType(2, (id, def, players) => new FindFour(id, def, players));
 registerGameType(3, (id, def, players, slots) => new DanceBattle(id, def, players, slots));
 registerGameType(4, (id, def, players, slots) => new TubeRace(id, def, players, slots));
