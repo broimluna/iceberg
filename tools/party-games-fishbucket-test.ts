@@ -117,8 +117,32 @@ try {
   }
   {
     const [a, b] = await game(2, [1, 1, 1, 1]);
-    check(await waitFor(() => turns(a).length === 2, 600), "an idle turn passes after TurnTime + grace");
-    check(turns(a)[1] === turnOf(b) && outputs(a).length === 0, "...with no draw");
+    check(await waitFor(() => turns(a).length === 2, 800), "an idle turn ends after TurnTime + grace");
+    check(outputs(a).join() === `{"PlayerId":${a.sid},"ScoreDelta":1}` && turns(a)[1] === turnOf(b), `...after one automatic draw (so a game can't hang): ${outputs(a)}`);
+  }
+  {
+    const [a, b] = await game(2, [1, 1]);
+    check(await waitFor(() => results(a).length === 1, 4000), "a game where nobody presses anything still ends");
+    check(results(a)[0] === resultsOf([[a, 0], [b, 0]]), `...as a tie: ${results(a)[0]}`);
+  }
+  {
+    logLines.length = 0;
+    const [a, b] = await game(2, [1, 1, 1, 1]);
+    send(b, 9, { Hello: 1 });
+    check(logLines.some((l) => l.includes("[FISH]") && l.includes("message type=9")), "a pgame.message the game doesn't handle is logged (to learn what the client sends)");
+    send(a, 5, { PlayerId: 1, ScoreDelta: 3 });
+    check(outputs(a).length === 0, "a client-sent ShowTurnOutput draws nothing");
+  }
+  {
+    FishBucket.makeDeck = () => [1];
+    const [o, g] = [makePlayer(`o${++n}`, ROOM), makePlayer(`g${n}`, ROOM)];
+    o.session.lastPosition = [0, 0, 0];
+    startPartyGame(1, [o.entry, g.entry]);
+    send(o, 4, { OwnerPosition: v(1), PlayerPositions: [v(2)], GamePositions: [{ x: 500, y: 0, z: 2 }] });
+    send(o, 4, { OwnerPosition: v(1), PlayerPositions: [{ x: 1e30, y: 0, z: 0 }], GamePositions: [v(0)] });
+    check(g.extOf("pgame.message").length === 0, "start positions far from the owner are not relayed");
+    send(o, 4, validPositions(2));
+    check(raws(g, 4).length === 1, "positions near the owner are");
   }
 
   // ---- ending ----

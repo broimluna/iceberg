@@ -414,6 +414,31 @@ function usePlayerHeldConsumable(ctx: HandlerContext, type: string, def: Consuma
 // holder user id.
 const invitationGuests = new Map<number, RegisteredSession[]>();
 
+// Owner-start invitations (LobbyType STRICT_USER_START) start by themselves this
+// long after the minimum is met, re-armed whenever someone joins. The owner's Start
+// button may send nothing the server can see, and this keeps the game playable.
+const AUTOSTART_SECONDS = Number(process.env.INVITATION_AUTOSTART_SECONDS) > 0 ? Number(process.env.INVITATION_AUTOSTART_SECONDS) : 30;
+const autoStartTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function dropInvitation(userId: number): void {
+  invitationGuests.delete(userId);
+  const t = autoStartTimers.get(userId);
+  if (t) clearTimeout(t);
+  autoStartTimers.delete(userId);
+}
+
+// The holder's guests who are still here and not in a game; the open-slot count is
+// refreshed to match (a guest who walked off gives their slot back). A guest who is
+// holding something else keeps their slot but isn't returned, so a start leaves them out.
+function liveGuests(holder: Session): RegisteredSession[] {
+  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
+  const kept = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
+  invitationGuests.set(holder.userId, kept);
+  const total = CONSUMABLES[holder.equippedConsumable ?? ""]?.totalItemQuantity;
+  if (total !== undefined && holder.heldActionCount !== undefined && holder.heldActionCount > 0 && holder.heldActionCount !== total - kept.length) setHeldActionCount(holder, total - kept.length);
+  return kept.filter((g) => !g.session.heldObject && !g.session.equippedConsumable);
+}
+
 // Delay between removing a filled invitation and starting its game. The
 // SFS client applies user variables on arrival but dispatches their change
 // events once per frame; if the game's "con" lands in the same frame as the
@@ -435,7 +460,7 @@ function useInvitation(ctx: HandlerContext, type: string, def: ConsumableDef): v
     return;
   }
   if (sessionOf(ctx.session)) return;
-  invitationGuests.delete(ctx.session.userId);
+  dropInvitation(ctx.session.userId);
   setHeldItem(ctx.session, type, def.totalItemQuantity ?? 1);
   log(`${ctx.peer} - ${type} invitation held out (template ${template})`);
 }
@@ -450,8 +475,7 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
   if (template === undefined || !canStart(template) || !holder.heldActionCount) return true;
   if (session.equippedConsumable || session.heldObject || sessionOf(session) || sessionOf(holder)) return true;
   // Guests who have since left the room or joined a game no longer count.
-  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
-  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
+  const guests = liveGuests(holder);
   if (guests.some((g) => g.session === session)) return true;
   const me = getByRoom(session.roomName).find((e) => e.session === session);
   if (!me) return true;
@@ -461,6 +485,7 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
   if (left > 0) {
     invitationGuests.set(holder.userId, guests);
     setHeldActionCount(holder, left);
+    armAutoStart(holderEntry, name, template);
     return true;
   }
   const players = [holderEntry, ...guests];
@@ -478,7 +503,7 @@ function joinInvitation(ctx: HandlerContext, holderEntry: RegisteredSession): bo
 // handoff delay. The invitation goes only once the start is certain.
 function startInvitation(holderEntry: RegisteredSession, name: string, template: number, players: RegisteredSession[]): void {
   const holder = holderEntry.session;
-  invitationGuests.delete(holder.userId);
+  dropInvitation(holder.userId);
   setHeldActionCount(holder, 0);
   removeHeldItem(holder);
   handoffCancelled.set(holder.userId, false);
@@ -505,26 +530,45 @@ export function onInvitationAction(ctx: HandlerContext, action: number): void {
   const def = template === undefined ? undefined : getPartyGame(template);
   if (!def || def.lobbyType !== 1 || !holder.heldActionCount) return;
   if (action !== 0 && action !== 1 && action !== 2 && action !== 12) log(`${ctx.peer} - [FISH] start action byte=${action} (${name}, ${holder.heldActionCount} slots open)`);
-  if (action !== ACTION_START || !canStart(template!) || sessionOf(holder)) return;
+  if (action !== ACTION_START) return;
   const holderEntry = getByRoom(holder.roomName).find((e) => e.session === holder);
-  if (!holderEntry) return;
-  // Guests who have since left the room or joined a game no longer count.
-  const here = new Set(getByRoom(holder.roomName).map((e) => e.session));
-  const guests = (invitationGuests.get(holder.userId) ?? []).filter((g) => here.has(g.session) && !sessionOf(g.session));
-  const players = [holderEntry, ...guests];
+  if (holderEntry) tryOwnerStart(holderEntry, name, template!, "Start");
+}
+
+// Starts an owner-start invitation with its live guests when the minimum is met.
+function tryOwnerStart(holderEntry: RegisteredSession, name: string, template: number, why: string): void {
+  const holder = holderEntry.session;
+  const def = getPartyGame(template);
+  if (!def || !canStart(template) || sessionOf(holder) || !holder.heldActionCount || holder.equippedConsumable !== name) return;
+  const players = [holderEntry, ...liveGuests(holder)];
   if (players.length < def.minPlayers) {
-    log(`${ctx.peer} - ${holder.userName}'s ${name}: Start with ${players.length} player(s), needs ${def.minPlayers}`);
+    log(`${holder.userName}'s ${name}: ${why} with ${players.length} player(s), needs ${def.minPlayers}`);
     return;
   }
-  if (!canStartWith(template!, players)) {
-    log(`${ctx.peer} - ${holder.userName}'s ${name} can't start yet, invitation kept`);
+  if (!canStartWith(template, players)) {
+    log(`${holder.userName}'s ${name} can't start yet, invitation kept`);
     return;
   }
-  startInvitation(holderEntry, name, template!, players);
+  log(`${holder.userName}'s ${name}: starting (${why}, ${players.length} players)`);
+  startInvitation(holderEntry, name, template, players);
+}
+
+// (Re)starts the wait after which an owner-start invitation with enough guests starts by itself.
+function armAutoStart(holderEntry: RegisteredSession, name: string, template: number): void {
+  const holder = holderEntry.session;
+  const def = getPartyGame(template);
+  const old = autoStartTimers.get(holder.userId);
+  if (old) clearTimeout(old);
+  autoStartTimers.delete(holder.userId);
+  if (!def || def.lobbyType !== 1 || 1 + (invitationGuests.get(holder.userId)?.length ?? 0) < def.minPlayers) return;
+  autoStartTimers.set(holder.userId, setTimeout(() => {
+    autoStartTimers.delete(holder.userId);
+    tryOwnerStart(holderEntry, name, template, "auto-start");
+  }, AUTOSTART_SECONDS * 1000));
 }
 
 export function forgetInvitation(session: Session): void {
-  invitationGuests.delete(session.userId);
+  dropInvitation(session.userId);
   if (handoffCancelled.has(session.userId)) handoffCancelled.set(session.userId, true);
 }
 
@@ -594,7 +638,7 @@ function releaseHeldItem(ctx: HandlerContext, previous: string | undefined): boo
   const { session } = ctx;
   const count = session.heldActionCount;
   if (count === undefined) return false;
-  invitationGuests.delete(session.userId);
+  dropInvitation(session.userId);
   session.heldActionCount = undefined;
   // Only trays keep what's left. A held invitation's count is its open
   // slots; storing that would make the next one free.

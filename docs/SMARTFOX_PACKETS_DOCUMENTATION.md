@@ -389,15 +389,22 @@ so the server never sends state 0.
 | 5 ShowTurnOutput | OUT | `{"PlayerId": <long>, "ScoreDelta": n}`, one per accepted draw (positive = fish, negative = squid). The client clamps a bucket at 0 and so does the server. |
 | 7 PlayerLeftGame | OUT | `{"PlayerId": <long>}` when a player quits or disconnects. |
 
-The retail client never sends a draw: Fish and Pass are `l.a` action bytes
-(first guess from the prefabs: Fish = 4 LaunchThrow or 8 Action2, Pass = 7
-Action1, Start = 4; every other non-Move byte is logged as `[FISH] ... action
-byte=N`). A fish card lets the same player draw again or pass (after
+The retail client never sends a draw as a message. Pass is the Action1 button
+(`l.a` 7). Fish and the owner's Start are Snowball buttons whose press only
+dispatches an `InputEvents.ActionEvent`, which neither the OpenCPI nor the retail
+decompile turns into an `l.a`; how they reach a server is unconfirmed. Fish is
+accepted as `l.a` 4 (LaunchThrow) or 8 (Action2) in case it does, every other
+non-Move byte and unhandled `pgame.message` is logged as `[FISH] ...`, and an
+idle turn is dealt a card after `TurnTimeInSeconds` + 2 s so a game always
+reaches the end of the deck. An owner-start invitation starts on `l.a` 4 from the
+holder, or by itself `INVITATION_AUTOSTART_SECONDS` (30) after the minimum is met
+(re-armed per join); guests who left, joined a game or hold another item are left out.
+A fish card lets the same player draw again or pass (after
 `NextTurnDelayFishInSeconds`); a squid card ends the turn (after
-`NextTurnDelaySquidInSeconds`); an idle turn passes after `TurnTimeInSeconds`
-+ 2 s. The game ends when the deck is spent; placements are dense ranks by
-fish (ties share). A quitter is listed last and unpaid; a lone remaining
-player wins at once.
+`NextTurnDelaySquidInSeconds`). The game ends when the deck is spent; placements are
+dense ranks by fish (ties share). A quitter is listed last and unpaid; a lone
+remaining player wins at once. Start positions farther than 30 m from the owner are
+ignored.
 
 #### Scheduled lobbies (Dance Battle, tube races)
 

@@ -9,12 +9,14 @@
 //        PlayerTurnStart (6) {PlayerId}, PlayerLeftGame (7) {PlayerId}
 //   out: SetGameStartPositions {OwnerPosition, PlayerPositions[players-1],
 //        GamePositions[>=1]} from the owner (players[0]) only.
-// The retail client never sends a draw: the Fish and Pass buttons are l.a
-// action bytes (like Scavenger's hide button), which the server turns into a
-// draw or a pass. The bytes below are a first guess from the button prefabs
-// (Start and Fish = Snowball = ChargeThrow 3 then LaunchThrow 4; Pass =
-// Action1 = 7; the client's own handler also names Action2 = 8) and every other
-// non-Move byte is logged so the live round can confirm them.
+// The retail client never sends a draw as a pgame.message. Pass is the Action1
+// button (l.a 7). Fish and the owner's Start are Snowball buttons whose press
+// dispatches only an InputEvents.ActionEvent: neither the OpenCPI nor the retail
+// decompile turns that into an l.a or a message, so how (or whether) they reach a
+// server is unconfirmed. Fish is accepted as LaunchThrow (4) or Action2 (8) in case it
+// does; every other non-Move byte and every unhandled pgame.message is logged
+// (`[FISH] ...`) so a live round shows what arrives. Meanwhile an idle turn is dealt
+// a card on timeout, so a game always runs to the end of the deck.
 import type { RegisteredSession } from "../session-registry.ts";
 import { PartyGameSession, type PartyGamePlayer } from "./session.ts";
 import type { PartyGameDef } from "./definitions.ts";
@@ -32,6 +34,8 @@ const POSITIONS_BACKSTOP_SECONDS = 10;
 const TURN_GRACE_SECONDS = 2;
 const OUTRO_SECONDS = 1;
 const MAX_GAME_POSITIONS = 4;
+// Generous: the template's MaxGameStartDistance is 5 m.
+const MAX_POSITION_DISTANCE = 30;
 
 type Phase = "positions" | "intro" | "turn" | "delay" | "over";
 type Vec = { x: number; y: number; z: number };
@@ -96,12 +100,23 @@ export class FishBucket extends PartyGameSession {
   }
 
   onMessage(player: PartyGamePlayer, type: number, message: unknown): void {
-    if (type !== SET_GAME_START_POSITIONS || this.phase !== "positions" || player !== this.players[0]) return;
+    // The retail client sends only the start positions; anything else is logged to learn what it does send.
+    if (type !== SET_GAME_START_POSITIONS) {
+      this.log(`message type=${type} from ${player.entry.session.userName} phase=${this.phase}`);
+      return;
+    }
+    if (this.phase !== "positions" || player !== this.players[0]) return;
     const m = message as Record<string, unknown> | null;
     const owner = vec(m?.OwnerPosition);
     const others = vecs(m?.PlayerPositions, this.players.length - 1, this.players.length - 1);
     const game = vecs(m?.GamePositions, 1, MAX_GAME_POSITIONS);
     if (!owner || !others || !game) return;
+    // The owner's client spawns everyone within a few metres of the owner; a far-off point only drags players away.
+    const at = player.entry.session.lastPosition;
+    if (at?.length === 3 && [owner, ...others, ...game].some((p) => Math.hypot(p.x - at[0]!, p.y - at[1]!, p.z - at[2]!) > MAX_POSITION_DISTANCE)) {
+      this.log(`start positions too far from the owner, ignored`);
+      return;
+    }
     this.phase = "intro";
     // Rebuilt from the validated numbers; the client's own JSON is never echoed.
     this.sendMessage(SET_GAME_START_POSITIONS, { OwnerPosition: owner, PlayerPositions: others, GamePositions: game, IntData: [this.deck.length] });
@@ -121,11 +136,18 @@ export class FishBucket extends PartyGameSession {
     this.armTimeout();
   }
 
-  // A player who neither draws nor passes loses the turn (no draw).
+  // A player who does nothing is dealt a card (as the old server did), so a game of
+  // AFK players, or buttons the server can't see, still runs to the end of the deck;
+  // after a fish card the turn just passes.
   private armTimeout(): void {
     const mine = ++this.step;
     this.timer(this.seconds("TurnTimeInSeconds", 10) + TURN_GRACE_SECONDS, () => {
-      if (this.step === mine && this.phase === "turn") this.nextTurn();
+      if (this.step !== mine || this.phase !== "turn") return;
+      if (this.drew) this.nextTurn();
+      else {
+        this.log(`turn timed out, dealing a card to ${this.players[this.cur]!.entry.session.userName}`);
+        this.draw();
+      }
     });
   }
 
