@@ -208,6 +208,14 @@ export function onPartyGamePlayerQuit(s: Session): void {
   guarded(game, () => game.onPlayerQuit(player));
 }
 
+// The `l.a` hook: a player's reported position, for games that track movement.
+export function onPartyGamePlayerMoved(s: Session, position: [number, number, number]): void {
+  const game = sessionByUser.get(s.userId);
+  const player = game?.players.find((p) => p.entry.session === s && !p.left);
+  if (!game || !player || game.ended) return;
+  guarded(game, () => game.onPlayerMoved(player, position));
+}
+
 // Disconnects (and so room changes, which reconnect).
 export function onPartyGamePlayerLeft(s: Session): void {
   const game = sessionByUser.get(s.userId);

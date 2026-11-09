@@ -64,7 +64,7 @@ export interface TubeRaceModifier {
 }
 
 const tubeLayouts = new Map<number, Map<number, TubeRaceModifier[]>>();
-for (const [template, { layouts }] of Object.entries(tubeData as Record<string, { layouts: Record<string, TubeRaceModifier[]> }>)) {
+for (const [template, { layouts }] of Object.entries(tubeData as unknown as Record<string, { layouts: Record<string, TubeRaceModifier[]> }>)) {
   tubeLayouts.set(Number(template), new Map(Object.entries(layouts).map(([id, mods]) => [Number(id), mods])));
 }
 

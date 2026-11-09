@@ -3,6 +3,7 @@ import { getFloatArray, getByte, getUtfString, fitsBytes } from "../wire-helpers
 import { getByRoomExcluding } from "../session-registry.ts";
 import { handleConsumableInteraction } from "./consumables.ts";
 import { handleLobbyInteraction, onThrowAction } from "../party-games/lobby.ts";
+import { onPartyGamePlayerMoved } from "../party-games/manager.ts";
 import { onLocomotion } from "../daily-tasks.ts";
 import type { HandlerContext } from "./context.ts";
 
@@ -36,6 +37,8 @@ export function handleLocomotionAction(innerParams: SFSObjectData, ctx: HandlerC
   // Used by validate.state and zone.player_location.
   const previous = ctx.session.lastPosition;
   ctx.session.lastPosition = position;
+  // Tube races check finishes and score modifiers against the racer's path.
+  onPartyGamePlayerMoved(ctx.session, position as [number, number, number]);
   const locomotionResponseP = new SFSObjectWriter()
     .putFloatArray("p", position)
     .putByte("a", action)

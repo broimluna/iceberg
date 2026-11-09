@@ -78,6 +78,8 @@ export abstract class PartyGameSession {
   // After pgame.end went out (the session is over and its timers are gone).
   onEnded(): void {}
   abstract onMessage(player: PartyGamePlayer, type: number, message: unknown): void;
+  // Each `l.a` position the player reports while in the game.
+  onPlayerMoved(_player: PartyGamePlayer, _position: [number, number, number]): void {}
   abstract onPlayerLeft(player: PartyGamePlayer): void;
   // The player put the game prop away (the client's quit). They're still in
   // the room and waiting for pgame.end.

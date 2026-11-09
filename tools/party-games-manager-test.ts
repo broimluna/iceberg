@@ -9,7 +9,7 @@ import { unregister, type RegisteredSession } from "../smartfox-server/src/sessi
 import { PartyGameSession, type PartyGamePlayer } from "../smartfox-server/src/party-games/session.ts";
 import {
   registerGameType, startPartyGame, endSession, sessionOf, handlePartyGameMessage,
-  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith, isInPartyGame,
+  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith, isInPartyGame, onPartyGamePlayerMoved,
 } from "../smartfox-server/src/party-games/manager.ts";
 
 const { check, finish } = makeChecker();
@@ -20,6 +20,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // A stand-in game registered over Find Four's game type.
 let probe: TestGame | undefined;
 class TestGame extends PartyGameSession {
+  moves: { player: PartyGamePlayer; position: number[] }[] = [];
+  override onPlayerMoved(player: PartyGamePlayer, position: [number, number, number]) { this.moves.push({ player, position }); }
   started = 0; messages: { player: PartyGamePlayer; type: number; message: unknown }[] = []; left: PartyGamePlayer[] = [];
   throwOnMessage = false;
   onStart() { this.started++; probe = this; }
@@ -166,6 +168,18 @@ try {
   endSession(d, new Map([[four[0]!.entry, 0], [four[1]!.entry, 1]]));
   check(four.every((p) => !isInPartyGame(p.session)), "isInPartyGame is false after the end");
   check(four.every((p) => p.vars.length === 0), "no game prop is cleared at the end either");
+
+  // l.a positions reach the player's running game.
+  const [m1, m2, m3] = ["m1", "m2", "m3"].map((n) => makePlayer(n, four[0]!.session.roomName));
+  const mg = startPartyGame(2, [m1!.entry, m2!.entry]) as TestGame;
+  onPartyGamePlayerMoved(m1!.session, [1, 2, 3]);
+  check(mg.moves.length === 1 && mg.moves[0]!.player.entry === m1!.entry && mg.moves[0]!.position.join() === "1,2,3", "a player's move reaches their game");
+  onPartyGamePlayerMoved(m3!.session, [4, 5, 6]);
+  check(mg.moves.length === 1, "a non-player's move reaches no game");
+  mg.players[1]!.left = true;
+  onPartyGamePlayerMoved(m2!.session, [7, 8, 9]);
+  check(mg.moves.length === 1, "a player who left isn't sent moves");
+  endSession(mg, new Map());
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);
 }
