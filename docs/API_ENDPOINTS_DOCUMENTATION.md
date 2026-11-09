@@ -216,7 +216,7 @@ Base URI configuration key: `cp-api-base-uri`
 
 | Method | Path | Operation | Description |
 |--------|------|-----------|-------------|
-| `PUT` | `/tube/v1/equip/{type}` | `EquipTubeOperation` | Equip snow tube |
+| `PUT` | `/tube/v1/equip/{type}` | `EquipTubeOperation` | Equip snow tube. Stored per player (unknown tube ids are refused) and handed back as `selectedTubeId` in the room-join response. |
 
 ### Event Endpoints (Scheduled Events)
 
@@ -573,15 +573,18 @@ Common player assets structure:
    5. All subsequent CP API calls use `Authorization: GAE {token}` header
 
 3. **Session Management**:
+   - The `X-CP-Client-Version` header (sent with every CP API request) goes into the signed room name, so clients of different versions never share a room, igloo, lobby or party game
    - The `sessionId` returned from `/game/v1/worlds/.../players` is used for game server connection
    - This session ID is passed to the SmartFox game server for authentication
 
-4. **Signed Responses**:
+4. **Request quirks**: the Unity client sends PUT and DELETE as `POST` with an `X-HTTP-Method-Override` header, and sometimes JSON bodies as `application/x-www-form-urlencoded`; the server restores the method and reads both. Always use `https://` (a plain `http://` URL is redirected and the POST body is lost).
+
+5. **Signed Responses**:
    - Many endpoints return `SignedResponse<T>` wrappers
-   - The `signature` field can be any string for private servers
+   - The `signature` field is not checked by the client on most endpoints; consumable use and partial-count responses are signed and verified by the game server (see `tools/consumable-signature-test.ts`)
    - `goodUntil` is a timestamp for cache expiration
 
-5. **Empty Request Bodies**:
+6. **Empty Request Bodies**:
    - POST/PUT/DELETE requests must have `{}` as minimum body
    - The client adds this automatically if body is empty
 

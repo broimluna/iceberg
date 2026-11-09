@@ -59,6 +59,8 @@ bun run start:supervised
 | `SFS_MAX_CONNECTIONS` | `2000` | Logged-in players; further logins are closed. `0` turns it off. |
 | `SFS_MAX_PENDING_LOGINS` | `200` | Connections still logging in, kept apart from the cap above; when full, the oldest one from the address holding the most is closed, so a flood of connections that never log in can't keep players out. `0` turns it off. |
 | `SFS_MAX_CONNECTS_PER_IP_PER_MIN` | `60` | New connections one address may open per minute. `0` turns it off. Like `SFS_MAX_CONNECTIONS_PER_IP`, set it to `0` behind a proxy unless `SFS_TRUST_PROXY` is set. |
+| `PARTY_GAME_TIME_SCALE` | `1` | Multiplies every party-game delay. Tests set it small to run whole matches in moments; leave it alone on a real server. |
+| `INVITATION_AUTOSTART_SECONDS` | `30` | An owner-start party-game invitation (Fish Bucket) starts by itself this long after enough guests joined, re-armed per join. |
 | `SFS_TRUST_PROXY` | `0` | The number of reverse proxies in front of the WebSocket ports (e.g. `1` for Caddy or nginx on the same machine). WebSocket connections from loopback then count against the client address in `X-Forwarded-For`, read that many entries from the right, so the per-address limits keep working behind the proxy. Leave it `0` when clients connect directly. |
 
 Behind a proxy that only forwards some ports (Cloudflare's, for example,
@@ -118,6 +120,17 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 
 `[user]` defaults to yourself. Names can be typed in any case when only
 one account matches.
+
+### Party games
+
+Dance Battle and the tube races open scheduled lobbies (`:dancebattle` and
+`:tuberace` open one now); Find Four, Scavenger Hunt and Fish Bucket start
+from an invitation item (`FindFourGroup`, `ScavengerHuntGroup`,
+`FishBucketGroup`) that the holder holds out and others join by interacting.
+The server owns each game's rules, timers, placements and rewards; the
+templates are in `data/party-games.json`, the wire format is in
+[`docs/SMARTFOX_PACKETS_DOCUMENTATION.md`](../docs/SMARTFOX_PACKETS_DOCUMENTATION.md),
+and each game logs its decisions as `[SCAVENGER]`, `[TUBE]` or `[FISH]` lines.
 
 ### Running with auto-restart
 
