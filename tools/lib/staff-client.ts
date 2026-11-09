@@ -161,6 +161,16 @@ export class Client {
     }
   }
 
+  /** Interacts with a server MMO item (a party-game lobby), as the client does. */
+  interactItem(itemId: number) {
+    this.ext13("l.a", new SFSObjectWriter().putFloatArray("p", [0, 0, 0]).putByte("a", 2)
+      .putUtfString("o", JSON.stringify({ type: 1, id: String(itemId), tag: "" })));
+  }
+  /** A party-game pgame.message; the client sends id and type as LONG. */
+  pgame(sessionId: number, type: number, body: string) {
+    this.ext13("pgame.message", new SFSObjectWriter().putLong("id", BigInt(sessionId)).putLong("type", BigInt(type)).putUtfString("message", body));
+  }
+
   /** Clears what has been received so far. */
   reset() { this.bubbles = []; this.errors = []; this.roomChats = []; this.ext = []; this.mmo = []; }
   disconnect() { this.sock.end(); }
