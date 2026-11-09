@@ -351,6 +351,26 @@ ends at once for both: the one who stays at 0, the quitter listed at 1 with
 no reward (the owner's end screen looks up its own placement). Rules and timings come from `GameData` in
 `smartfox-server/data/party-games.json`.
 
+#### Scavenger Hunt (template 0)
+
+Two players from a `ScavengerHuntGroup` invitation. The server picks the roles
+at random and sends each player only their own `SetRole`.
+
+| Type | Dir | `message` |
+|---|---|---|
+| 0 SetRole | OUT | `{"RoleId": 0 Hider / 1 Finder}` (ints), to that player only. |
+| 1 SetGameState | OUT | `{"GameStateId": 1 Hiding / 2 Finding}` (0 AwaitingRoles is the client's own start state). Hiding follows `IntroTimeInSeconds`; Finding follows `HideTimeInSeconds` + `HideBufferTimeInSeconds`; the game ends `FindTimeInSeconds` + `FindBufferTimeInSeconds` later. |
+| 2 AddItem | OUT | `{"ItemId": n, "Pos": {"x","y","z"}}`. The client never sends this: the Hider's action button is `l.a` action 6 (`Action1`), and the marble goes where the Hider stands. At most `MaxHiddenItems`, at least 1 m apart, within 3 m of the Hider's previous `l.a` position, only while Hiding. |
+| 3 RemoveItem | IN/OUT | `{"ItemId": n}`. Accepted from the Finder only while Finding, for a live marble, when their last `l.a` position is within 6 m of it; then echoed to both. |
+
+The Hider holds `ScavengerHuntHiderServerAdded` (`con` {type `pgame`}) from the
+start; the Finder gets `ScavengerHuntFinderServerAdded` about a second before
+the Finding state (the prop must exist when the client handles the state
+change). The Finder wins by finding every marble (the result follows 1 s after
+the last find); otherwise the Hider wins, and a Hider who hid nothing loses.
+If a player quits or leaves, the other wins. Each decision is logged as
+`[SCAVENGER] game <id> ...` with distances.
+
 #### Scheduled lobbies (Dance Battle, tube races)
 
 Templates with launcher method 1 (ZoneSchedule) open a lobby in every room
