@@ -3,6 +3,7 @@
 // client's PartyGameDefinition.GameTypes; prop ids are already resolved to
 // NameOnServer, which is what "con" carries.
 import data from "../../data/party-games.json" with { type: "json" };
+import tubeData from "../../data/tube-races.json" with { type: "json" };
 
 export interface PartyGameReward {
   coins?: number;
@@ -52,4 +53,22 @@ export function rewardFor(def: PartyGameDef, placement: number): PartyGameReward
 // Games a zone schedule launches (launcher method 1: ZoneSchedule).
 export function scheduledGames(): PartyGameDef[] {
   return [...games.values()].filter((g) => g.launcher?.method === 1 && g.launcher.everyXMinutes > 0 && !!g.launcher.scheduledZone);
+}
+
+// Tube race score modifiers (Mt Blizzard scene: TubeRaceScoreModifierLayout
+// children), in data/tube-races.json. Positions are world space.
+export interface TubeRaceModifier {
+  id: number;
+  delta: number;
+  pos: [number, number, number];
+}
+
+const tubeLayouts = new Map<number, Map<number, TubeRaceModifier[]>>();
+for (const [template, { layouts }] of Object.entries(tubeData as Record<string, { layouts: Record<string, TubeRaceModifier[]> }>)) {
+  tubeLayouts.set(Number(template), new Map(Object.entries(layouts).map(([id, mods]) => [Number(id), mods])));
+}
+
+// Layout id -> modifiers; empty for a template without a race.
+export function tubeRaceLayouts(templateId: number): Map<number, TubeRaceModifier[]> {
+  return tubeLayouts.get(templateId) ?? new Map();
 }
