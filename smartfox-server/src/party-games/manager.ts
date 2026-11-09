@@ -19,6 +19,7 @@ import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
 import { DanceBattle } from "./dance-battle.ts";
 import { TubeRace } from "./tube-race.ts";
+import { ScavengerHunt } from "./scavenger-hunt.ts";
 
 export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) => PartyGameSession;
 
@@ -129,11 +130,20 @@ export function startPartyGame(templateId: number, players: RegisteredSession[],
   return game;
 }
 
+function messagePacket(game: PartyGameSession, type: number, message: string): OutgoingPacket {
+  return extensionPacket("pgame.message",
+    new SFSObjectWriter().putInt("id", game.id).putInt("type", type).putUtfString("message", message));
+}
+
 export function sendGameMessage(game: PartyGameSession, type: number, message: string): void {
   if (game.ended) return;
-  const packet = extensionPacket("pgame.message",
-    new SFSObjectWriter().putInt("id", game.id).putInt("type", type).putUtfString("message", message));
+  const packet = messagePacket(game, type, message);
   for (const p of present(game)) p.send(packet);
+}
+
+export function sendGameMessageTo(game: PartyGameSession, entry: RegisteredSession, type: number, message: string): void {
+  if (game.ended || !present(game).includes(entry)) return;
+  entry.send(messagePacket(game, type, message));
 }
 
 export function endSession(game: PartyGameSession, placements: Map<RegisteredSession, number>, unpaid?: Set<RegisteredSession>): void {
@@ -257,7 +267,9 @@ host.setProp = setPartyGameProp;
 host.setLocomotion = setPartyGameLocomotion;
 host.guarded = guarded;
 host.send = sendGameMessage;
+host.sendTo = sendGameMessageTo;
 
+registerGameType(0, (id, def, players, slots) => new ScavengerHunt(id, def, players, slots));
 registerGameType(2, (id, def, players) => new FindFour(id, def, players));
 registerGameType(3, (id, def, players, slots) => new DanceBattle(id, def, players, slots));
 registerGameType(4, (id, def, players, slots) => new TubeRace(id, def, players, slots));

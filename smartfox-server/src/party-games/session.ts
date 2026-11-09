@@ -9,6 +9,7 @@ export const host = {
   end: (_game: PartyGameSession, _placements: Map<RegisteredSession, number>, _unpaid?: Set<RegisteredSession>): void => {},
   guarded: (_game: PartyGameSession, fn: () => void): void => fn(),
   send: (_game: PartyGameSession, _type: number, _message: string): void => {},
+  sendTo: (_game: PartyGameSession, _player: RegisteredSession, _type: number, _message: string): void => {},
   // The game prop a player holds ("con" {type: pgame}) and their locomotion
   // state ("loc"), broadcast to the room.
   setProp: (_entry: RegisteredSession, _name: string | undefined): void => {},
@@ -62,6 +63,11 @@ export abstract class PartyGameSession {
   // pgame.message to every player still here. A string body is sent as is.
   protected sendMessage(type: number, body: object | string): void {
     host.send(this, type, typeof body === "string" ? body : JSON.stringify(body));
+  }
+
+  // pgame.message to one player.
+  protected sendMessageTo(player: PartyGamePlayer, type: number, body: object | string): void {
+    host.sendTo(this, player.entry, type, typeof body === "string" ? body : JSON.stringify(body));
   }
 
   // `unpaid` players are listed in the results but get no reward.
