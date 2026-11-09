@@ -41,7 +41,7 @@ variables.
 
 ## Status
 
-**Working, verified against the real retail client:**
+**Working, verified against real clients (retail 1.13.0 and OpenCPI):**
 - Full SFS2X wire protocol: handshake, login, room join, ping, user
   variables, raw TCP and WebSocket transports, and the MMO items used for
   scheduled world objects (geysers, blinking lights).
@@ -51,6 +51,12 @@ variables.
 - Quests: setting quest state, completing objectives and granting rewards.
 - Gear, pickups, consumable inventory, membership refresh, player location
   and state validation.
+- SmartFoxServer 3 clients (the newer OpenCPI builds, which are what live
+  players use), alongside SFS2X ones in the same room.
+- Using consumables where other players can see it (`con.use` /
+  `con.reuse`): one-shot props, party blasters and pinatas as MMO items
+  with a countdown and coin rewards for nearby players, and trays that
+  other players can take from.
 - The whole WebAPI.
 - Party games, tested live with the OpenCPI client: Find Four, Scavenger
   Hunt, Dance Battle and the tube races. The server owns the rules, timers,
@@ -61,13 +67,6 @@ variables.
   server-owned deck and turns. How the retail client's Fish and Start
   buttons reach a server is unconfirmed, so idle turns are dealt a card and
   the invitation starts by itself; the first live round settles it.
-- SmartFoxServer 3 clients (newer OpenCPI builds), alongside SFS2X ones
-  in the same room. Tested with the SFS3 client API over raw TCP and
-  WebSocket, but not yet with an OpenCPI SFS3 game build.
-- Using consumables where other players can see it (`con.use` /
-  `con.reuse`): one-shot props, party blasters and pinatas as MMO items
-  with a countdown and coin rewards for nearby players, and trays that
-  other players can take from.
 - Daily challenges counted by the server (`task.c`), including shared
   community challenges, with rewards paid once and only when complete.
   The server evaluates the scene switches most challenges depend on
