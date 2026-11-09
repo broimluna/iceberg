@@ -48,10 +48,11 @@ export function setRewardGranter(fn: (username: string, reward: RewardGrant) => 
   granter = fn;
 }
 
-// Invitation games (Find Four) have a player prop; lobby-launched ones
-// (launcher method 1, ZoneSchedule: Dance Battle) don't.
+// Invitation games have a trigger prop (Find Four also a player prop);
+// lobby-launched ones (launcher method 1, ZoneSchedule: Dance Battle)
+// have neither.
 function startable(def: PartyGameDef | undefined): def is PartyGameDef {
-  return !!def && (!!def.playerProp || def.launcher?.method === 1) && factories.has(def.gameType);
+  return !!def && (!!def.playerProp || !!def.launcher?.triggerProp || def.launcher?.method === 1) && factories.has(def.gameType);
 }
 
 export function canStart(templateId: number): boolean {
@@ -143,7 +144,10 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
   const results = [...placements].map(([p, place]) => `{"PlayerSessionId":${p.session.playerSessionId},"Placement":${place}}`);
   const end = extensionPacket("pgame.end", new SFSObjectWriter().putInt("id", game.id).putUtfString("results", `[${results.join(",")}]`));
   for (const p of here) p.send(end);
-  if (game.def.playerProp) for (const p of here) if (p.session.heldObject === game.def.playerProp) setPartyGameProp(p, undefined);
+  for (const p of game.players) {
+    const prop = game.gamePropFor(p);
+    if (prop && !p.left && p.entry.session.heldObject === prop) setPartyGameProp(p.entry, undefined);
+  }
 
   for (const [p, place] of placements) {
     const reward = rewardFor(game.def, place);
@@ -215,6 +219,15 @@ export function onPartyGamePlayerMoved(s: Session, position: [number, number, nu
   const player = game?.players.find((p) => p.entry.session === s && !p.left);
   if (!game || !player || game.ended) return;
   guarded(game, () => game.onPlayerMoved(player, position));
+}
+
+// The `l.a` hook for action bytes (before onPartyGamePlayerMoved for the
+// same packet, so a game can compare with the previous position).
+export function onPartyGameAction(s: Session, action: number, position: [number, number, number]): void {
+  const game = sessionByUser.get(s.userId);
+  const player = game?.players.find((p) => p.entry.session === s && !p.left);
+  if (!game || !player || game.ended) return;
+  guarded(game, () => game.onAction(player, action, position));
 }
 
 // Disconnects (and so room changes, which reconnect).

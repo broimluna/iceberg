@@ -584,7 +584,9 @@ export function handleClientConChanged(ctx: HandlerContext, next: EquippedObject
   const { session } = ctx;
   // Putting a party game's prop away is how the client quits the game.
   const game = sessionOf(session);
-  if (game?.gameProp && session.heldObject === game.gameProp && next?.name !== game.gameProp) {
+  const me = game?.players.find((p) => p.entry.session === session && !p.left);
+  const gameProp = game && me ? game.gamePropFor(me) : null;
+  if (gameProp && session.heldObject === gameProp && next?.name !== gameProp) {
     session.heldObject = undefined;
     onPartyGamePlayerQuit(session);
   }

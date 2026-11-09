@@ -74,12 +74,21 @@ export abstract class PartyGameSession {
     return this.def.playerProp;
   }
 
+  // The prop one player holds in this game (a game with per-role props
+  // overrides this); putting it away is that player's quit.
+  gamePropFor(_player: PartyGamePlayer): string | null {
+    return this.gameProp;
+  }
+
   abstract onStart(): void;
   // After pgame.end went out (the session is over and its timers are gone).
   onEnded(): void {}
   abstract onMessage(player: PartyGamePlayer, type: number, message: unknown): void;
   // Each `l.a` position the player reports while in the game.
   onPlayerMoved(_player: PartyGamePlayer, _position: [number, number, number]): void {}
+  // Each `l.a` action byte (LocomotionAction) the player sends, with the
+  // position it carries. Runs before onPlayerMoved for the same packet.
+  onAction(_player: PartyGamePlayer, _action: number, _position: [number, number, number]): void {}
   abstract onPlayerLeft(player: PartyGamePlayer): void;
   // The player put the game prop away (the client's quit). They're still in
   // the room and waiting for pgame.end.

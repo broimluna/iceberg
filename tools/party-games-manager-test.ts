@@ -6,10 +6,10 @@ import { makeChecker } from "./lib/harness.ts";
 import { makePlayer, type FakePlayer } from "./lib/party-fakes.ts";
 import { SFSObjectWriter, decodeSFSObject } from "../smartfox-server/src/sfs-wire.ts";
 import { unregister, type RegisteredSession } from "../smartfox-server/src/session-registry.ts";
-import { PartyGameSession, type PartyGamePlayer } from "../smartfox-server/src/party-games/session.ts";
+import { PartyGameSession, host, type PartyGamePlayer } from "../smartfox-server/src/party-games/session.ts";
 import {
   registerGameType, startPartyGame, endSession, sessionOf, handlePartyGameMessage,
-  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith, isInPartyGame, onPartyGamePlayerMoved,
+  onPartyGamePlayerLeft, setRewardGranter, canStart, canStartWith, isInPartyGame, onPartyGamePlayerMoved, onPartyGameAction,
 } from "../smartfox-server/src/party-games/manager.ts";
 
 const { check, finish } = makeChecker();
@@ -24,6 +24,10 @@ class TestGame extends PartyGameSession {
   override onPlayerMoved(player: PartyGamePlayer, position: [number, number, number]) { this.moves.push({ player, position }); }
   started = 0; messages: { player: PartyGamePlayer; type: number; message: unknown }[] = []; left: PartyGamePlayer[] = [];
   throwOnMessage = false;
+  actions: { player: PartyGamePlayer; action: number; position: number[] }[] = [];
+  propFor: ((player: PartyGamePlayer) => string | null) | undefined;
+  override onAction(player: PartyGamePlayer, action: number, position: [number, number, number]) { this.actions.push({ player, action, position }); }
+  override gamePropFor(player: PartyGamePlayer) { return this.propFor ? this.propFor(player) : super.gamePropFor(player); }
   onStart() { this.started++; probe = this; }
   onMessage(player: PartyGamePlayer, type: number, message: unknown) {
     if (this.throwOnMessage) throw new Error("boom");
@@ -32,10 +36,12 @@ class TestGame extends PartyGameSession {
   onPlayerLeft(player: PartyGamePlayer) { this.left.push(player); }
   onPlayerQuit(_player: PartyGamePlayer) {}
   arm(seconds: number, fn: () => void) { this.timer(seconds, fn); }
+  setPropsNow() { for (const p of this.players) { const n = this.gamePropFor(p); if (n) host.setProp(p.entry, n); } }
   finishWith(p: Map<RegisteredSession, number>) { this.endWith(p); }
 }
 registerGameType(2, (id, def, players) => new TestGame(id, def, players));
 registerGameType(3, (id, def, players, slots) => new TestGame(id, def, players, slots));
+registerGameType(0, (id, def, players) => new TestGame(id, def, players));
 
 const grants: { username: string; reward: unknown }[] = [];
 setRewardGranter((username, reward) => { grants.push({ username, reward }); });
@@ -180,6 +186,28 @@ try {
   onPartyGamePlayerMoved(m2!.session, [7, 8, 9]);
   check(mg.moves.length === 1, "a player who left isn't sent moves");
   endSession(mg, new Map());
+
+  // ---- invitation game with no player prop (template 0), per-player props, actions ----
+  check(canStart(0), "template 0 (invitation trigger, no player prop) can start");
+  const [a1, a2] = ["a1", "a2"].map((n) => makePlayer(n, ROOM));
+  const ag = startPartyGame(0, [a1!.entry, a2!.entry]) as TestGame;
+  ag.propFor = (p) => (p.entry === a1!.entry ? "PropOne" : p.entry === a2!.entry ? "PropTwo" : null);
+  for (const p of [a1!, a2!]) p.clear();
+  ag.setPropsNow();
+  check(a1!.session.heldObject === "PropOne" && a2!.session.heldObject === "PropTwo", "each player holds their own game prop");
+  onPartyGameAction(a1!.session, 6, [1, 2, 3]);
+  check(ag.actions.length === 1 && ag.actions[0]!.player.entry === a1!.entry && ag.actions[0]!.action === 6 && ag.actions[0]!.position.join() === "1,2,3", "an action reaches the player's game");
+  onPartyGameAction(makePlayer("a3", ROOM).session, 6, [0, 0, 0]);
+  check(ag.actions.length === 1, "a non-player's action reaches no game");
+  endSession(ag, new Map());
+  check(a1!.session.heldObject === undefined && a2!.session.heldObject === undefined, "per-player props are cleared at the end");
+  const ag2 = startPartyGame(0, [a1!.entry, a2!.entry]) as TestGame;
+  ag2.players[1]!.left = true;
+  onPartyGameAction(a2!.session, 6, [0, 0, 0]);
+  check(ag2.actions.length === 0, "a player who left isn't sent actions");
+  endSession(ag2, new Map());
+  onPartyGameAction(a1!.session, 6, [0, 0, 0]);
+  check(ag2.actions.length === 0, "no actions after the game ended");
 } catch (err) {
   check(false, `threw: ${(err as Error).stack}`);
 }
