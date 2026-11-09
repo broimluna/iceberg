@@ -313,6 +313,7 @@ try {
   }
 
   if (run("dancebattle")) {
+    await setRoleVia(bob, "player"); // earlier sections promote bob; roles are read at login
     await root.connect(); await bob.connect();
     const lobbyItems = (c: Client) => c.mmo.filter((m) => m.a === 30 && m.p.q);
     for (const c of [root, bob]) c.reset();
