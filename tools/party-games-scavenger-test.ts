@@ -179,6 +179,20 @@ try {
     await waitFor(() => results(hider).length === 1);
   }
 
+  // ---- the live client's hide button sends Action2 (8) ----
+  {
+    const { hider, finder } = await hiding();
+    drop(hider, [0, 0, 0], 8);
+    check(items(finder, 2).length === 1, "Action2 (8), what the live client sends for the hide button, drops a marble");
+    onPartyGamePlayerLeft(finder.session);
+  }
+  {
+    const { hider, finder } = await hiding();
+    drop(hider, [0, 0, 0], 9);
+    check(items(finder, 2).length === 0, "Action3 (9) does not drop");
+    onPartyGamePlayerLeft(finder.session);
+  }
+
   // ---- a packet flood is itself disqualifying ----
   {
     const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);

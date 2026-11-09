@@ -25,6 +25,9 @@ const STATE_HIDING = 1, STATE_FINDING = 2;
 // Between Hiding and Finding (the Finder's prop settling): the client sees no state change.
 const STATE_SETTLING = 3;
 const ACTION1 = 7;
+// The Hider's hide button is the Action1 button definition, but a live OpenCPI
+// client sends Action2 (8) for it, so accept either.
+const ACTION2 = 8;
 const HIDER_PROP = "ScavengerHuntHiderServerAdded";
 const FINDER_PROP = "ScavengerHuntFinderServerAdded";
 const PROP_SETTLE_SECONDS = 1;
@@ -133,7 +136,7 @@ export class ScavengerHunt extends PartyGameSession {
   // Runs before onPlayerMoved for the same packet, so lastPos is the
   // previous position.
   override onAction(player: PartyGamePlayer, action: number, position: Vec3): void {
-    if (player !== this.hider || action !== ACTION1 || this.state !== STATE_HIDING) return;
+    if (player !== this.hider || (action !== ACTION1 && action !== ACTION2) || this.state !== STATE_HIDING) return;
     if (this.jumped.has(player)) {
       this.log("drop refused: jumped");
       return;
