@@ -49,9 +49,9 @@ function scheduleRestart(total: number): void {
 
 export const commands: CommandDef[] = [
   {
-    name: "announce",
+    name: "admin-alert",
     minRole: "admin",
-    usage: ":announce <text>",
+    usage: ":admin-alert <text>",
     run(args, ctx) {
       if (args.length === 0) return usage(ctx, this);
       notifyAll(args.join(" "));
