@@ -203,7 +203,7 @@ try {
     logLines.length = 0;
     const [a] = await game(2, [1, 1]);
     act(a, 4); act(a, 5); act(a, 0); act(a, 12);
-    check(logLines.some((l) => l.includes("[FISH]") && l.includes("action byte=4")) && logLines.some((l) => l.includes("action byte=5")), "buttons bytes are logged");
+    check(logLines.some((l) => l.includes("[FISH]") && l.includes("action byte=4")) && logLines.some((l) => l.includes("action byte=5")), "other non-Move bytes (LaunchThrow, Torpedo) are logged");
     check(!logLines.some((l) => l.includes("action byte=0 ") || l.includes("action byte=12 ")), "Move and the continuous byte 12 are not");
   }
 } catch (e) {

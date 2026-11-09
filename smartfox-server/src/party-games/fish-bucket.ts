@@ -15,7 +15,8 @@
 // owner's lobby Start are 3 = Action1 (l.a 7), Pass is 4 = Action2 (l.a 8);
 // FishBucket.onDoActionEvent disables the controls on exactly Action1/Action2.
 // OpenCPI inserted Sprint into that enum, so a client without the prefab fix
-// sends nothing for Fish/Start and l.a 7 for Pass. Every other non-Move byte and
+// sends nothing for Fish/Start and l.a 7 for Pass, which this server reads as a
+// draw (Fish), not a hand-over. Every other non-Move byte and
 // every unhandled pgame.message is logged (`[FISH] ...`). An idle turn is still
 // dealt a card on timeout, so a game of AFK players runs to the end of the deck.
 import type { RegisteredSession } from "../session-registry.ts";
