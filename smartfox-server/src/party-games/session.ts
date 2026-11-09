@@ -9,6 +9,10 @@ export const host = {
   end: (_game: PartyGameSession, _placements: Map<RegisteredSession, number>, _unpaid?: Set<RegisteredSession>): void => {},
   guarded: (_game: PartyGameSession, fn: () => void): void => fn(),
   send: (_game: PartyGameSession, _type: number, _message: string): void => {},
+  // The game prop a player holds ("con" {type: pgame}) and their locomotion
+  // state ("loc"), broadcast to the room.
+  setProp: (_entry: RegisteredSession, _name: string | undefined): void => {},
+  setLocomotion: (_entry: RegisteredSession, _state: number): void => {},
 };
 
 // Multiplies every party-game delay (tests run whole matches in moments).
@@ -66,6 +70,8 @@ export abstract class PartyGameSession {
   }
 
   abstract onStart(): void;
+  // After pgame.end went out (the session is over and its timers are gone).
+  onEnded(): void {}
   abstract onMessage(player: PartyGamePlayer, type: number, message: unknown): void;
   abstract onPlayerLeft(player: PartyGamePlayer): void;
   // The player put the game prop away (the client's quit). They're still in

@@ -17,6 +17,7 @@ import { withAccount } from "../account.ts";
 import { getPartyGame, rewardFor, type PartyGameDef } from "./definitions.ts";
 import { host, type PartyGameSession, type PartyGameSlot } from "./session.ts";
 import { FindFour } from "./find-four.ts";
+import { DanceBattle } from "./dance-battle.ts";
 
 export type SessionFactory = (id: number, def: PartyGameDef, players: RegisteredSession[], slots?: PartyGameSlot[]) => PartyGameSession;
 
@@ -151,6 +152,12 @@ export function endSession(game: PartyGameSession, placements: Map<RegisteredSes
     if (here.includes(p)) p.send(extensionPacket("reward.add_delayed", new SFSObjectWriter().putUtfString("reward", payload)));
   }
 
+  try {
+    game.onEnded();
+  } catch (err) {
+    log(`session ${game.id} onEnded threw: ${(err as Error).stack ?? err}`);
+  }
+
   sessions.delete(game.id);
   for (const p of game.players) if (sessionByUser.get(p.entry.session.userId) === game) sessionByUser.delete(p.entry.session.userId);
   log(`session ${game.id} ended: ${[...placements].map(([p, place]) => `${p.session.userName}=${place}`).join(", ") || "no results"}`);
@@ -213,8 +220,21 @@ export function onPartyGamePlayerLeft(s: Session): void {
   guarded(game, () => game.onPlayerLeft(player));
 }
 
+// "loc": PlayerStateService's Domain.LocomotionState byte (2 = GenericState1,
+// the locked party-game pose).
+function setPartyGameLocomotion(entry: RegisteredSession, state: number): void {
+  const s = entry.session;
+  s.locomotionState = state;
+  const v = new SFSArrayWriter().putUtfString("loc").putVariableType("int").putInt(state).putBool(false);
+  const packet = encodePacket(0, 12, new SFSObjectWriter().putInt("u", s.userId).putSFSArray("vl", new SFSArrayWriter().putSFSArray(v)));
+  for (const target of getByRoom(s.roomName)) target.send(packet);
+}
+
 host.end = endSession;
+host.setProp = setPartyGameProp;
+host.setLocomotion = setPartyGameLocomotion;
 host.guarded = guarded;
 host.send = sendGameMessage;
 
 registerGameType(2, (id, def, players) => new FindFour(id, def, players));
+registerGameType(3, (id, def, players, slots) => new DanceBattle(id, def, players, slots));
