@@ -154,6 +154,31 @@ try {
     onPartyGamePlayerLeft(hider.session);
   }
 
+  // ---- sub-20 m hops at packet rate add up to speed: disqualified; a walking pace is not ----
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    drop(hider, [0, 0, 0]);
+    await waitFor(() => states(finder).includes(2));
+    for (const z of [0, 15, 0, 15, 0]) onPartyGamePlayerMoved(finder.session, [0, 0, z]);
+    remove(finder, 1);
+    check(items(finder, 3).length === 0, "a Finder hopping 15 m per packet (60 m in under a second, back at the marble) can't pick up");
+    onPartyGamePlayerLeft(hider.session);
+  }
+  {
+    const hider = makePlayer(`h${++n}`, ROOM), finder = makePlayer(`f${n}`, ROOM);
+    startPartyGame(0, [hider.entry, finder.entry]);
+    await waitFor(() => states(hider).includes(1));
+    drop(hider, [0, 0, 0]);
+    await waitFor(() => states(finder).includes(2));
+    for (let i = 0; i < 20; i++) onPartyGamePlayerMoved(finder.session, [0, 0, i * 0.4]);
+    onPartyGamePlayerMoved(finder.session, [0, 0, 0]);
+    remove(finder, 1);
+    check(items(finder, 3).length === 1, "a Finder walking at a normal pace can still pick up");
+    await waitFor(() => results(hider).length === 1);
+  }
+
   // ---- time runs out with a marble left: the Hider wins ----
   {
     const { hider, finder } = await hiding();

@@ -68,7 +68,7 @@ export function raceScore(elapsedMs: number, modifierSum: number, data: TubeRace
 // a teleport.
 export const MAX_JUMP = 20;
 export const MAX_SPEED = 30;
-const SPEED_SPAN_MS = 1000;
+export const SPEED_SPAN_MS = 1000;
 
 export interface PathStats {
   maxJump: number;

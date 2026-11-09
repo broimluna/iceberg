@@ -16,7 +16,7 @@
 import type { RegisteredSession } from "../session-registry.ts";
 import { host, PartyGameSession, type PartyGamePlayer, type PartyGameSlot } from "./session.ts";
 import type { PartyGameDef } from "./definitions.ts";
-import { MAX_JUMP, type Vec3 } from "./tube-race-rules.ts";
+import { MAX_JUMP, MAX_SPEED, SPEED_SPAN_MS, type Vec3 } from "./tube-race-rules.ts";
 import { decideWinner, parseItemId, validateDrop, validatePickup } from "./scavenger-hunt-rules.ts";
 
 const SET_ROLE = 0, SET_GAME_STATE = 1, ADD_ITEM = 2, REMOVE_ITEM = 3;
@@ -47,6 +47,8 @@ export class ScavengerHunt extends PartyGameSession {
   // (a client placing itself at a marble, or out of reach of one): they
   // can't drop or pick up.
   private readonly jumped = new Set<PartyGamePlayer>();
+  // Recent samples (position + arrival ms) per player, for the sustained-speed check.
+  private readonly samples = new Map<PartyGamePlayer, { p: Vec3; t: number }[]>();
   // Set once the Finder has found every marble (during the finish delay).
   private decided: Map<RegisteredSession, number> | undefined;
 
@@ -100,9 +102,23 @@ export class ScavengerHunt extends PartyGameSession {
 
   onPlayerMoved(player: PartyGamePlayer, position: Vec3): void {
     const before = this.lastPos.get(player);
-    if (before && Math.hypot(position[0] - before[0], position[1] - before[1], position[2] - before[2]) > MAX_JUMP && !this.jumped.has(player)) {
+    const now = Date.now();
+    const hist = this.samples.get(player) ?? [];
+    hist.push({ p: [position[0], position[1], position[2]], t: now });
+    while (hist.length > 1 && now - hist[0]!.t > SPEED_SPAN_MS * 2) hist.shift();
+    this.samples.set(player, hist);
+    // Same rule as the tube race: spans shorter than SPEED_SPAN_MS count as that
+    // long, so bunched packets don't read as speed.
+    let along = 0, maxSpeed = 0;
+    for (let i = hist.length - 2; i >= 0; i--) {
+      const a = hist[i]!.p, b = hist[i + 1]!.p;
+      along += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      maxSpeed = Math.max(maxSpeed, (along * 1000) / Math.max(now - hist[i]!.t, SPEED_SPAN_MS));
+    }
+    const jump = before ? Math.hypot(position[0] - before[0], position[1] - before[1], position[2] - before[2]) : 0;
+    if ((jump > MAX_JUMP || maxSpeed > MAX_SPEED) && !this.jumped.has(player)) {
       this.jumped.add(player);
-      this.log(`${player.entry.session.accountName} jumped more than ${MAX_JUMP}m, disqualified from dropping/picking up`);
+      this.log(`${player.entry.session.accountName} moved implausibly (${jump.toFixed(1)}m step, ${maxSpeed.toFixed(1)}m/s), disqualified from dropping/picking up`);
     }
     this.lastPos.set(player, [position[0], position[1], position[2]]);
   }
