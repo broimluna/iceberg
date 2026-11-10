@@ -247,6 +247,7 @@ app.use(routes.moderationRoutes);
 app.use(routes.disneystoreRoutes);
 app.use(routes.tubeRoutes);
 app.use(routes.eventRoutes);
+app.use(routes.partyRoutes);
 app.use(routes.encryptionRoutes);
 app.use(routes.membershipRoutes);
 app.use(routes.guestcontrollerRoutes);

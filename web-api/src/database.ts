@@ -691,6 +691,14 @@ function initializeDatabase() {
         )
     `);
 
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // Create indexes for performance
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_mix_reports_status ON mix_reports(status);
@@ -2764,7 +2772,21 @@ function playerExists(username) {
 initializeDatabase();
 
 // Export all functions
+function getSetting(key: string): string | null {
+    const row = db.query("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | null;
+    return row ? row.value : null;
+}
+
+function setSetting(key: string, value: string): void {
+    db.run(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+        [key, value],
+    );
+}
+
 export {
+    getSetting,
+    setSetting,
     inTransaction,
     getPlayerIdentityAndRole,
     setPlayerRole,

@@ -23,6 +23,7 @@ import moderationRoutes from "./moderation.ts";
 import disneystoreRoutes from "./disneystore.ts";
 import tubeRoutes from "./tube.ts";
 import eventRoutes from "./event.ts";
+import partyRoutes from "./party.ts";
 import encryptionRoutes from "./encryption.ts";
 import membershipRoutes from "./membership.ts";
 import guestcontrollerRoutes from "./guestcontroller.ts";
@@ -52,6 +53,7 @@ export {
     disneystoreRoutes,
     tubeRoutes,
     eventRoutes,
+    partyRoutes,
     encryptionRoutes,
     membershipRoutes,
     guestcontrollerRoutes,
