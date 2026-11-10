@@ -102,7 +102,6 @@ const config = {
     content: {
         clientVersion: '1.13.0',
         contentVersion: 'live',
-        subContentVersion: '2025-12-31',
         abTestGroup: 'NONE'
     },
 

@@ -7,6 +7,7 @@ import { Database } from "bun:sqlite";
 import { startWebApi, makeChecker } from "./lib/harness.ts";
 import { startGameServer, GameClient, sleep } from "./lib/sfs-client.ts";
 import { createPlayer } from "./lib/mix-client.ts";
+import { buildContentIdentifier, todayUtc } from "../web-api/src/utils/contentIdentifier.ts";
 
 const { check, finish } = makeChecker();
 const KEY = "test-join-key-" + Math.random().toString(36).slice(2);
@@ -26,6 +27,13 @@ const joinRoom = async (swid: string, version?: string, room = "Town") => {
   const r = await fetch(`${BASE}/game/v1/worlds/Alpine/language/en/rooms/${room}/players`, { method: "POST", headers: headers(swid, version), body: "{}" });
   return ((await r.json()) as any).data;
 };
+
+// ---- the content date is today (UTC), yyyy-MM-dd ----
+check(todayUtc(new Date("2026-11-09T23:59:59Z")) === "2026-11-09", "todayUtc just before midnight");
+check(todayUtc(new Date("2026-11-10T00:00:00Z")) === "2026-11-10", "todayUtc at midnight");
+check(buildContentIdentifier("1.13.0", new Date("2026-03-05T12:00:00Z")) === "1.13.0;live;2026-03-05;NONE", "content identifier uses the given date");
+const dateOf = (id: string | undefined) => id?.split(";")[2];
+const todayish = (id: string | undefined) => dateOf(id) === todayUtc() || dateOf(id) === todayUtc(new Date(Date.now() - 2000));
 
 try {
   const A = "{A1A1A1A1-0000-0000-0000-000000000001}";
@@ -51,10 +59,14 @@ try {
   const iglooRoom = ((await igloo.json()) as any)?.data?.room as string | undefined;
   check(igloo.ok && roomVersion(iglooRoom) === "1.16.1.1", `igloo join carries the version (${igloo.status} ${iglooRoom})`);
 
+  check(todayish(fullRoom.split(":")[4]), `signed room name carries today's date (${fullRoom.split(":")[4]})`);
+  check(todayish(iglooRoom?.split(":")[4]), `igloo room name carries today's date (${iglooRoom})`);
+
   // ---- room list ----
   const list = async (version?: string) => (await (await fetch(`${BASE}/game/v1/rooms?language=en&rooms=Town&limit=1`, { headers: headers(A, version) })).json()) as any[];
   check(versionOf((await list("1.16.1.1"))[0]?.contentIdentifier) === "1.16.1.1", "room list uses the caller's version");
   check(versionOf((await list())[0]?.contentIdentifier) === DEFAULT, "room list without a version uses the default");
+  check(todayish((await list())[0]?.contentIdentifier), "room list carries today's date");
 
   // ---- populations per version ----
   // Fresh sessions: B (default version) alone in Beach.

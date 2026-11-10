@@ -27,6 +27,7 @@ import lots from "../../data/lots.json";
 const router = express.Router();
 import * as db from "../database.ts";
 import config from "../config.ts";
+import { buildContentIdentifier } from "../utils/contentIdentifier.ts";
 
 /**
  * Wrap response in SignedResponse format
@@ -613,9 +614,7 @@ router.post('/igloo/v1/igloos/populations/zoneIds', (req, res) => {
                     name: zoneName,
                     instanceId: instanceId
                 },
-                contentIdentifier: config.content ? 
-                    `${config.content.clientVersion};${config.content.contentVersion};${config.content.subContentVersion};NONE` :
-                    '1.13.0;1.13.0;2019-04-17;NONE',
+                contentIdentifier: buildContentIdentifier(),
                 room: zoneName
             },
             populationScaled: 0

@@ -21,6 +21,7 @@ import { QuestStatus } from "../utils/response.ts";
 import { signJoin } from "../utils/joinSignature.ts";
 import lots from "../../data/lots.json";
 import { logSafe } from "../utils/logSafe.ts";
+import { buildContentIdentifier, todayUtc } from "../utils/contentIdentifier.ts";
 
 // ========== CONSTANTS ==========
 
@@ -72,10 +73,7 @@ const POPULATION_THRESHOLDS = {
 /**
  * Build content identifier string
  */
-export function buildContentIdentifier(clientVersion = config.content.clientVersion) {
-    const { contentVersion, subContentVersion, abTestGroup } = config.content;
-    return `${clientVersion};${contentVersion};${subContentVersion};${abTestGroup}`;
-}
+export { buildContentIdentifier, todayUtc };
 
 /**
  * The caller's client version, from the X-CP-Client-Version header every
