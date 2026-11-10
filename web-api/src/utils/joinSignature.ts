@@ -4,12 +4,15 @@
 // editing the swid (it used to trust the client and the signature was a
 // constant).
 //
-// The signature is an HMAC-SHA256 over
-// "swid|sessionId|room|goodUntil|userName". Those five fields are what
+// The signature is an HMAC-SHA256 over the JSON array
+// [swid, sessionId, room, goodUntil, userName]. Those five fields are what
 // SmartFox relies on, and each one reads the same in both processes.
-// sessionId is under 2^31, so JSON keeps it exact. userName (the display
-// name other players see) comes last because it is the only field that
-// could contain a "|".
+// sessionId is under 2^31, so JSON keeps it exact. The array form matters:
+// the room is built from URL parts the player chooses, so a separator
+// character in it could otherwise be read as the end of one field and the
+// start of the next, and one signature would validate for a different
+// room, goodUntil and name. JSON quotes every string, so the fields
+// can't run into each other.
 //
 // Key: JOIN_SIGNING_KEY, or a random key kept in <repo>/.iceberg-join-key
 // (git-ignored), created by whichever server starts first.
@@ -32,5 +35,5 @@ export function signingKey(): string {
 }
 
 export function signJoin(swid: string, sessionId: number | string, room: string, goodUntil: number, userName: string): string {
-    return crypto.createHmac("sha256", signingKey()).update(`${swid}|${sessionId}|${room}|${goodUntil}|${userName}`).digest("base64url");
+    return crypto.createHmac("sha256", signingKey()).update(JSON.stringify([swid, String(sessionId), room, goodUntil, userName])).digest("base64url");
 }

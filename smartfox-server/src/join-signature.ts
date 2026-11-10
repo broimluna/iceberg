@@ -4,7 +4,9 @@
 // a player act as someone else here, and editing the name let them be
 // shown to the room under any name.
 //
-// HMAC-SHA256 over "swid|sessionId|room|goodUntil|userName", keyed by
+// HMAC-SHA256 over the JSON array [swid, sessionId, room, goodUntil,
+// userName] (the fields can't run into each other the way a "|"-joined
+// string let them: the room contains text the player chose), keyed by
 // JOIN_SIGNING_KEY or <repo>/.iceberg-join-key (whichever server starts
 // first creates the file).
 //
@@ -37,7 +39,7 @@ export type JoinClaims = { swid: string; sessionId: string; room: string; goodUn
 export function checkJoinSignature(c: JoinClaims, now = Date.now()): string | null {
   if (typeof c.signature !== "string" || c.signature.length === 0) return "no signature";
   if (!Number.isSafeInteger(c.goodUntil)) return "no goodUntil";
-  const expected = crypto.createHmac("sha256", signingKey()).update(`${c.swid}|${c.sessionId}|${c.room}|${c.goodUntil}|${c.userName}`).digest();
+  const expected = crypto.createHmac("sha256", signingKey()).update(JSON.stringify([c.swid, c.sessionId, c.room, c.goodUntil, c.userName])).digest();
   const given = Buffer.from(c.signature, "base64url");
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return "bad signature";
   if (c.goodUntil + GRACE_MS < now) return "expired";
