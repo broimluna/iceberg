@@ -1,0 +1,191 @@
+[
+  {
+    "id": 1,
+    "name": "colorevent2018",
+    "start": "01-10",
+    "end": "02-01",
+    "calendar": true
+  },
+  {
+    "id": 12,
+    "name": "aprilfools",
+    "start": "04-01",
+    "end": "04-08",
+    "calendar": true
+  },
+  {
+    "id": 13,
+    "name": "1stanniversary",
+    "start": "03-08",
+    "end": "04-01",
+    "calendar": true
+  },
+  {
+    "id": 17,
+    "name": "worldpenguinday",
+    "start": "04-08",
+    "end": "05-01",
+    "calendar": true
+  },
+  {
+    "id": 18,
+    "name": "pirateparty2018",
+    "start": "06-06",
+    "end": "06-27",
+    "calendar": true
+  },
+  {
+    "id": 20,
+    "name": "summerparty2018",
+    "start": "07-04",
+    "end": "08-09",
+    "calendar": true
+  },
+  {
+    "id": 21,
+    "name": "medievalparty2018",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": true
+  },
+  {
+    "id": 22,
+    "name": "halloween2018",
+    "start": "10-01",
+    "end": "10-24",
+    "calendar": true
+  },
+  {
+    "id": 23,
+    "name": "waddleon",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 27,
+    "name": "rdma",
+    "start": "04-08",
+    "end": "05-01",
+    "calendar": true
+  },
+  {
+    "id": 29,
+    "name": "worldpenguinday2017",
+    "start": "04-08",
+    "end": "04-19",
+    "calendar": true
+  },
+  {
+    "id": 30,
+    "name": "blizzardbeach",
+    "start": "02-01",
+    "end": "03-01",
+    "calendar": true
+  },
+  {
+    "id": 35,
+    "name": "holidayconstruction",
+    "start": "11-23",
+    "end": "12-01",
+    "calendar": true
+  },
+  {
+    "id": 40,
+    "name": "opencpi1stanniversary",
+    "start": "05-01",
+    "end": "05-09",
+    "calendar": true
+  },
+  {
+    "id": 41,
+    "name": "20thanniversary",
+    "start": "11-02",
+    "end": "11-07",
+    "calendar": true
+  },
+  {
+    "id": 43,
+    "name": "waddleon2026",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 44,
+    "name": "halloween2025leadup",
+    "start": "09-24",
+    "end": "10-01",
+    "calendar": true
+  },
+  {
+    "id": 45,
+    "name": "holidayparty2026",
+    "start": "12-01",
+    "end": "01-04",
+    "calendar": true
+  },
+  {
+    "id": 46,
+    "name": "summersplashleadup",
+    "start": "06-27",
+    "end": "07-04",
+    "calendar": true
+  },
+  {
+    "id": 47,
+    "name": "halloween2026",
+    "start": "10-24",
+    "end": "11-02",
+    "calendar": true
+  },
+  {
+    "id": 48,
+    "name": "wpd2017week2",
+    "start": "04-19",
+    "end": "05-01",
+    "calendar": true
+  },
+  {
+    "id": 50,
+    "name": "mtblizzardgrandopening",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 51,
+    "name": "halloween2017cutscene1",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 52,
+    "name": "halloween2017cutscene2",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 53,
+    "name": "halloween2017cutscene3",
+    "start": "08-15",
+    "end": "09-06",
+    "calendar": false
+  },
+  {
+    "id": 54,
+    "name": "minifireworks",
+    "start": "07-03",
+    "end": "07-06",
+    "calendar": true
+  },
+  {
+    "id": 55,
+    "name": "carworld",
+    "start": "07-03",
+    "end": "07-06",
+    "calendar": false
+  }
+]
