@@ -13,6 +13,20 @@ export function fitsBytes(s: string | undefined, max: number): s is string {
   return s !== undefined && Buffer.byteLength(s, "utf8") <= max;
 }
 
+// Whether raw text taken out of a client's JSON with extractRawJsonValue is
+// an outfit other clients can parse: a JSON object, within MAX_OUTFIT_BYTES.
+// (extractRawJsonValue counts braces without reading strings, so what it
+// returns for hostile input may not be JSON at all.)
+export function isOutfitJson(text: string | undefined): text is string {
+  if (!text?.startsWith("{") || !fitsBytes(text, MAX_OUTFIT_BYTES)) return false;
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
 export function getUtfString(obj: SFSObjectData, key: string): string | undefined {
   const v = obj[key];
   return v?.type === SFSDataType.UTF_STRING ? v.value : undefined;

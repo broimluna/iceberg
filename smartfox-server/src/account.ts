@@ -4,12 +4,17 @@ import { fetchIdentity } from "./webapi-client.ts";
 // Resolves the web API account (and staff role) behind a login's swid.
 // Called once, right after login. An unsigned login (development only)
 // gets the account but never a staff role.
-export function resolveIdentity(session: Session, peer: string): void {
+export function resolveIdentity(session: Session, peer: string, onBanned: () => void): void {
   const swid = session.swid;
   if (!swid) return;
   session.identityReady = fetchIdentity(swid).then((identity) => {
     if (!identity) {
       console.log(`[${new Date().toISOString()}] ${peer} - identity ${swid}: no account (rewards and staff commands disabled)`);
+      return;
+    }
+    if (identity.banned) {
+      // joinRoomData signed before the ban is still within its validity.
+      onBanned();
       return;
     }
     session.accountName = identity.username;

@@ -1,6 +1,6 @@
 import net from "node:net";
 import { SFSObjectWriter, SFSArrayWriter, encodePacket, type SFSObjectData } from "../../sfs-wire.ts";
-import { getUtfString, getSFSObject, extractRawJsonValue, fitsBytes, MAX_NAME_BYTES, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
+import { getUtfString, getSFSObject, extractRawJsonValue, fitsBytes, isOutfitJson, MAX_NAME_BYTES } from "../../wire-helpers.ts";
 import { JOIN_DELAY_MS, ALLOW_UNSIGNED_LOGIN } from "../../config.ts";
 import { checkJoinSignature } from "../../join-signature.ts";
 import { sendWorldObjectsSnapshot } from "../../world-objects.ts";
@@ -40,6 +40,7 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     sessionId: Number.isSafeInteger(parsed?.data?.sessionId) ? String(parsed.data.sessionId) : "",
     room: typeof parsed?.data?.room === "string" ? parsed.data.room : "",
     goodUntil: parsed?.goodUntil,
+    userName: typeof parsed?.data?.userName === "string" ? parsed.data.userName : "",
     signature: parsed?.signature,
   };
   const refused = checkJoinSignature(claims);
@@ -51,7 +52,10 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
 
   session.signedLogin = refused === null;
   session.zoneName = zoneName;
-  session.userName = fitsBytes(userName, MAX_NAME_BYTES) ? userName : "guest";
+  // The name the room sees is the signed one. The login's own "un" is the
+  // same text from an honest client, and anything at all from another.
+  const shownName = session.signedLogin ? claims.userName : userName;
+  session.userName = shownName && fitsBytes(shownName, MAX_NAME_BYTES) ? shownName : "guest";
   let roomName = "ClubPenguin_default_room";
   if (fitsBytes(claims.room, MAX_NAME_BYTES) && claims.room) roomName = claims.room;
   if (claims.swid && fitsBytes(claims.swid, MAX_NAME_BYTES)) session.swid = claims.swid;
@@ -63,12 +67,14 @@ export function handleLogin(params: SFSObjectData, ctx: HandlerContext, socket: 
     const sessionIdMatch = joinRoomDataStr.match(/"sessionId"\s*:\s*(\d{1,20})\b/);
     if (sessionIdMatch) session.playerSessionId = sessionIdMatch[1];
   }
-  if (typeof parsed?.data?.playerRoomData?.profile?.colour === "number") session.colour = parsed.data.playerRoomData.profile.colour;
-  if (typeof parsed?.data?.selectedTubeId === "number") session.selectedTubeId = parsed.data.selectedTubeId;
+  // Both go out as INT user variables; putInt throws on anything else.
+  const isInt32 = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= -0x80000000 && (n as number) <= 0x7fffffff;
+  if (isInt32(parsed?.data?.playerRoomData?.profile?.colour)) session.colour = parsed.data.playerRoomData.profile.colour;
+  if (isInt32(parsed?.data?.selectedTubeId)) session.selectedTubeId = parsed.data.selectedTubeId;
   if (joinRoomDataStr) {
     // The outfit also contains a sessionId, so it's kept as raw JSON text.
     const outfit = extractRawJsonValue(joinRoomDataStr, "outfit");
-    if (fitsBytes(outfit, MAX_OUTFIT_BYTES)) session.outfitJson = outfit;
+    if (isOutfitJson(outfit)) session.outfitJson = outfit;
   }
   session.roomName = roomName;
   // The client also sends p.transientData, but that copy is unsigned; the

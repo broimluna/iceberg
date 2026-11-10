@@ -407,7 +407,7 @@ router.post('/jgc/v5/client/:clientId/guest/login', loginLimit, authenticateApiK
         res.json(buildSuccess(responseData));
     } catch (err) {
         console.error(`[LOGIN] Exception in login handler:`, err);
-        res.status(500).json(buildError('LOGIN', 'INTERNAL_ERROR', null, err.message));
+        res.status(500).json(buildError('LOGIN', 'INTERNAL_ERROR', null, 'Internal error'));
     }
 });
 

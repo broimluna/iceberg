@@ -30,7 +30,7 @@ export interface RewardGrant {
   collectibleCurrencies?: Record<string, number>;
 }
 
-export async function fetchIdentity(swid: string): Promise<{ username: string; role: Role } | null> {
+export async function fetchIdentity(swid: string): Promise<{ username: string; role: Role; banned: boolean } | null> {
   try {
     const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/identity`, {
       method: "POST",
@@ -39,11 +39,49 @@ export async function fetchIdentity(swid: string): Promise<{ username: string; r
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { username?: unknown; role?: unknown };
+    const body = (await res.json()) as { username?: unknown; role?: unknown; banned?: unknown };
     if (typeof body.username !== "string") return null;
-    return { username: body.username, role: isRole(body.role) ? body.role : "player" };
+    return { username: body.username, role: isRole(body.role) ? body.role : "player", banned: body.banned === true };
   } catch (err) {
     console.log(`[${new Date().toISOString()}] webapi-client: identity lookup failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/** The swids among `swids` with an active ban; null when the web API can't be asked. */
+export async function fetchBanned(swids: string[]): Promise<string[] | null> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/banned`, {
+      method: "POST",
+      headers: internalHeaders(),
+      body: JSON.stringify({ swids }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { banned?: unknown };
+    return Array.isArray(body.banned) ? body.banned.filter((s): s is string => typeof s === "string") : null;
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: ban check failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+export type SavedAppearance = { colour: number; tubeId: number; parts: unknown[] };
+
+/** The colour, tube and worn outfit saved for a swid, or null when unknown or the request failed. */
+export async function fetchAppearance(swid: string): Promise<SavedAppearance | null> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/appearance`, {
+      method: "POST",
+      headers: internalHeaders(),
+      body: JSON.stringify({ swid }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as Partial<SavedAppearance>;
+    if (!Number.isInteger(body.colour) || !Number.isInteger(body.tubeId) || !Array.isArray(body.parts)) return null;
+    return { colour: body.colour!, tubeId: body.tubeId!, parts: body.parts };
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] webapi-client: appearance request failed: ${(err as Error).message}`);
     return null;
   }
 }

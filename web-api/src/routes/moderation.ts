@@ -10,6 +10,7 @@
 import express from "express";
 import * as db from "../database.ts";
 import { report } from "../services/moderation.ts";
+import { logSafe } from "../utils/logSafe.ts";
 const router = express.Router();
 
 /**
@@ -34,7 +35,7 @@ router.post('/moderation/v1/report/name/:displayName', (req, res) => {
         reason = req.rawBody.toString('utf8');
     } else {
         // Invalid body
-        console.log(`[MODERATION] Invalid report body from ${username}:`, req.body);
+        console.log(`[MODERATION] Invalid report body from ${username}: ${logSafe(req.body)}`);
         return res.status(400).json({ error: 'Invalid report body' });
     }
 
@@ -43,7 +44,7 @@ router.post('/moderation/v1/report/name/:displayName', (req, res) => {
     // an account exists.
     const target = db.getPlayerByDisplayName(reportedPlayer);
     const id = report({ reporter: swid, reported: target?.swid ?? `name:${reportedPlayer}`, reason: String(reason), source: "cpi" });
-    console.log(`[MODERATION] Report ${id}: ${username} reported ${reportedPlayer}: ${reason}`);
+    console.log(`[MODERATION] Report ${id}: ${username} reported ${logSafe(reportedPlayer)}: ${logSafe(reason)}`);
 
     res.status(200).send();
 });

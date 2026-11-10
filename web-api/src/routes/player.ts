@@ -430,7 +430,7 @@ router.post('/player/v1/displayName', (req, res) => {
         displayName = displayName.trim();
     }
     
-    console.log(`[PLAYER] Setting display name for ${username} to: ${displayName}`);
+    console.log(`[PLAYER] Setting display name for ${username} to: ${logSafe(displayName)}`);
     
     const checked = checkName(displayName);
     if (!checked.ok) return res.status(400).json({ error: `Invalid display name (${checked.reason})` });
@@ -550,7 +550,7 @@ router.post('/player/v1/preregistration', (req, res) => {
     const { swid, username } = req.player;
     const clientId = req.query.clientId || 'unknown_client';
     
-    console.log(`[PLAYER] Preregistration submitted for ${username} with clientId: ${clientId}`);
+    console.log(`[PLAYER] Preregistration submitted for ${username} with clientId: ${logSafe(clientId)}`);
     
     res.json({
         status: 'PREREGISTERED',
@@ -572,7 +572,7 @@ router.put('/player/v1/referral', (req, res) => {
     const { username } = req.player;
     const referrerDisplayName = req.body;
     
-    console.log(`[PLAYER] ${username} setting referral: ${referrerDisplayName}`);
+    console.log(`[PLAYER] ${username} setting referral: ${logSafe(referrerDisplayName)}`);
     
     // Validate referrer display name - must be non-empty string
     if (!referrerDisplayName || typeof referrerDisplayName !== 'string' || referrerDisplayName.trim() === '') {
@@ -584,7 +584,7 @@ router.put('/player/v1/referral', (req, res) => {
     const referrer = db.getPlayerByDisplayName(referrerDisplayName.trim());
     
     if (!referrer) {
-        console.log(`[PLAYER] ${username} referral ignored - referrer "${referrerDisplayName}" not found`);
+        console.log(`[PLAYER] ${username} referral ignored - referrer "${logSafe(referrerDisplayName)}" not found`);
         return res.status(200).send();
     }
     
@@ -614,7 +614,7 @@ router.post('/player/v1/legacy/migrate', (req, res) => {
     const { username } = req.player;
     const cpidCreds = req.body;
     
-    console.log(`[PLAYER] Legacy migration attempt for ${username} from CP account: ${cpidCreds?.username}`);
+    console.log(`[PLAYER] Legacy migration attempt for ${username} from CP account: ${logSafe(cpidCreds?.username)}`);
     
     // In a full implementation, we would validate against legacy CP data
     // For now, return a successful migration response
@@ -639,7 +639,7 @@ router.post('/player/v1/legacy/migrate', (req, res) => {
  */
 router.get('/player/v1/id/:swid', (req, res) => {
     const targetSwid = req.params.swid;
-    console.log(`[PLAYER] Get player by SWID: ${targetSwid}`);
+    console.log(`[PLAYER] Get player by SWID: ${logSafe(targetSwid)}`);
     
     const playerInfo = db.getPlayerBySwid(targetSwid);
     
@@ -694,7 +694,7 @@ router.post('/player/v1/id', (req, res) => {
  */
 router.get('/player/v1/name/:displayName', (req, res) => {
     const displayName = req.params.displayName;
-    console.log(`[PLAYER] Get player by display name: ${displayName}`);
+    console.log(`[PLAYER] Get player by display name: ${logSafe(displayName)}`);
     
     const playerInfo = db.getPlayerByDisplayName(displayName);
     
@@ -717,7 +717,10 @@ router.get('/player/v1/name/:displayName', (req, res) => {
  * Response: OtherPlayerData[]
  */
 router.post('/player/v1/names', (req, res) => {
-    const displayNames = req.body || [];
+    if (!Array.isArray(req.body) || req.body.length > MAX_SWIDS_PER_LOOKUP) {
+        return res.status(400).json({ error: `Expected a list of at most ${MAX_SWIDS_PER_LOOKUP} names` });
+    }
+    const displayNames = req.body.filter((n) => typeof n === 'string');
     console.log(`[PLAYER] Get players by display names: ${displayNames.length} requested`);
     
     const players = displayNames.map(name => {
@@ -765,7 +768,10 @@ router.get('/player/v1/session/:sessionId', (req, res) => {
  * Response: string[] (array of online SWIDs)
  */
 router.post('/player/v1/id/online', (req, res) => {
-    const swids = req.body || [];
+    if (!Array.isArray(req.body) || req.body.length > MAX_SWIDS_PER_LOOKUP) {
+        return res.status(400).json({ error: `Expected a list of at most ${MAX_SWIDS_PER_LOOKUP} swids` });
+    }
+    const swids = req.body.filter((s) => typeof s === 'string');
     console.log(`[PLAYER] Get online players by SWIDs: ${swids.length} requested`);
     
     // Query the database for online players

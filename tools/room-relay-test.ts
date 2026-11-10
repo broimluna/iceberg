@@ -50,7 +50,9 @@ try {
   a.setCon(null);
   await sleep(300);
   const ok = Object.assign({}, ...b.varsOf(a.myId));
-  check(typeof ok.outfit === "string" && ok.outfit.startsWith("{") && "con" in ok, `outfit and con still work (${JSON.stringify(ok).slice(0, 120)})`);
+  // A signed player's outfit is the web API's saved one: this client's copy equals it, so nothing
+  // is relayed for it (tools/appearance-trust-test.ts covers a real change), while con still goes out.
+  check(!("outfit" in ok) && "con" in ok, `con still works, and an outfit equal to the saved one is not sent again (${JSON.stringify(ok).slice(0, 120)})`);
 
   b.clear();
   setVars(a, str("proto", "{}"));

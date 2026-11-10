@@ -8,6 +8,8 @@
 import { normalizeName } from "./utils/names.ts";
 import { Database } from "bun:sqlite";
 import path from "path";
+import { chmodSync } from "fs";
+import { createHash } from "node:crypto";
 import { parseJson, stringifyJson } from "./lib/bigJson.ts";
 import config from "./config.ts";
 
@@ -23,6 +25,13 @@ db.exec("PRAGMA journal_mode = WAL");
 // The server and tools/mod.ts can write at the same time; wait instead of
 // failing with "database is locked".
 db.exec("PRAGMA busy_timeout = 5000");
+
+// The database holds password hashes and login tokens: only the account
+// that runs the server may read it (SQLite gives new -wal/-shm files the
+// main file's mode).
+for (const file of [DB_PATH, `${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
+    try { chmodSync(file, 0o600); } catch {}
+}
 
 // Runs fn in one SQLite transaction. Re-entrant: inside another
 // inTransaction it just calls fn, so the outer transaction covers it.
@@ -455,6 +464,18 @@ function initializeDatabase() {
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    // Tokens are stored as SHA-256 hashes, so a copy of the database can't
+    // be used to log in. Rows from before that are hashed here, which keeps
+    // those sessions valid.
+    {
+        const plain = db.prepare("SELECT token FROM guest_controller_tokens WHERE token NOT LIKE 'sha256:%'").all();
+        if (plain.length > 0) {
+            const update = db.prepare('UPDATE guest_controller_tokens SET token = ? WHERE token = ?');
+            db.transaction(() => { for (const row of plain) update.run(hashToken(row.token), row.token); })();
+            console.log(`[DATABASE] Hashed ${plain.length} stored login tokens`);
+        }
+    }
 
     // Guest controller API keys
     db.exec(`
@@ -2273,6 +2294,12 @@ function cleanupExpiredEncryptionKeys() {
 
 // ========== GUEST CONTROLLER TOKEN OPERATIONS ==========
 
+// What is stored for a login token: its SHA-256 (tokens are 256 random
+// bits, so a plain hash is enough and the lookup stays a key match).
+function hashToken(token) {
+    return 'sha256:' + createHash('sha256').update(String(token)).digest('hex');
+}
+
 /**
  * Store a guest controller token
  * @param {string} token - The token value
@@ -2281,6 +2308,7 @@ function cleanupExpiredEncryptionKeys() {
  * @param {number} ttlSeconds - Time to live in seconds
  */
 function storeGuestToken(token, tokenType, swid, ttlSeconds) {
+    token = hashToken(token);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
     db.prepare(`
         INSERT INTO guest_controller_tokens (token, token_type, swid, expires_at)
@@ -2301,12 +2329,12 @@ function getGuestToken(token, type) {
     const row = db.prepare(`
         SELECT * FROM guest_controller_tokens 
         WHERE token = ? AND token_type = ? AND datetime(expires_at) > datetime('now')
-    `).get(token, type);
+    `).get(hashToken(token), type);
     
     if (!row) return null;
     
     return {
-        token: row.token,
+        token: token,
         tokenType: row.token_type,
         swid: row.swid,
         expiresAt: row.expires_at
@@ -2318,7 +2346,7 @@ function getGuestToken(token, type) {
  * @param {string} token - The token value
  */
 function deleteGuestToken(token) {
-    db.prepare('DELETE FROM guest_controller_tokens WHERE token = ?').run(token);
+    db.prepare('DELETE FROM guest_controller_tokens WHERE token = ?').run(hashToken(token));
 }
 
 /**

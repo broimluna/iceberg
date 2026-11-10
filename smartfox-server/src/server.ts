@@ -27,6 +27,9 @@ import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
 import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
+import { kickBanned, startBanWatch } from "./ban-watch.ts";
+import { closeOlderConnections } from "./single-session.ts";
+import { refreshAppearance } from "./appearance.ts";
 import { startPartyRefresh } from "./parties.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
@@ -207,14 +210,13 @@ const connectionHandler = (socket: net.Socket) => {
         continue;
       }
 
-      console.log(
-        `[${new Date().toISOString()}] ${peer} -> c=${controllerId} a=${actionId} p=${logSafe(
-          Object.fromEntries(Object.entries(params).map(([k, v]) => [k, describeValue(v)])), 600
-        )}`
-      );
-
       // One bad packet must not take the whole server down.
       try {
+        console.log(
+          `[${new Date().toISOString()}] ${peer} -> c=${controllerId} a=${actionId} p=${logSafe(
+            Object.fromEntries(Object.entries(params).map(([k, v]) => [k, describeValue(v)])), 600
+          )}`
+        );
         dispatch(controllerId, actionId, params);
       } catch (err) {
         console.log(
@@ -244,11 +246,16 @@ const connectionHandler = (socket: net.Socket) => {
       socket.once("close", () => loggedInCount--);
       clearTimeout(watchdog);
       watch(IDLE_TIMEOUT_MS, `nothing received for ${IDLE_TIMEOUT_MS} ms`, () => lastInbound + IDLE_TIMEOUT_MS - Date.now());
+      closeOlderConnections(session, peer);
       // Registered after login, once name, swid and room are known.
       register({ session, peer, send, close: () => socket.destroy() });
-      resolveIdentity(session, peer);
+      void refreshAppearance(session, send, "login");
+      resolveIdentity(session, peer, () => kickBanned({ session, peer, send, close: () => socket.destroy() }));
     } else if (controllerId === 0 && actionId === 29) {
       handlePingPong(ctx);
+    } else if (!loggedIn) {
+      // Handlers assume a session with a verified swid and a room.
+      console.log(`[${new Date().toISOString()}] ${peer} - c=${controllerId} a=${actionId} before login, ignored`);
     } else if (controllerId === 0 && actionId === 12) {
       handleSetUserVariables(params, ctx);
     } else if (controllerId === 1 && actionId === 13) {
@@ -377,5 +384,6 @@ export function startServer(): void {
     });
   }
   startNotifyListener();
+  startBanWatch();
   if (process.env.PARTY_REFRESH !== "off") startPartyRefresh();
 }

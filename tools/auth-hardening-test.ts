@@ -120,7 +120,7 @@ try {
   sql("INSERT INTO guest_controller_tokens (token, token_type, swid, expires_at) VALUES ('old-token', 'access', '{x}', datetime('now', '-1 hour'))");
   await api.restart({ ALLOW_SWID_AUTH: "1" });
   check(sql("SELECT 1 FROM guest_controller_api_keys WHERE api_key = ?", oldKey).length === 0, "expired API keys are purged");
-  check(sql("SELECT 1 FROM guest_controller_tokens WHERE token = 'old-token'").length === 0, "expired tokens are purged");
+  check(sql("SELECT 1 FROM guest_controller_tokens WHERE swid = '{x}'").length === 0, "expired tokens are purged");
 } finally {
   await api.stop();
 }

@@ -124,6 +124,11 @@ const GAME_API = /^\/(game|player|quest|reward|inventory|catalog|task|consumable
 // HttpBasicAuthorization): looking up other players' public data.
 const PUBLIC_GAME_API = /^\/player\/v1\/(name\/[^/]+|names|session\/[^/]+|id|id\/(?!online\/?$)[^/]+)\/?$/;
 
+/** Whether a request path belongs to the CPI game API (case-insensitive, like routing). */
+export function isGameApiPath(path: string): boolean {
+    return GAME_API.test(path.toLowerCase());
+}
+
 /**
  * Refuses the game API without a login: 401 {code: 3}, which makes the
  * client refresh its access token.

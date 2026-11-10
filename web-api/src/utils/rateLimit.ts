@@ -7,6 +7,7 @@
 // real address is that many entries from the right; anything further left
 // was written by the client and is ignored.
 import type { Request, Response, NextFunction } from "express";
+import { logSafe } from "./logSafe.ts";
 
 const MAX_TRACKED = 50_000;
 
@@ -32,7 +33,9 @@ function ipv6Prefix64(address: string): string {
     return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
 
-export function rateLimit(opts: { name: string; envVar: string; defaultLimit: number; windowMs: number; onLimited: (res: Response) => void }) {
+export function rateLimit(opts: { name: string; envVar: string; defaultLimit: number; windowMs: number; onLimited: (res: Response) => void;
+    /** What a request counts against (default: its address). null: this limit does not apply to it. */
+    keyOf?: (req: Request) => string | null }) {
     const fromEnv = process.env[opts.envVar];
     const limit = fromEnv === undefined || fromEnv === "" ? opts.defaultLimit : Number(fromEnv);
     // Insertion-ordered, so the first key is the oldest window.
@@ -46,7 +49,8 @@ export function rateLimit(opts: { name: string; envVar: string; defaultLimit: nu
     const middleware = (req: Request, res: Response, next: NextFunction) => {
         if (!(limit > 0)) return next();
         const now = Date.now();
-        const key = clientAddress(req);
+        const key = opts.keyOf ? opts.keyOf(req) : clientAddress(req);
+        if (key === null) return next();
         let entry = hits.get(key);
         if (!entry || entry.resetAt <= now) {
             hits.delete(key);
@@ -56,7 +60,7 @@ export function rateLimit(opts: { name: string; envVar: string; defaultLimit: nu
             hits.set(key, entry);
         }
         if (++entry.count > limit) {
-            console.log(`[RATE-LIMIT] ${opts.name}: ${key} over ${limit} per ${opts.windowMs / 1000}s`);
+            console.log(`[RATE-LIMIT] ${opts.name}: ${logSafe(key)} over ${limit} per ${opts.windowMs / 1000}s`);
             res.setHeader("Retry-After", String(Math.ceil((entry.resetAt - now) / 1000)));
             return opts.onLimited(res);
         }

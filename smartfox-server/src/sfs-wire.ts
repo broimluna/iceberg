@@ -196,7 +196,14 @@ export function decodePacketBody(
 
 // SFSObject binary layout: type(1) + count(2, BE) + count * [keyLen + key(utf8)
 // + type(1) + value]. keyLen is 2 bytes (BE) in SFS2X and 1 byte in SFS3.
-export function decodeSFSObject(buf: Buffer, offset: number, protocol: Protocol): { value: SFSObjectData; next: number } {
+//
+// Objects and arrays may nest MAX_NESTING deep. The client's deepest packet
+// is 5 levels (a user variable holding an object, inside the envelope);
+// without a limit, a packet of nothing but nested arrays (3 bytes a level)
+// overflows the stack here or in whatever walks the result afterwards.
+export const MAX_NESTING = 32;
+
+export function decodeSFSObject(buf: Buffer, offset: number, protocol: Protocol, depth = 0): { value: SFSObjectData; next: number } {
   let pos = offset;
   const type = buf[pos]!;
   pos += 1;
@@ -217,7 +224,7 @@ export function decodeSFSObject(buf: Buffer, offset: number, protocol: Protocol)
     }
     const key = buf.toString("utf8", pos, pos + keyLen);
     pos += keyLen;
-    const decoded = decodeValue(buf, pos, protocol);
+    const decoded = decodeValue(buf, pos, protocol, depth + 1);
     result[key] = decoded.value;
     pos = decoded.next;
   }
@@ -230,7 +237,8 @@ function readFloats(buf: Buffer, pos: number, count: number): number[] {
   return values;
 }
 
-function decodeValue(buf: Buffer, offset: number, protocol: Protocol): { value: SFSValue; next: number } {
+function decodeValue(buf: Buffer, offset: number, protocol: Protocol, depth: number): { value: SFSValue; next: number } {
+  if (depth > MAX_NESTING) throw new Error(`nested more than ${MAX_NESTING} deep at offset ${offset}`);
   let pos = offset;
   const type = buf[pos]! as SFSDataType;
   pos += 1;
@@ -266,7 +274,7 @@ function decodeValue(buf: Buffer, offset: number, protocol: Protocol): { value: 
       return { value: { type: SFSDataType.UTF_STRING, value: s }, next: pos + len };
     }
     case SFSDataType.SFS_OBJECT: {
-      const nested = decodeSFSObject(buf, pos - 1, protocol);
+      const nested = decodeSFSObject(buf, pos - 1, protocol, depth);
       return { value: { type, value: nested.value }, next: nested.next };
     }
     // FLOAT_ARRAY: count(2,BE) + count * float(4,BE), no per-element type tags.
@@ -292,7 +300,7 @@ function decodeValue(buf: Buffer, offset: number, protocol: Protocol): { value: 
       pos += 2;
       const items: SFSValue[] = [];
       for (let i = 0; i < count; i++) {
-        const decoded = decodeValue(buf, pos, protocol);
+        const decoded = decodeValue(buf, pos, protocol, depth + 1);
         items.push(decoded.value);
         pos = decoded.next;
       }

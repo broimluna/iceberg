@@ -43,6 +43,9 @@ export const MAX_CONNECTS_PER_IP_PER_MIN = Number(process.env.SFS_MAX_CONNECTS_P
 // nginx). For WebSocket connections from loopback, the per-address limits
 // then use the client address from X-Forwarded-For. 0 (default): off.
 export const TRUST_PROXY = Number(process.env.SFS_TRUST_PROXY ?? 0);
+// How often the web API is asked whether anyone online has been banned
+// since they logged in (ms). 0: only at login.
+export const BAN_RECHECK_MS = Number(process.env.SFS_BAN_RECHECK_MS ?? 60_000);
 // Development only: accept joinRoomData without a valid web API signature.
 export const ALLOW_UNSIGNED_LOGIN = process.env.SFS_ALLOW_UNSIGNED_LOGIN === "1";
 

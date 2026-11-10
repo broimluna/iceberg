@@ -254,7 +254,7 @@ function signedResponse(data, swid) {
 /**
  * SignedResponse for joinRoomData. The client passes it unchanged to the
  * SmartFox login, and SmartFox checks this signature (utils/joinSignature.ts)
- * before trusting the swid, sessionId and room in it.
+ * before trusting the swid, sessionId, room and userName in it.
  */
 function signedJoinResponse(joinRoomData, swid) {
     const goodUntil = Date.now() + 3600000; // 1 hour
@@ -262,7 +262,7 @@ function signedJoinResponse(joinRoomData, swid) {
         goodUntil,
         swid,
         data: joinRoomData,
-        signature: signJoin(swid, joinRoomData.sessionId, joinRoomData.room, goodUntil)
+        signature: signJoin(swid, joinRoomData.sessionId, joinRoomData.room, goodUntil, joinRoomData.userName)
     };
 }
 

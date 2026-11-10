@@ -9,10 +9,11 @@ import {
   type VariableKind,
 } from "../../sfs-wire.ts";
 import { getByRoomExcluding } from "../../session-registry.ts";
-import { extractRawJsonValue, fitsBytes, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
+import { extractRawJsonValue, fitsBytes, isOutfitJson, MAX_OUTFIT_BYTES } from "../../wire-helpers.ts";
 import { handleClientConChanged, type EquippedObject } from "../consumables.ts";
 import { onPlayerStateChanged } from "../../daily-tasks.ts";
 import type { HandlerContext } from "../context.ts";
+import { refreshAppearance, variableEntry } from "../../appearance.ts";
 
 // RequestType.SetUserVariables = 12. The request carries only "vl"; the
 // server broadcasts {u, vl} to everyone in the room, including the sender.
@@ -23,10 +24,14 @@ export function handleSetUserVariables(params: SFSObjectData, ctx: HandlerContex
   if (raw?.type === SFSDataType.SFS_ARRAY) {
     const accepted = raw.value.map((v) => neutralizeVariableType(v, ctx.session.protocol)).filter((v) => isClientVariable(v, ctx));
     if (accepted.length === 0) return;
+    const saved = { asked: false };
     const vl: SFSValue = {
       type: SFSDataType.SFS_ARRAY,
-      value: accepted.map((v) => unwrapSignedVariable(v, ctx)),
+      value: accepted.map((v) => unwrapSignedVariable(v, ctx, saved)).filter((v): v is SFSValue => v !== null),
     };
+    // A signed player's outfit, colour and tube come from the web API's record.
+    if (saved.asked) void refreshAppearance(ctx.session, ctx.send, "variable set by the client");
+    if (vl.value.length === 0) return;
     // While the server has "con_prop" set (a held tray or taken item), a
     // "con" change alone reads as a new PlayerHeldItem on every client,
     // the sender's included. handleClientConChanged sends the change
@@ -143,40 +148,41 @@ function neutralizeVariableType(v: SFSValue, protocol: Protocol): SFSValue {
   return { type: SFSDataType.SFS_ARRAY, value: items };
 }
 
-function variableEntry(name: string, kind: VariableKind, value: SFSValue): SFSValue {
-  return {
-    type: SFSDataType.SFS_ARRAY,
-    value: [
-      { type: SFSDataType.UTF_STRING, value: name },
-      { type: SFSDataType.VARIABLE_TYPE, value: kind },
-      value,
-      { type: SFSDataType.BOOL, value: false },
-    ],
-  };
-}
-
 // The client sets "colour", "tube" and "outfit" to a JSON SignedResponse
 // (Profile, EquipTubeResponse, PlayerOutfitDetails), but reads other
 // players' values as GetIntValue() for colour and tube, and as a bare
 // PlayerOutfitDetails for outfit. The server unwraps them before they go
 // out, and keeps them for the user-variable snapshot that late joiners get.
-function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
+// A colour, tube or outfit string that isn't that JSON is dropped (null):
+// relayed as it came, the rest of the room would be handed a string where
+// their clients read an int or parse an outfit.
+function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext, saved: { asked: boolean }): SFSValue | null {
   if (v.type !== SFSDataType.SFS_ARRAY) return v;
   const [name, , value] = v.value;
   if (name?.type !== SFSDataType.UTF_STRING || value?.type !== SFSDataType.UTF_STRING) return v;
   const json = value.value;
   const { session } = ctx;
+  const drop = () => {
+    console.log(`[${new Date().toISOString()}] ${ctx.peer} - user variable dropped (${name.value}: not the web API's JSON)`);
+    return null;
+  };
+  // For a signed login the client's value is not relayed at all: the web API
+  // has what is saved, and refreshAppearance shows that (appearance.ts).
+  if (session.signedLogin && (name.value === "colour" || name.value === "tube" || name.value === "outfit")) {
+    saved.asked = true;
+    return null;
+  }
   try {
     switch (name.value) {
       case "colour": {
         const colour = JSON.parse(json)?.data?.colour;
-        if (!Number.isInteger(colour)) return v;
+        if (!isInt32(colour)) return drop();
         session.colour = colour;
         return variableEntry("colour", "int", { type: SFSDataType.INT, value: colour });
       }
       case "tube": {
         const tubeId = JSON.parse(json)?.data?.tubeId;
-        if (!Number.isInteger(tubeId)) return v;
+        if (!isInt32(tubeId)) return drop();
         session.selectedTubeId = tubeId;
         return variableEntry("tube", "int", { type: SFSDataType.INT, value: tubeId });
       }
@@ -184,15 +190,15 @@ function unwrapSignedVariable(v: SFSValue, ctx: HandlerContext): SFSValue {
         // Kept as raw text: equipment ids and timestamps are 64-bit.
         JSON.parse(json);
         const outfit = extractRawJsonValue(json, "data");
-        // An oversized outfit isn't stored for late joiners; it passes
-        // through unchanged like any non-SignedResponse value.
-        if (!outfit?.startsWith("{") || !fitsBytes(outfit, MAX_OUTFIT_BYTES)) return v;
+        if (!isOutfitJson(outfit)) return drop();
         session.outfitJson = outfit;
         return variableEntry("outfit", "string", { type: SFSDataType.UTF_STRING, value: outfit });
       }
     }
   } catch {
-    // Not a SignedResponse; pass it through unchanged.
+    return drop();
   }
   return v;
 }
+
+const isInt32 = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= -0x80000000 && (n as number) <= 0x7fffffff;

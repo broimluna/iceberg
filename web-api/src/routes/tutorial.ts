@@ -10,6 +10,7 @@
 import express from "express";
 const router = express.Router();
 import * as db from "../database.ts";
+import { logSafe } from "../utils/logSafe.ts";
 
 /**
  * POST /tutorial/v1/tutorial
@@ -22,9 +23,9 @@ router.post('/tutorial/v1/tutorial', (req, res) => {
     const { swid, username } = req.player;
     const tutorial = req.body;
     
-    console.log(`[TUTORIAL] ${username} setting tutorial state:`, tutorial);
+    console.log(`[TUTORIAL] ${username} setting tutorial state: ${logSafe(tutorial)}`);
     
-    if (tutorial.tutorialID !== undefined && tutorial.isComplete) {
+    if (Number.isInteger(tutorial?.tutorialID) && tutorial.tutorialID >= 0 && tutorial.isComplete) {
         if (db.completeTutorial) {
             db.completeTutorial(username, tutorial.tutorialID);
         }

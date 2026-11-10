@@ -9,12 +9,15 @@ import { logUrl } from "./utils/logSafe.ts";
 import express from "express";
 import * as db from "./database.ts";
 import config from "./config.ts";
-import { logger, errorHandler, notFoundHandler, authenticate, requireGameLogin } from "./middleware/index.ts";
+import { logger, errorHandler, notFoundHandler, authenticate, requireGameLogin, isGameApiPath } from "./middleware/index.ts";
+import { rateLimit, clientAddress } from "./utils/rateLimit.ts";
 import * as routes from "./routes/index.ts";
 import { encryptionMiddleware } from "./routes/encryption.ts";
 import { incrementTask as incrementDailyTask } from "./routes/task.ts";
 import { effectiveRole, isStaffAdmin, isStaffRole } from "./utils/staffRoles.ts";
 import { isInternalRequest } from "./utils/internalSecret.ts";
+import { isBanned } from "./services/moderation.ts";
+import { appearanceOf } from "./utils/appearance.ts";
 
 // Initialize Express app
 const app = express();
@@ -37,11 +40,32 @@ app.use((req, res, next) => {
 });
 
 // Capture raw body for encrypted requests (before JSON parsing)
+// The header alone selects this path (before any login), so the body is
+// bounded: the client's encrypted calls are small JSON documents.
+const MAX_ENCRYPTED_BODY_BYTES = 1024 * 1024;
 app.use((req, res, next) => {
     if (req.headers['x-encryption-key-id']) {
+        const tooLarge = () => {
+            console.log(`[HTTP] ${logUrl(req.url)}: encrypted body over ${MAX_ENCRYPTED_BODY_BYTES} bytes, refused`);
+            res.set('Connection', 'close').status(413).json({ error: 'Request body too large' });
+        };
+        if (Number(req.headers['content-length']) > MAX_ENCRYPTED_BODY_BYTES) return tooLarge();
         let chunks: Buffer[] = [];
-        req.on('data', chunk => chunks.push(chunk));
+        let size = 0;
+        let refused = false;
+        req.on('data', chunk => {
+            if (refused) return;
+            size += chunk.length;
+            if (size > MAX_ENCRYPTED_BODY_BYTES) {
+                refused = true;
+                chunks = [];
+                tooLarge();
+                return;
+            }
+            chunks.push(chunk);
+        });
         req.on('end', () => {
+            if (refused) return;
             (req as any).rawBody = Buffer.concat(chunks);
             next();
         });
@@ -92,9 +116,23 @@ app.use(express.raw({ type: 'application/mix', limit: '10mb' }));
 // Request logging
 app.use(logger);
 
+// Game API call limits. Both are far above what the client does (a room
+// load makes a few dozen calls) and only stop a script. Per address first,
+// so a flood of bad tokens is cut off before it costs lookups; then per
+// account, so one account can't use up the server. 0 turns either off.
+const tooManyRequests = (res: express.Response) => { res.status(429).json({ error: 'Too many requests' }); };
+app.use(rateLimit({
+    name: 'game-api/address', envVar: 'GAME_API_PER_IP_PER_MIN', defaultLimit: 1500, windowMs: 60_000, onLimited: tooManyRequests,
+    keyOf: (req) => isGameApiPath(req.path) ? clientAddress(req) : null,
+}));
+
 // Authentication - extracts player identity from Basic Auth headers
 app.use(authenticate);
 app.use(requireGameLogin);
+app.use(rateLimit({
+    name: 'game-api/account', envVar: 'GAME_API_PER_ACCOUNT_PER_MIN', defaultLimit: 600, windowMs: 60_000, onLimited: tooManyRequests,
+    keyOf: (req) => isGameApiPath(req.path) && (req as any).player?.isAuthenticated ? `acct:${(req as any).player.swid}` : null,
+}));
 
 // Encryption middleware - handles encrypted CP API requests
 app.use(encryptionMiddleware);
@@ -198,7 +236,8 @@ app.post('/api/internal/task-increment', express.json(), (req, res) => {
 /**
  * POST /api/internal/identity
  * The game server resolves the account and staff role behind a login's
- * signed swid. Body: { swid }. Returns { username, role }.
+ * signed swid. Body: { swid }. Returns { username, role, banned }; a
+ * banned account's connection is closed by the game server.
  */
 app.post('/api/internal/identity', express.json(), (req, res) => {
     if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
@@ -206,7 +245,37 @@ app.post('/api/internal/identity', express.json(), (req, res) => {
     if (typeof swid !== 'string') return res.status(400).json({ error: 'Missing or invalid swid' });
     const row = db.getPlayerIdentityAndRole(swid);
     if (!row) return res.status(404).json({ error: 'Unknown swid' });
-    res.json({ username: row.username, role: effectiveRole(row.username, row.role) });
+    res.json({ username: row.username, role: effectiveRole(row.username, row.role), banned: !!isBanned(swid) });
+});
+
+/**
+ * POST /api/internal/appearance
+ * The game server checks what a client says it looks like (colour, tube,
+ * outfit) against what is saved for the account. Body: { swid }. Returns
+ * { colour, tubeId, parts }, the worn items in the outfit endpoint's shape.
+ */
+app.post('/api/internal/appearance', express.json(), (req, res) => {
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
+    const swid = req.body?.swid;
+    if (typeof swid !== 'string') return res.status(400).json({ error: 'Missing or invalid swid' });
+    const row = db.getPlayerIdentityAndRole(swid);
+    if (!row) return res.status(404).json({ error: 'Unknown swid' });
+    res.json(appearanceOf(row.username));
+});
+
+/**
+ * POST /api/internal/banned
+ * The game server's periodic check of who is online, so a ban reaches a
+ * player who is already connected. Body: { swids }. Returns { banned },
+ * the swids among them with an active ban or lock.
+ */
+app.post('/api/internal/banned', express.json({ limit: '1mb' }), (req, res) => {
+    if (!isInternalRequest(req)) return res.status(403).json({ error: 'Forbidden' });
+    const swids = req.body?.swids;
+    if (!Array.isArray(swids) || swids.length > 10000 || !swids.every((s) => typeof s === 'string')) {
+        return res.status(400).json({ error: 'Missing or invalid swids' });
+    }
+    res.json({ banned: swids.filter((s) => isBanned(s)) });
 });
 
 /**

@@ -17,6 +17,11 @@ export function register(entry: RegisteredSession): void {
   byUserId.set(entry.session.userId, entry);
 }
 
+/** Whether this session is still connected and registered (not closed while a request was in flight). */
+export function isRegistered(session: Session): boolean {
+  return byUserId.get(session.userId)?.session === session;
+}
+
 export function unregister(session: Session): void {
   byUserId.delete(session.userId);
 }
