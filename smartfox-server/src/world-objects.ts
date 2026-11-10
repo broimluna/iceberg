@@ -25,6 +25,7 @@
 import { SFSObjectWriter, SFSArrayWriter, encodePacket } from "./sfs-wire.ts";
 import { getByRoom } from "./session-registry.ts";
 import { zoneOfRoom } from "./scene-switches.ts";
+import { activePartyNames } from "./parties.ts";
 import { contentDateOf, scheduledGroups, type GroupData, type Vec3 } from "./world-data.ts";
 import { createPicker } from "./selection.ts";
 import type { HandlerContext } from "./handlers/context.ts";
@@ -175,7 +176,7 @@ export function ensureRoomWorldObjects(roomName: string): RoomState {
   if (existing) return existing;
   const state: RoomState = { items: new Map(), timers: new Set() };
   rooms.set(roomName, state);
-  for (const group of scheduledGroups(zoneOfRoom(roomName), contentDateOf(roomName))) startGroup(roomName, state, group);
+  for (const group of scheduledGroups(zoneOfRoom(roomName), contentDateOf(roomName), activePartyNames())) startGroup(roomName, state, group);
   if (state.items.size > 0) {
     console.log(`[${new Date().toISOString()}] world objects initialized for room "${roomName}" (${state.items.size} items)`);
   }

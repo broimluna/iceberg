@@ -160,3 +160,56 @@ export async function incrementTask(username: string, taskId: string, times: num
     return null;
   }
 }
+
+// Party state kept by the web API (calendar plus admin override).
+export interface PartyState {
+  mode: "auto" | "party" | "none";
+  party: string | null;
+  active: string[];
+}
+
+function asPartyState(v: unknown): PartyState | null {
+  const b = v as Partial<PartyState> | null;
+  if (!b || typeof b !== "object") return null;
+  if (b.mode !== "auto" && b.mode !== "party" && b.mode !== "none") return null;
+  if (b.party !== null && typeof b.party !== "string") return null;
+  if (!Array.isArray(b.active) || !b.active.every((k) => typeof k === "string")) return null;
+  return { mode: b.mode, party: b.party, active: b.active };
+}
+
+export async function fetchParty(): Promise<PartyState | null> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/party`, { headers: internalHeaders(), signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    return asPartyState(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+export type PartyOverrideResult =
+  | { ok: true; state: PartyState }
+  | { ok: false; reason: "unknown-party" | "bad-mode" | "error"; valid?: string[] };
+
+export async function setPartyOverride(body: { mode: string; party?: string; setBy: string }): Promise<PartyOverrideResult> {
+  try {
+    const res = await fetch(`${WEBAPI_INTERNAL_URL}/api/internal/party-override`, {
+      method: "POST",
+      headers: internalHeaders(),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    const json = (await res.json().catch(() => null)) as { error?: string; valid?: unknown } | null;
+    if (res.ok) {
+      const state = asPartyState(json);
+      return state ? { ok: true, state } : { ok: false, reason: "error" };
+    }
+    if (res.status === 400 && json?.error === "unknown party") {
+      return { ok: false, reason: "unknown-party", valid: Array.isArray(json.valid) ? json.valid.filter((v): v is string => typeof v === "string") : undefined };
+    }
+    if (res.status === 400 && json?.error === "bad mode") return { ok: false, reason: "bad-mode" };
+    return { ok: false, reason: "error" };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+}

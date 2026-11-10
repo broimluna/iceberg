@@ -27,6 +27,7 @@ import { PendingPool } from "./pending-pool.ts";
 import { register, unregister } from "./session-registry.ts";
 import { resolveIdentity } from "./account.ts";
 import { startNotifyListener } from "./notify-listener.ts";
+import { startPartyRefresh } from "./parties.ts";
 import { reportSessionEnded } from "./webapi-client.ts";
 import { broadcastUserLeftRoom } from "./handlers/proximity.ts";
 import { onPlayerLeft } from "./daily-tasks.ts";
@@ -376,4 +377,5 @@ export function startServer(): void {
     });
   }
   startNotifyListener();
+  if (process.env.PARTY_REFRESH !== "off") startPartyRefresh();
 }

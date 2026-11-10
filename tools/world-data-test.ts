@@ -44,6 +44,27 @@ check(scheduledGroups("Boardwalk", "2026-11-01").length === 0 && scheduledGroups
 loadWorldData();
 check(scheduledGroups("Boardwalk").length === 1, "the default reload restores the shipped data");
 
+// ---- party-gated entries ----
+const grp = (extra: object) => ({ path: "/G", behaviour: "ordered", cycleSeconds: 5, children: [{ path: "/G/a", position: [0, 0, 0] }], ...extra });
+const partied = bad("parties", JSON.stringify({
+  scheduledWorldObjects: { Boardwalk: [grp({ parties: ["halloween2026"] })], Town: [grp({ parties: ["halloween2026"], activeDates: { start: "2026-10-01", end: "2026-10-31" } })] },
+  islandTargets: {},
+}));
+loadWorldData(partied);
+check(scheduledGroups("Boardwalk", undefined, ["halloween2026"]).length === 1 && scheduledGroups("Boardwalk", undefined, ["x", "halloween2026"]).length === 1, "a party entry runs while its party is active");
+check(scheduledGroups("Boardwalk").length === 0 && scheduledGroups("Boardwalk", undefined, []).length === 0 && scheduledGroups("Boardwalk", undefined, ["halloween2018"]).length === 0, "and not with no or other parties");
+check(scheduledGroups("Town", "2026-10-15", ["halloween2026"]).length === 1, "party plus dates: both match");
+check(scheduledGroups("Town", "2026-11-15", ["halloween2026"]).length === 0 && scheduledGroups("Town", "2026-10-15", []).length === 0, "party plus dates: either missing is off");
+for (const badParties of [[], ["Bad"], "halloween2026"]) {
+  logged.length = 0;
+  console.log = (...a: unknown[]) => { const line = a.join(" "); if (line.includes("[WORLD]")) logged.push(line); else quiet(...a); };
+  loadWorldData(bad("bp", JSON.stringify({ scheduledWorldObjects: { Boardwalk: [grp({ parties: badParties })] }, islandTargets: {} })));
+  console.log = quiet;
+  check(scheduledGroups("Boardwalk", undefined, ["halloween2026"]).length === 0 && logged.some((l) => l.includes("bad parties")), `parties ${JSON.stringify(badParties)} dropped as bad parties`);
+}
+loadWorldData();
+check(scheduledGroups("Boardwalk").length === 1, "shipped data without parties is unaffected");
+
 // ---- bad entries inside a good file are dropped, the rest kept ----
 const shipped = JSON.parse(await Bun.file(new URL("../smartfox-server/data/world-objects.json", import.meta.url)).text());
 const goodGroup = shipped.scheduledWorldObjects.Boardwalk[0];

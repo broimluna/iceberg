@@ -4,7 +4,9 @@
 // running with no world objects or targets.
 //
 // Any zone entry may carry activeDates {start, end} (inclusive YYYY-MM-DD),
-// matched against the room's content date. Entries without one always run.
+// matched against the room's content date, and/or parties (names, e.g.
+// "halloween2026"): it runs only while one of them is active. Entries
+// without either always run.
 import { readFileSync } from "node:fs";
 
 export type Vec3 = [number, number, number];
@@ -18,6 +20,7 @@ export interface GroupData {
   cycleSeconds: number;
   children: { path: string; position: Vec3 }[];
   activeDates?: ActiveDates;
+  parties?: string[];
 }
 
 export interface TargetData {
@@ -46,6 +49,7 @@ export interface PlaygroundData {
   rewardsVolume: { center: Vec3; radius: number };
   supersets: SupersetData[];
   activeDates?: ActiveDates;
+  parties?: string[];
 }
 
 interface WorldData {
@@ -69,7 +73,14 @@ function badDates(e: Record<string, unknown>): string | undefined {
   if (e.activeDates === undefined) return undefined;
   const d = e.activeDates;
   const day = (x: unknown) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
-  return isRecord(d) && day(d.start) && day(d.end) ? undefined : "bad activeDates";
+  if (!(isRecord(d) && day(d.start) && day(d.end))) return "bad activeDates";
+  return undefined;
+}
+
+function badParties(e: Record<string, unknown>): string | undefined {
+  if (e.parties === undefined) return undefined;
+  const p = e.parties;
+  return Array.isArray(p) && p.length >= 1 && p.length <= 20 && p.every((x) => typeof x === "string" && /^[a-z0-9]+$/.test(x)) ? undefined : "bad parties";
 }
 
 function badGroup(g: unknown): string | undefined {
@@ -78,7 +89,7 @@ function badGroup(g: unknown): string | undefined {
   if (!positive(g.cycleSeconds)) return "cycleSeconds not positive";
   if (!Array.isArray(g.children) || g.children.length === 0) return "no children";
   if (!g.children.every((c) => isRecord(c) && typeof c.path === "string" && isVec3(c.position))) return "bad child";
-  return badDates(g);
+  return badDates(g) ?? badParties(g);
 }
 
 function badTarget(t: unknown): string | undefined {
@@ -108,7 +119,7 @@ function badPlayground(p: unknown): string | undefined {
       }
     }
   }
-  return badDates(p);
+  return badDates(p) ?? badParties(p);
 }
 
 function keepGood<T>(section: string, zones: Record<string, unknown>, bad: (e: unknown) => string | undefined): Record<string, T[]> {
@@ -143,17 +154,18 @@ export function loadWorldData(path: string | URL = DEFAULT_PATH): void {
   }
 }
 
-function active(entry: { activeDates?: ActiveDates }, date: string | undefined): boolean {
+function active(entry: { activeDates?: ActiveDates; parties?: string[] }, date: string | undefined, parties: readonly string[]): boolean {
+  if (entry.parties && !entry.parties.some((p) => parties.includes(p))) return false;
   if (!entry.activeDates) return true;
   return date !== undefined && entry.activeDates.start <= date && date <= entry.activeDates.end;
 }
 
-export function scheduledGroups(zone: string, contentDate?: string): GroupData[] {
-  return (data.scheduledWorldObjects[zone] ?? []).filter((g) => active(g, contentDate));
+export function scheduledGroups(zone: string, contentDate?: string, parties: readonly string[] = []): GroupData[] {
+  return (data.scheduledWorldObjects[zone] ?? []).filter((g) => active(g, contentDate, parties));
 }
 
-export function playgrounds(zone: string, contentDate?: string): PlaygroundData[] {
-  return (data.islandTargets[zone] ?? []).filter((p) => active(p, contentDate));
+export function playgrounds(zone: string, contentDate?: string, parties: readonly string[] = []): PlaygroundData[] {
+  return (data.islandTargets[zone] ?? []).filter((p) => active(p, contentDate, parties));
 }
 
 // Room names are world:language:zone::<version;mode;YYYY-MM-DD;...>.

@@ -22,6 +22,7 @@ import { zoneOfRoom } from "../scene-switches.ts";
 import { withAccount } from "../account.ts";
 import { grantReward, type RewardGrant } from "../webapi-client.ts";
 import { addRoomItem, removeRoomItem, setRoomItemVar, type RoomItem } from "../party-games/room-items.ts";
+import { activePartyNames } from "../parties.ts";
 import { contentDateOf, playgrounds, type PlaygroundData, type SupersetData, type TargetData, type Vec3 } from "../world-data.ts";
 import { createPicker } from "../selection.ts";
 import type { Session } from "../session.ts";
@@ -130,7 +131,7 @@ export function ensureRoomPlaygrounds(roomName: string): void {
   if (rooms.has(roomName)) return;
   const list: Playground[] = [];
   rooms.set(roomName, list);
-  for (const data of playgrounds(zoneOfRoom(roomName), contentDateOf(roomName))) {
+  for (const data of playgrounds(zoneOfRoom(roomName), contentDateOf(roomName), activePartyNames())) {
     const stats = addRoomItem(roomName, data.position, {
       category: int(CATEGORY_STATS), creator: int(0), path: str(data.path), int_a: int(0), actioncount: int(0),
     });
