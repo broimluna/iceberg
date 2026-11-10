@@ -225,6 +225,14 @@ Base URI configuration key: `cp-api-base-uri`
 | `GET` | `/event/v1/cfc` | `GetCFCDonationsOperation` | Get CFC (Coins for Change) donations |
 | `POST` | `/event/v1/cfc/{coins}` | `PostCFCDonationOperation` | Make CFC donation |
 
+### Party Schedule
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/cdn/party-schedule.json` | Public, no auth, `Cache-Control: public, max-age=60`. `{ version: 1, mode: "auto" \| "party" \| "none", party: "<id>\|<name>" \| null, calendar: [{ id, name, start: "MM-DD", end: "MM-DD", calendar }], serverTime }`. `start` is inclusive and `end` exclusive (00:00 UTC); `end` before `start` wraps past the new year; `calendar: false` entries never run by date. In `party` mode `party` is the stored key even if a later calendar edit removed it. |
+| `GET` | `/api/internal/party` | Internal secret only. `{ mode, party, active: [key] }`. |
+| `POST` | `/api/internal/party-override` | Internal secret only. Body `{ mode: "auto" \| "party" \| "none", party?, setBy? }`; `party` takes a key, name or id. Returns the same shape as the GET. 400 `bad mode`, or 400 `unknown party` with `valid` (names). |
+
 ### Encryption Endpoints
 
 | Method | Path | Operation | Description |

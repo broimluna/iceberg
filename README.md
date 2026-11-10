@@ -70,6 +70,9 @@ variables.
   pays everyone in the reward zone who hit and keeps the room's win streak.
   The hit check is deliberately lenient and logs every throw (`[TARGETS]`)
   until a live test tunes it.
+- Party rotation: the web API keeps a yearly party calendar and an admin
+  override (`:admin-party`), publishes it at `/cdn/party-schedule.json`, and
+  the game server gates world data on it. Clients need a patch to follow it.
 - Fish Bucket ("Ink or Swim"), the last party game: 2 to 4 players, a
   server-owned deck and turns. How the retail client's Fish and Start
   buttons reach a server is unconfirmed, so idle turns are dealt a card and

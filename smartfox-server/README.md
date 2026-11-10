@@ -116,6 +116,7 @@ API signed get a role, so `SFS_ALLOW_UNSIGNED_LOGIN` never grants one.
 | `:ai <type> <id> [user]` | admin | Gives an item: `equipment`, `durable`, `tube`, `decal`, `fabric`, `emote` or `colour`. |
 | `:admin-alert <text>` | admin | Message to everyone: a popup on OpenCPI clients, a chat bubble on SFS2X clients. |
 | `:admin-swre-restart [seconds]` / `:admin-swre-restart cancel` | admin | Counts down (default 30 s, up to a day), announcing each minute and at 30, 10 and 3 seconds, then restarts. |
+| `:admin-party [<party>\|auto\|none]` | admin | Shows or sets the party. A name, id or `id\|name` forces that party until cleared; `auto` follows the yearly calendar; `none` turns parties off. World data entries with `parties` follow it the next time a room is created. |
 | `:promote <user> moderator\|admin` / `:demote <user>` | admin | Changes a role; works for offline players. |
 
 `[user]` defaults to yourself. Names can be typed in any case when only
