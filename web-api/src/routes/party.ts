@@ -9,17 +9,26 @@ import express from "express";
 import { isInternalRequest } from "../utils/internalSecret.ts";
 import { logSafe } from "../utils/logSafe.ts";
 import {
-    calendar, keyOf, resolveParty, activeParties, getOverride, setOverride, type PartyMode, type PartyOverride,
+    calendar, keyOf, resolveParty, activeParties, type PartyMode, type PartyOverride,
 } from "../services/parties.ts";
+import { getOverride, setOverride } from "../services/partyOverride.ts";
 
 const router = express.Router();
 
+// The stored party no longer in the calendar: nothing is active; said once per key.
+let warnedUnknown: string | undefined;
+
 const state = () => {
     const ov = getOverride();
+    const active = activeParties(calendar(), ov, new Date()).map(keyOf);
+    if (ov.mode === "party" && active.length === 0 && ov.party !== warnedUnknown) {
+        warnedUnknown = ov.party;
+        console.log(`[${new Date().toISOString()}] [PARTY] override names unknown party ${logSafe(ov.party ?? "-", 64)}; nothing active`);
+    }
     return {
         mode: ov.mode,
         party: ov.mode === "party" ? ov.party ?? null : null,
-        active: activeParties(calendar(), ov, new Date()).map(keyOf),
+        active,
     };
 };
 

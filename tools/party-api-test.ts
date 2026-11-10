@@ -57,6 +57,9 @@ try {
   check(j.active.length === 0, "removed party: nothing active");
   j = await (await get("/cdn/party-schedule.json")).json();
   check(j.mode === "party" && j.party === "99|gone", "removed party: public JSON keeps the stored key");
+  await get("/api/internal/party", internal()); await get("/api/internal/party", internal());
+  const warned = api.logs().split("\n").filter((l) => l.includes("[PARTY] override names unknown party 99|gone"));
+  check(warned.length === 1, `removed party: logged once (${warned.length})`);
 
   check((await get("/__mapping_cpremix_prod.json")).status === 404, "CDN mapping file stays a 404");
 } finally {

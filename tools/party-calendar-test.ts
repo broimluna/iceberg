@@ -61,4 +61,8 @@ const b = loadCalendar(p);
 console.log = origLog;
 check(a.length === 0 && b.length === 0, "unreadable or invalid file gives []");
 
+// the pure rules must not pull in the database
+const src = await Bun.file(new URL("../web-api/src/services/parties.ts", import.meta.url)).text();
+check(!/database/.test(src), "services/parties.ts has no database import");
+
 finish();
